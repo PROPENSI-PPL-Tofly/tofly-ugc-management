@@ -6,7 +6,12 @@ import type { InvoiceStatus } from './invoice-status.js';
  * call a running invoice accruing; see InvoiceState.pipelineStatus.
  */
 export type InvoiceLifecycleStatus =
-  'running' | 'finalized' | 'creator_acked' | 'payment_uploaded' | 'paid';
+  | 'running'
+  | 'finalized'
+  | 'creator_acked'
+  | 'payment_uploaded'
+  | 'paid'
+  | 'cancelled';
 
 /** Lifecycle policy resolved from the status read from the database (State pattern). */
 export interface InvoiceState {
@@ -24,6 +29,8 @@ export interface InvoiceState {
   assertCanChangeLinks(): void;
   /** A scheduled content is edited or deleted (PBI-25 AC 9). */
   assertCanChangeSchedule(): void;
+  /** An early end cancels the invoice instead of paying it (PBI-37). */
+  assertCanCancel(): void;
 }
 
 /** Why a proof is refused: the invoice is not waiting for one. */
@@ -58,6 +65,10 @@ function proofNotUploaded(): ConflictException {
   );
 }
 
+function cancelled(): ConflictException {
+  return refused('INVOICE_CANCELLED', 'Invoice sudah dibatalkan');
+}
+
 function alreadyPaid(): ConflictException {
   return refused('INVOICE_ALREADY_PAID', 'Invoice sudah dibayar');
 }
@@ -84,6 +95,8 @@ export class RunningInvoiceState implements InvoiceState {
   assertCanChangeLinks(): void {}
 
   assertCanChangeSchedule(): void {}
+
+  assertCanCancel(): void {}
 }
 
 /**
@@ -128,6 +141,11 @@ abstract class FrozenInvoiceState implements InvoiceState {
       'INVOICE_FINALIZED',
       'Invoice sudah difinalisasi. Konten tidak bisa diubah atau dihapus lagi',
     );
+  }
+
+  /** A frozen amount is settled by paying it; only a running invoice can still be cancelled. */
+  assertCanCancel(): never {
+    throw this.finalized();
   }
 
   private finalized(): ConflictException {
@@ -175,6 +193,46 @@ export class PaidInvoiceState extends FrozenInvoiceState {
   }
 }
 
+/**
+ * PBI-37: cancelled when the contract was ended early. It is never paid and never opens again,
+ * so every move is refused with the one reason, the adjustment that would change it included.
+ */
+export class CancelledInvoiceState implements InvoiceState {
+  readonly pipelineStatus = 'cancelled';
+
+  assertCanAdjust(): never {
+    throw cancelled();
+  }
+
+  assertCanFinalize(): never {
+    throw cancelled();
+  }
+
+  assertCanUploadProof(): never {
+    throw cancelled();
+  }
+
+  assertCanAcknowledge(): never {
+    throw cancelled();
+  }
+
+  assertCanConfirmReceipt(): never {
+    throw cancelled();
+  }
+
+  assertCanChangeLinks(): never {
+    throw cancelled();
+  }
+
+  assertCanChangeSchedule(): never {
+    throw cancelled();
+  }
+
+  assertCanCancel(): never {
+    throw cancelled();
+  }
+}
+
 export function invoiceState(status: InvoiceLifecycleStatus): InvoiceState {
   switch (status) {
     case 'running':
@@ -187,6 +245,8 @@ export function invoiceState(status: InvoiceLifecycleStatus): InvoiceState {
       return new PaymentUploadedInvoiceState();
     case 'paid':
       return new PaidInvoiceState();
+    case 'cancelled':
+      return new CancelledInvoiceState();
     default:
       throw new Error('Unsupported invoice status');
   }

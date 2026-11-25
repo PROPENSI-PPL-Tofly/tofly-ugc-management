@@ -126,9 +126,40 @@ describe("toCreatorInvoices", () => {
   });
 });
 
+// OWASP A01: GET /me/invoices sends no early-end reason or note (37.1). Should one ever arrive,
+// the creator's model is built field by field, so it never carries them to the page. Hiding it
+// here is not the access control: the backend not sending it is.
+describe("toCreatorInvoices, given admin-only early-end fields", () => {
+  it("drops the reason and the note an answer should never have carried", () => {
+    const leaky = {
+      ...RAW_MY_RUNNING,
+      invoiceStatus: "cancelled",
+      earlyEnd: { reason: "fraud", note: "Catatan admin rahasia" },
+      contract: {
+        ...RAW_MY_RUNNING.contract,
+        earlyEnd: { originalEndDate: "2026-12-31", reason: "fraud", note: "Catatan admin rahasia" },
+        earlyEndReason: "fraud",
+      },
+    } as unknown as RawCreatorInvoice;
+
+    const read = JSON.stringify(only(leaky));
+
+    expect(read).not.toContain("fraud");
+    expect(read).not.toContain("Catatan admin rahasia");
+    expect(read).not.toContain("2026-12-31");
+  });
+});
+
 describe("isRawCreatorInvoices", () => {
   it("accepts the answer the page reads", () => {
     expect(isRawCreatorInvoices({ items: [RAW_MY_RUNNING, RAW_MY_PAID] })).toBe(true);
+  });
+
+  // OWASP A10: before 37.3 one cancelled invoice made the whole Pembayaran page a failed load.
+  it("accepts an invoice an early end cancelled", () => {
+    expect(isRawCreatorInvoices({ items: [RAW_MY_PAID, { ...RAW_MY_RUNNING, invoiceStatus: "cancelled" }] })).toBe(
+      true,
+    );
   });
 
   it("accepts a creator with no invoices yet", () => {

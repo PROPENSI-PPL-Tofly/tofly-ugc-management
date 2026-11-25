@@ -8,6 +8,8 @@ describe('INVOICE_STATUSES', () => {
       'creator_acked',
       'payment_uploaded',
       'paid',
+      // PBI-37: off the pipeline, last, so the walk above stays in order.
+      'cancelled',
     ]);
   });
 });

@@ -53,6 +53,7 @@ function row(overrides: Partial<ContentDetailRow> = {}): ContentDetailRow {
     brief: '',
     deadline: DEADLINE,
     status: 'scheduled',
+    closed_at: null,
     content_links: [],
     video_submitted_at: null,
     approval_bypassed: false,
@@ -1359,5 +1360,30 @@ describe('toContentDetail with a stored history', () => {
         actor: { name: null, role: 'admin' },
       }),
     ]);
+  });
+});
+
+// PBI-37 (AC 7): content an early end closed shows "Ditutup" and cannot be worked on.
+describe('toContentDetail, a closed content', () => {
+  const CLOSED = new Date('2026-09-25T03:00:00.000Z');
+
+  it('says when it was closed, and null while it is open', () => {
+    expect(toContentDetail(row({ closed_at: CLOSED }), on('2026-10-05')).closedAt).toBe(
+      '2026-09-25T03:00:00.000Z',
+    );
+    expect(toContentDetail(row(), on('2026-09-20')).closedAt).toBeNull();
+  });
+
+  it('offers the creator nothing to do and flags nothing overdue', () => {
+    const detail = toContentDetail(row({ closed_at: CLOSED }), on('2026-10-05'));
+
+    expect(detail.creatorActions).toEqual([]);
+    expect(detail.tags).toEqual([]);
+  });
+
+  it('gives an admin no edit window', () => {
+    expect(
+      toContentDetail(row({ closed_at: CLOSED }), on('2026-09-21'), { bufferDays: 5 }).edit,
+    ).toBeNull();
   });
 });

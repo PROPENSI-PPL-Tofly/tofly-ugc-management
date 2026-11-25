@@ -7,7 +7,7 @@
 // creator reads exactly what the admin froze.
 
 import type { AdjustmentLine } from "./invoice-adjustment";
-import type { InvoiceStatus } from "./invoice";
+import { INVOICE_STATUS_LABELS, type InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
 import { formatDate, formatRupiah, jakartaDay } from "./format";
 import type { Role } from "./session";
@@ -37,8 +37,11 @@ export interface InvoiceComment {
   createdAt: string;
 }
 
-/** The steps past Berjalan, each dated when the invoice reached it. */
-export type ReachedAt = Record<Exclude<InvoiceStatus, "accruing">, string | null>;
+/**
+ * The steps past Berjalan, each dated when the invoice reached it. Cancelled is not a step: an
+ * early end takes the invoice off the pipeline, and the API dates no such move (PBI-37).
+ */
+export type ReachedAt = Record<Exclude<InvoiceStatus, "accruing" | "cancelled">, string | null>;
 
 /** One of the creator's invoices, one per contract. */
 export interface CreatorInvoice {
@@ -79,6 +82,15 @@ export class CreatorInvoicesError extends Error {
   }
 }
 
+/**
+ * Each status as the creator reads it: the admin table's words, except an invoice an early end
+ * cancelled, which the creator reads as "Dibatalkan" rather than the internal "Cancelled" (PBI-37).
+ */
+export const CREATOR_INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  ...INVOICE_STATUS_LABELS,
+  cancelled: "Dibatalkan",
+};
+
 /** The total's name as the prototype gives it to a creator: an estimate until it is frozen. */
 export function totalLabel(status: InvoiceStatus): string {
   if (status === "accruing") return "Estimasi Pendapatan";
@@ -101,7 +113,7 @@ export function totalNote(status: InvoiceStatus): string | null {
 }
 
 /** The pipeline in the order it walks, with the tracker's words for each step. */
-const STEPS: readonly { status: InvoiceStatus; label: string }[] = [
+const STEPS: readonly { status: Exclude<InvoiceStatus, "cancelled">; label: string }[] = [
   { status: "accruing", label: "Berjalan" },
   { status: "finalized", label: "Final" },
   { status: "creator_acked", label: "Di-ack Creator" },
@@ -141,7 +153,8 @@ export function invoiceSteps(invoice: CreatorInvoice): InvoiceStep[] {
   return STEPS.map((step, index) => {
     let state: StepState = "todo";
     if (index <= reached) state = "done";
-    else if (index === reached + 1) state = "current";
+    // A cancelled invoice is off the pipeline, so it waits on no step.
+    else if (index === reached + 1 && invoice.status !== "cancelled") state = "current";
 
     let caption: string | null;
     if (step.status === "accruing") {
@@ -170,6 +183,8 @@ const NEXT_STEPS: Record<InvoiceStatus, CreatorNextStep> = {
   creator_acked: { hint: "Menunggu bukti bayar dari Admin.", action: null },
   payment_uploaded: { hint: "Admin sudah mengirim bukti bayar.", action: "confirm" },
   paid: { hint: "Lunas", action: null },
+  // Nothing is left to acknowledge or confirm on an invoice an early end cancelled.
+  cancelled: { hint: CREATOR_INVOICE_STATUS_LABELS.cancelled, action: null },
 };
 
 /**

@@ -88,6 +88,8 @@ export interface ContentDetailRow {
   content_links: DetailLinkRow[];
   video_submitted_at: Date | null;
   approval_bypassed: boolean;
+  /** PBI-37: when an early end closed it; null while open. */
+  closed_at: Date | null;
   created_at: Date;
   updated_at: Date;
   contracts: {
@@ -162,6 +164,8 @@ export interface ContentLink {
 
 export interface ContentDetail {
   id: string;
+  /** PBI-37 (AC 7): when an early end closed it ("Ditutup"), as an ISO instant; null while open. */
+  closedAt: string | null;
   name: string;
   type: 'evergreen' | 'specific';
   brief: string;
@@ -340,26 +344,31 @@ export function toContentDetail(
       b.id.localeCompare(a.id),
   )[0];
 
+  // PBI-37 (AC 7): a closed content takes no more work, so it flags nothing and offers nothing.
+  const closed = row.closed_at !== null;
   return {
     id: row.id,
+    closedAt: row.closed_at?.toISOString() ?? null,
     name: row.name,
     type: row.type,
     brief: row.brief,
     deadline: deadlineDay,
     status: row.status,
     creatorName: joinName(row.contracts.creators),
-    tags: contentTags(
-      {
-        deadline: row.deadline,
-        status: row.status,
-        videoSubmittedAt: row.video_submitted_at,
-        approvalBypassed: row.approval_bypassed,
-      },
-      now,
-    ),
+    tags: closed
+      ? []
+      : contentTags(
+          {
+            deadline: row.deadline,
+            status: row.status,
+            videoSubmittedAt: row.video_submitted_at,
+            approvalBypassed: row.approval_bypassed,
+          },
+          now,
+        ),
     waitingOn: waitingOnFor(row.status),
     latestSubmissionId: latest?.id ?? null,
-    creatorActions: taskActions(row.status, deadlineDay, today),
+    creatorActions: closed ? [] : taskActions(row.status, deadlineDay, today),
     links: row.content_links.map((link) => ({
       platform: link.platform,
       url: link.url,
@@ -379,6 +388,7 @@ export function toContentDetail(
             contractStart: row.contracts.start_date.toISOString().slice(0, 10),
             contractEnd: row.contracts.end_date.toISOString().slice(0, 10),
             invoiceStatus: row.contracts.invoice?.status ?? null,
+            closed,
           },
           { today, bufferDays: admin.bufferDays },
         )

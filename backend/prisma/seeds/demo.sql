@@ -8,7 +8,7 @@
 -- and productivity figures do not drift as the calendar moves.
 --
 -- Twelve creators, shaped to cover what the admin table has to render: running, finished and
--- upcoming contracts, a renewal, a contract ending today, revoked access, no contract at all,
+-- upcoming contracts, a renewal, a contract ending today, no contract at all,
 -- all three productivity bands, a creator with nothing resolved yet, and enough rows for a
 -- second page.
 
@@ -28,23 +28,22 @@ insert into users (email, is_admin) values
   ('adit@example.com',   false),
   ('melati@example.com', false);
 
-insert into creators (user_id, first_name, middle_name, last_name, phone_number, access_revoke_date)
-select u.id, v.first_name, v.middle_name, v.last_name, v.phone_number,
-       case when v.revoke_offset is null then null else current_date + v.revoke_offset end
+insert into creators (user_id, first_name, middle_name, last_name, phone_number)
+select u.id, v.first_name, v.middle_name, v.last_name, v.phone_number
 from (values
-  ('rangga@example.com', 'Rangga', null,    'Pratama',   '081234567001', null),
-  ('dimas@example.com',  'Dimas',  null,    'Aji',       '081234567002', null),
-  ('nabila@example.com', 'Nabila', null,    'Putri',     '081234567003', null),
-  ('salsa@example.com',  'Salsa',  null,    'Amelia',    '081234567004', null),
-  ('yusuf@example.com',  'Yusuf',  null,    'Hakim',     '081234567005', null),
-  ('farah@example.com',  'Farah',  'Nur',   'Aini',      '081234567006', null),
-  ('bagas@example.com',  'Bagas',  null,    'Wicaksono', '081234567007', null),
-  ('intan@example.com',  'Intan',  null,    'Maharani',  '081234567008', null),
-  ('reza@example.com',   'Reza',   'Aulia', 'Mahendra',  '081234567009', null),
-  ('kirana@example.com', 'Kirana', null,    'Dewi',      '081234567010', -14),
-  ('adit@example.com',   'Adit',   null,    'Prakoso',   '081234567011', null),
-  ('melati@example.com', 'Melati', null,    'Sari',      '081234567012', null)
-) as v (email, first_name, middle_name, last_name, phone_number, revoke_offset)
+  ('rangga@example.com', 'Rangga', null,    'Pratama',   '081234567001'),
+  ('dimas@example.com',  'Dimas',  null,    'Aji',       '081234567002'),
+  ('nabila@example.com', 'Nabila', null,    'Putri',     '081234567003'),
+  ('salsa@example.com',  'Salsa',  null,    'Amelia',    '081234567004'),
+  ('yusuf@example.com',  'Yusuf',  null,    'Hakim',     '081234567005'),
+  ('farah@example.com',  'Farah',  'Nur',   'Aini',      '081234567006'),
+  ('bagas@example.com',  'Bagas',  null,    'Wicaksono', '081234567007'),
+  ('intan@example.com',  'Intan',  null,    'Maharani',  '081234567008'),
+  ('reza@example.com',   'Reza',   'Aulia', 'Mahendra',  '081234567009'),
+  ('kirana@example.com', 'Kirana', null,    'Dewi',      '081234567010'),
+  ('adit@example.com',   'Adit',   null,    'Prakoso',   '081234567011'),
+  ('melati@example.com', 'Melati', null,    'Sari',      '081234567012')
+) as v (email, first_name, middle_name, last_name, phone_number)
 join users u on u.email = v.email;
 
 -- A connected account carries the platform's own id for it and when it was connected, as the
@@ -169,7 +168,7 @@ insert into seed_contents values
   ('reza@example.com',     0, 'Kirim motor lewat Tofly',       'specific',   -82, 'link_submitted',  -79, 1),
   ('reza@example.com',     0, 'Layanan kargo',                 'evergreen',  -54, 'link_submitted',  -54, 2),
   ('reza@example.com',     0, 'Ucapan terima kasih',           'evergreen',  -26, 'link_submitted',  -26, 1),
-  -- Kirana: finished contract, access already revoked, one missed delivery.
+  -- Kirana: finished contract, one missed delivery; her access follows her invoice (PRD 3.1).
   ('kirana@example.com', -60, 'Halo dari Kirana',              'evergreen', -226, 'link_submitted', -226, 1),
   ('kirana@example.com', -60, 'Kirim paket makanan',           'evergreen', -198, 'link_submitted', -198, 1),
   ('kirana@example.com', -60, 'Tofly untuk mahasiswa',         'specific',  -170, 'link_submitted', -172, 1),

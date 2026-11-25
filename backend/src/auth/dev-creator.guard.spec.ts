@@ -12,6 +12,7 @@ import {
   devCreatorId,
   type CreatorLookup,
 } from './dev-creator.guard.js';
+import { PaymentsPage } from './payments-page.decorator.js';
 
 const HEADER_ID = '5b0c8a4e-2f1d-4c3b-9a8e-7d6f5e4c3b2a';
 const ENV_ID = '9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b';
@@ -523,5 +524,68 @@ describe('DevCreatorGuard', () => {
     });
 
     expect(client.creators.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-37 (AC 13): while waiting for payment the creator can open only "Pembayaran".
+describe('DevCreatorGuard, a creator waiting for payment', () => {
+  @PaymentsPage()
+  class PaymentsController {}
+  class TasksController {}
+
+  function contextFor(request: CreatorRequest, controller: object): ExecutionContext {
+    return {
+      switchToHttp: () => ({ getRequest: () => request, getResponse: () => ({}) }),
+      getClass: () => controller,
+    } as unknown as ExecutionContext;
+  }
+
+  function subjectFor(current: Principal) {
+    const principal = { userId: 'user-1', role: 'creator' as const, creatorId: HEADER_ID };
+    const sessions = {
+      cookieName: vi.fn(() => '__session'),
+      authenticate: vi.fn().mockResolvedValue(principal),
+    } as unknown as AppSessionService;
+    const access = { resolveUser: vi.fn().mockResolvedValue(current) };
+    return new DevCreatorGuard({ creators: { findUnique: vi.fn() } }, sessions, access);
+  }
+
+  const request = (): CreatorRequest => ({
+    headers: {},
+    cookies: { '__session': 'opaque-id' },
+    method: 'GET',
+  });
+  const WAITING: Principal = {
+    userId: 'user-1',
+    role: 'creator',
+    creatorId: HEADER_ID,
+    paymentsOnly: true,
+  };
+
+  it('lets them into Pembayaran', async () => {
+    await expect(
+      subjectFor(WAITING).canActivate(contextFor(request(), PaymentsController)),
+    ).resolves.toBe(true);
+  });
+
+  it('refuses every other page with 403 PAYMENTS_ONLY, recording nobody', async () => {
+    const asked = request();
+    const error = await subjectFor(WAITING)
+      .canActivate(contextFor(asked, TasksController))
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect((error as ForbiddenException).getResponse()).toEqual({
+      code: 'PAYMENTS_ONLY',
+      message: 'Hanya halaman Pembayaran yang bisa dibuka sampai invoice selesai',
+    });
+    expect(asked.creatorId).toBeUndefined();
+  });
+
+  it('leaves a creator with a running period free to open any page', async () => {
+    const { paymentsOnly: _, ...working } = WAITING as Principal & { paymentsOnly: true };
+    await expect(
+      subjectFor(working).canActivate(contextFor(request(), TasksController)),
+    ).resolves.toBe(true);
   });
 });

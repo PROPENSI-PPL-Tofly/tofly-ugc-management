@@ -18,6 +18,7 @@ import {
   type PeriodEarnings,
 } from "@/lib/creator-detail";
 import { EMPTY, formatContractWindow, formatPercent, formatRevisions, formatRupiah } from "@/lib/format";
+import { EarlyEndNote } from "@/components/creators/early-end-note";
 import { INVOICE_PATH, INVOICE_STATUS_LABELS } from "@/lib/invoice";
 
 const TAB_BASE =
@@ -177,6 +178,8 @@ export function PeriodTabs({
                   <span className="text-xs text-muted">
                     {formatContractWindow(period.startDate, period.endDate)}
                   </span>
+                  {/* The same lines Creator Database shows for it (PBI-37, AC 16). */}
+                  {period.earlyEnd ? <EarlyEndNote lastDay={period.endDate} earlyEnd={period.earlyEnd} /> : null}
                 </Link>
               );
             })}
