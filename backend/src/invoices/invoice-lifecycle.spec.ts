@@ -65,6 +65,28 @@ describe.each([
   });
 });
 
+// PBI-16 AC 8: the fixed rate moves a running invoice only (OWASP A08).
+describe('changing the fixed rate', () => {
+  it('is allowed while the invoice runs', () => {
+    expect(() => invoiceState('running').assertCanChangeRate()).not.toThrow();
+  });
+
+  it.each([
+    'finalized',
+    'creator_acked',
+    'payment_uploaded',
+    'paid',
+    'cancelled',
+  ] as const)('is refused on a %s invoice', (status) => {
+    expect(
+      refusalOf(() => invoiceState(status).assertCanChangeRate()),
+    ).toEqual({
+      code: 'FIXED_RATE_LOCKED',
+      message: 'Fixed rate hanya bisa diubah selama invoice masih berjalan',
+    });
+  });
+});
+
 // PBI-28 AC 11: a correction stays possible until the creator acknowledges, then never again.
 describe('adjusting an invoice', () => {
   it('is allowed on a finalized invoice', () => {
