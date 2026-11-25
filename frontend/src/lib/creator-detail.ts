@@ -28,6 +28,7 @@ import {
 import { formatDate } from "./format";
 import type { EarlyEnd } from "./early-end-display";
 import type { InvoiceStatus } from "./invoice";
+import type { UsernameLocks } from "./creator-edit";
 import type { SocialConnections } from "./social-connection";
 import { calendarDay, listOf, oneOf, pageNumber, single, type SearchParams } from "./search-params";
 
@@ -255,6 +256,8 @@ export interface CreatorDetailView {
   earnings: PeriodEarnings | null;
   // Whether each account is connected (PBI-19), for the profile's badges.
   connections?: SocialConnections;
+  /** Why each username is read-only in Ubah Data, or null (PBI-16). */
+  usernameLocks?: UsernameLocks;
 }
 
 /**
