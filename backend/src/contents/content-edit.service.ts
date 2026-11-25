@@ -92,7 +92,7 @@ export interface ContentEditTransaction {
         occurred_at: Date;
         event_data: { changes: ContentEditPlan['changes'] };
       };
-    }): Promise<unknown>;
+    }): Promise<{ id: string }>;
   };
 }
 
@@ -164,12 +164,12 @@ export class ContentEditService implements ContentEditor {
       bufferDays: await this.scheduling.bufferDays(),
     };
 
-    let newDeadline: string | undefined;
+    // The deadline change and the history event that recorded it, for the creator's email.
+    let rescheduled: { deadline: string; editId: string } | undefined;
     const edited = await this.prisma.$transaction(
       async (transaction) => {
         const content = await this.lockChangeable(transaction, id);
         const plan = planContentEdit(content, edit, rules);
-        newDeadline = plan.changes.deadline?.to;
         if (Object.keys(plan.changes).length === 0) {
           return viewOf(content);
         }
@@ -179,7 +179,7 @@ export class ContentEditService implements ContentEditor {
           data: plan.data,
           select: EDITABLE_CONTENT_SELECT,
         });
-        await transaction.content_events.create({
+        const recorded = await transaction.content_events.create({
           data: {
             content_id: id,
             event_type: 'Content Updated',
@@ -188,13 +188,15 @@ export class ContentEditService implements ContentEditor {
             event_data: { changes: plan.changes },
           },
         });
+        const deadline = plan.changes.deadline?.to;
+        if (deadline !== undefined) rescheduled = { deadline, editId: recorded.id };
         return viewOf(saved);
       },
       { isolationLevel: 'ReadCommitted' },
     );
     // PBI-11 (AC 1, AC 9): only a new deadline is emailed, once saved; never failing the edit.
-    if (newDeadline !== undefined) {
-      await this.notifier.contentRescheduled({ contentId: id, deadline: newDeadline });
+    if (rescheduled !== undefined) {
+      await this.notifier.contentRescheduled({ contentId: id, ...rescheduled });
     }
     return edited;
   }

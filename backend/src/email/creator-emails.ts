@@ -131,11 +131,13 @@ export class CreatorEmails implements CreatorNotifier {
     return this.byContent(contentId, 'draft_approved', submissionId);
   }
 
-  /** The new deadline is in the key, so a second change later is its own email. */
-  contentRescheduled({ contentId, deadline }: { contentId: string; deadline: string }) {
-    return this.byContent(contentId, 'content_rescheduled', `${contentId}:${deadline}`, {
-      deadline,
-    });
+  /**
+   * Keyed by the edit's history event, not the new date: 10 → 12 → 10 → 12 is three emails, while
+   * a retry of the same edit is still one (review on #254).
+   */
+  contentRescheduled(input: { contentId: string; deadline: string; editId: string }) {
+    const { contentId, deadline, editId } = input;
+    return this.byContent(contentId, 'content_rescheduled', editId, { deadline });
   }
 
   contentDeleted(input: {

@@ -10,7 +10,8 @@ export interface CreatorNotifier {
   /** AC 1: a draft is approved. */
   draftApproved(input: { contentId: string; submissionId: string }): Promise<void>;
   /** AC 1: Admin changes the deadline of the creator's content. */
-  contentRescheduled(input: { contentId: string; deadline: string }): Promise<void>;
+  /** Keyed by the history event of that edit, so each change is its own email (review on #254). */
+  contentRescheduled(input: { contentId: string; deadline: string; editId: string }): Promise<void>;
   /** AC 1: Admin deletes the creator's content; it is gone, so its name and deadline come along. */
   contentDeleted(input: {
     contractId: string;
