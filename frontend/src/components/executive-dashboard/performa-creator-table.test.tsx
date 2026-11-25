@@ -2,8 +2,12 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { CreatorPerformance } from "@/lib/executive-dashboard";
 import { PerformaCreatorTable } from "./performa-creator-table";
 
-const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+const { push, replace } = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, replace }),
+  usePathname: () => window.location.pathname,
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 
 function creator(overrides: Partial<CreatorPerformance>): CreatorPerformance {
   return {
@@ -27,7 +31,13 @@ const CREATORS = [
 
 beforeEach(() => {
   push.mockReset();
+  replace.mockReset();
+  window.history.replaceState(null, "", "/admin/dashboard?range=12");
 });
+
+function address(): string {
+  return `${window.location.pathname}${window.location.search}`;
+}
 
 function names(): string[] {
   const table = screen.getByRole("table", { name: "Performa Creator" });
@@ -65,10 +75,22 @@ describe("PerformaCreatorTable", () => {
     expect(screen.getByRole("columnheader", { name: "Views" })).toHaveAttribute("aria-sort", "descending");
 
     fireEvent.click(screen.getByRole("button", { name: "Creator" }));
-    expect(push).toHaveBeenCalledWith("/admin/dashboard?range=12&sort=name&order=asc", { scroll: false });
+    expect(address()).toBe("/admin/dashboard?range=12&sort=name&order=asc");
 
+    // Back to the default order (most views first), which the address leaves out.
     fireEvent.click(screen.getByRole("button", { name: "Views" }));
-    expect(push).toHaveBeenLastCalledWith("/admin/dashboard?range=12&sort=views&order=asc", { scroll: false });
+    expect(address()).toBe("/admin/dashboard?range=12");
+  });
+
+  it("sorts the rows it has on a header press, without a navigation that would load the dashboard again", () => {
+    render(<PerformaCreatorTable creators={CREATORS} state={{ months: 12, sort: "views", order: "desc" }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Creator" }));
+
+    expect(names()).toEqual(["Ayu", "Bima", "Citra"]);
+    expect(screen.getByRole("columnheader", { name: "Creator" })).toHaveAttribute("aria-sort", "ascending");
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("says no creator had a contract in the range instead of an empty table", () => {
