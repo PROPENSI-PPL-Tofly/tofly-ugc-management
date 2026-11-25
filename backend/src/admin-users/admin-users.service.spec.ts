@@ -37,6 +37,7 @@ function setup() {
   const users = {
     findMany: vi.fn().mockResolvedValue([ROW]),
     count: vi.fn().mockResolvedValue(1),
+    groupBy: vi.fn().mockResolvedValue([{ is_active: true, _count: { _all: 1 } }]),
     findUnique: vi.fn(),
     create: vi.fn().mockResolvedValue(ROW),
     update: vi.fn(),
@@ -79,10 +80,10 @@ async function refusal(promise: Promise<unknown>): Promise<unknown> {
 describe('AdminUsersService.list', () => {
   it('answers one page of Admins, active first, then by name, then by email', async () => {
     const { users, service } = setup();
-    users.count
-      .mockResolvedValueOnce(11)
-      .mockResolvedValueOnce(9)
-      .mockResolvedValueOnce(2);
+    users.groupBy.mockResolvedValue([
+      { is_active: true, _count: { _all: 9 } },
+      { is_active: false, _count: { _all: 2 } },
+    ]);
 
     const result = await service.list({ page: 2, pageSize: 10 }, undefined, ACTOR);
 
@@ -116,17 +117,29 @@ describe('AdminUsersService.list', () => {
     });
   });
 
-  it('counts the whole team for the header, whatever the search', async () => {
+  it('counts the whole team for the header in one grouped query, whatever the search', async () => {
     const { users, service } = setup();
 
     await service.list({ page: 1, pageSize: 10 }, 'sinta', ACTOR);
 
-    expect(users.count).toHaveBeenCalledWith({
-      where: { is_admin: true, is_active: true },
+    expect(users.groupBy).toHaveBeenCalledTimes(1);
+    expect(users.groupBy).toHaveBeenCalledWith({
+      by: ['is_active'],
+      where: { is_admin: true },
+      _count: { _all: true },
     });
-    expect(users.count).toHaveBeenCalledWith({
-      where: { is_admin: true, is_active: false },
-    });
+    expect(users.count).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes the total from the grouped counts with no search, with no count query of its own', async () => {
+    const { users, service } = setup();
+    users.groupBy.mockResolvedValue([{ is_active: true, _count: { _all: 4 } }]);
+
+    const result = await service.list({ page: 1, pageSize: 10 }, undefined, ACTOR);
+
+    expect(users.count).not.toHaveBeenCalled();
+    // No inactive Admin means no group for them, which is a count of zero.
+    expect(result).toMatchObject({ total: 4, totalPages: 1, activeCount: 4, inactiveCount: 0 });
   });
 
   it('searches the name and the email, ignoring case', async () => {
