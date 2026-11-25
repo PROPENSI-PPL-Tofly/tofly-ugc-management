@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { PrismaEmailLogStore } from '../src/email/email-log-store.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { day } from './days.js';
 import { as, signInAsAdmin } from './sessions.js';
@@ -126,16 +127,37 @@ describe('the 08:00 email run (e2e)', () => {
     expect(await reminderRows(later.id)).toEqual([]);
   });
 
-  // AC 9: the second run tried the failed reminder again, so it holds a second attempt.
-  it('tries a failed email again on the next run, up to 3 attempts', async () => {
+  // Review on #252 (Davin): with no templates or SMTP here, nothing is attempted, so every run
+  // tries the reminder again without using up its 3 attempts.
+  it('keeps a reminder that could not be sent for the next run, using no attempt while email is not set up', async () => {
     const due = await dueContent(1, 'scheduled');
 
     for (let run = 0; run < 4; run += 1) {
       await runWith({ 'x-sync-secret': SECRET });
     }
 
-    const [row] = await reminderRows(due.id);
-    expect(row.attempts).toBe(3);
-    expect(row.status).toBe('failed');
+    const rows = await reminderRows(due.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: 'failed', attempts: 0, last_error: 'PortNotReady' });
+  });
+
+  // Review on #253 (Davin, Gunta): two runs at once claim a failed row once, so it is sent once.
+  it('lets only one of two runs at once claim a failed email', async () => {
+    const store = new PrismaEmailLogStore(prisma);
+    const email = {
+      eventKey: `${MARKER}-claim-${Date.now()}`,
+      template: 'content_scheduled',
+      recipient: `${MARKER}-salsa@example.com`,
+      payload: {},
+    };
+    await store.claim(email);
+    await store.markFailed(email.eventKey, email.recipient, 'ESOCKET', new Date());
+
+    const claims = await Promise.all([
+      store.claimRetry(email, new Date()),
+      store.claimRetry(email, new Date()),
+    ]);
+
+    expect(claims.filter(Boolean)).toHaveLength(1);
   });
 });

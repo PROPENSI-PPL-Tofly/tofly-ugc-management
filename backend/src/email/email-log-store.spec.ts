@@ -6,12 +6,28 @@ import {
 
 const AT = new Date('2026-11-25T01:00:00.000Z');
 
+// Review on #253: failed with attempts left, or pending and untouched for 30 minutes (a send cut
+// off by a crash, Gunta), never a send that timed out, which may have gone out late (Davin).
+const RETRYABLE = {
+  attempts: { lt: 3 },
+  AND: [
+    {
+      OR: [
+        { status: 'failed' },
+        { status: 'pending', updated_at: { lt: new Date('2026-11-25T00:30:00.000Z') } },
+      ],
+    },
+    { OR: [{ last_error: null }, { last_error: { not: 'EmailTimeout' } }] },
+  ],
+};
+
 function client(created = 1) {
   return {
     email_log: {
       createMany: vi.fn().mockResolvedValue({ count: created }),
       update: vi.fn().mockResolvedValue({}),
       findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   } satisfies EmailLogClient;
 }
@@ -33,7 +49,7 @@ describe('PrismaEmailLogStore.failedToRetry', () => {
       },
     ]);
 
-    await expect(new PrismaEmailLogStore(prisma).failedToRetry()).resolves.toEqual([
+    await expect(new PrismaEmailLogStore(prisma).failedToRetry(AT)).resolves.toEqual([
       {
         eventKey: 'e1',
         template: 'content_scheduled',
@@ -42,7 +58,7 @@ describe('PrismaEmailLogStore.failedToRetry', () => {
       },
     ]);
     expect(prisma.email_log.findMany).toHaveBeenCalledWith({
-      where: { status: 'failed', attempts: { lt: 3 } },
+      where: RETRYABLE,
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       select: { event_key: true, template: true, recipient: true, payload: true },
     });
@@ -133,6 +149,48 @@ describe('PrismaEmailLogStore.markNotReady', () => {
     expect(prisma.email_log.update).toHaveBeenCalledWith({
       where: KEY,
       data: { status: 'failed', last_error: 'PortNotReady', updated_at: AT },
+    });
+  });
+});
+
+// Review on #253 (Davin, Gunta): a retry claims its row first, so two runs at once send it once.
+describe('PrismaEmailLogStore.claimRetry', () => {
+  const EMAIL = {
+    eventKey: 'e1',
+    template: 'content_scheduled',
+    recipient: 'salsa@example.com',
+    payload: {},
+  };
+
+  it('moves a retryable row to pending in one guarded update, and answers that it won', async () => {
+    const prisma = client();
+
+    await expect(new PrismaEmailLogStore(prisma).claimRetry(EMAIL, AT)).resolves.toBe(true);
+
+    expect(prisma.email_log.updateMany).toHaveBeenCalledWith({
+      where: { event_key: 'e1', recipient: 'salsa@example.com', ...RETRYABLE },
+      data: { status: 'pending', updated_at: AT },
+    });
+  });
+
+  it('answers that another run already claimed it', async () => {
+    const prisma = client();
+    prisma.email_log.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(new PrismaEmailLogStore(prisma).claimRetry(EMAIL, AT)).resolves.toBe(false);
+  });
+});
+
+// Review on #253 (Gunta): an email whose address no longer belongs to anyone is not sent again.
+describe('PrismaEmailLogStore.abandon', () => {
+  it('closes the row with every attempt used and the reason', async () => {
+    const prisma = client();
+
+    await new PrismaEmailLogStore(prisma).abandon('e1', 'salsa@example.com', 'RecipientGone', AT);
+
+    expect(prisma.email_log.update).toHaveBeenCalledWith({
+      where: KEY,
+      data: { status: 'failed', attempts: 3, last_error: 'RecipientGone', updated_at: AT },
     });
   });
 });
