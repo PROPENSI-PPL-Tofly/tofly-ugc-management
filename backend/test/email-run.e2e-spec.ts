@@ -9,8 +9,9 @@ import { day } from './days.js';
 import { as, signInAsAdmin } from './sessions.js';
 
 // PBI-11 11.3 against the real schema: the 08:00 WIB run's guard, its H-1 reminder and the
-// email_log row that keeps a second run from sending again. No SMTP account and no templates are
-// configured here, so every email is logged as failed instead of reaching anyone.
+// email_log row that keeps a second run from sending again. No SMTP account is configured here
+// (and no FRONTEND_URL for 11.4's buttons), so every email is logged as failed, not ready,
+// instead of reaching anyone.
 
 const MARKER = 'e2e-email-run';
 const SECRET = `${MARKER}-secret-long-enough-for-the-guard-0123456789`;
@@ -127,7 +128,7 @@ describe('the 08:00 email run (e2e)', () => {
     expect(await reminderRows(later.id)).toEqual([]);
   });
 
-  // Review on #252 (Davin): with no templates or SMTP here, nothing is attempted, so every run
+  // Review on #252 (Davin): with no SMTP account here, nothing is attempted, so every run
   // tries the reminder again without using up its 3 attempts.
   it('keeps a reminder that could not be sent for the next run, using no attempt while email is not set up', async () => {
     const due = await dueContent(1, 'scheduled');

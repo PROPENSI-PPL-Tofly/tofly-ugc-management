@@ -5,8 +5,11 @@ import { EMAIL_LOG_STORE, PrismaEmailLogStore, type EmailLogStore } from './emai
 import { EMAIL_LOG } from './email-log.token.js';
 import { EmailNotifier } from './email-notifier.js';
 import { EMAIL_SENDER, type EmailSender } from './email-sender.js';
-import { EMAIL_TEMPLATES, unreadyEmailTemplates, type EmailTemplates } from './email-templates.js';
+import { InvoicePdfService } from '../invoices/invoice-pdf.service.js';
+import { EMAIL_TEMPLATES, type EmailTemplates } from './email-templates.js';
 import { LoggingEmailSenderDecorator } from './logging-email-sender.decorator.js';
+import { PrismaContractFacts } from './notifications/contract-facts.js';
+import { NotificationEmailTemplates } from './notifications/notification-email-templates.js';
 import { emailSenderFromEnv, smtpTransport } from './smtp-email-sender.js';
 
 export { EMAIL_LOG };
@@ -20,8 +23,9 @@ export { EMAIL_LOG };
  * unchanged, never knowing a decorator is there.
  *
  * PBI-11 (11.1) adds the event emails on top: the email_log store, the helper that logs, renders
- * and sends, and CreatorEmails, which the services call. EMAIL_TEMPLATES stays unready until
- * 11.4's templates are bound here.
+ * and sends, and CreatorEmails, which the services call. EMAIL_TEMPLATES is 11.4's templates:
+ * they read the invoice facts and the PBI-31 PDF themselves. InvoicePdfService is provided here,
+ * not imported from InvoicesModule, which imports this module (no cycle).
  */
 @Module({
   providers: [
@@ -35,7 +39,14 @@ export { EMAIL_LOG };
         ),
       inject: [EMAIL_LOG],
     },
-    { provide: EMAIL_TEMPLATES, useValue: unreadyEmailTemplates },
+    PrismaContractFacts,
+    InvoicePdfService,
+    {
+      provide: EMAIL_TEMPLATES,
+      useFactory: (facts: PrismaContractFacts, pdfs: InvoicePdfService) =>
+        new NotificationEmailTemplates(facts, pdfs),
+      inject: [PrismaContractFacts, InvoicePdfService],
+    },
     { provide: EMAIL_LOG_STORE, useClass: PrismaEmailLogStore },
     {
       provide: EmailNotifier,
