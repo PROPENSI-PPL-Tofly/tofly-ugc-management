@@ -194,3 +194,46 @@ describe('PrismaEmailLogStore.abandon', () => {
     });
   });
 });
+
+// Review on #253 (Kak Satria, AC 8): a row is marked just before the mail server is asked, so a
+// send whose outcome was lost is told apart from one that never started, and is never sent again.
+describe('PrismaEmailLogStore.startSending', () => {
+  it('marks the row sending, without counting an attempt yet', async () => {
+    const prisma = client();
+
+    await new PrismaEmailLogStore(prisma).startSending('e1', 'salsa@example.com', AT);
+
+    expect(prisma.email_log.update).toHaveBeenCalledWith({
+      where: KEY,
+      data: { status: 'sending', updated_at: AT },
+    });
+  });
+});
+
+describe('PrismaEmailLogStore.stuckSending', () => {
+  it('reads the rows left sending for 30 minutes, oldest first', async () => {
+    const prisma = client();
+    prisma.email_log.findMany.mockResolvedValue([
+      {
+        event_key: 'e1',
+        template: 'content_scheduled',
+        recipient: 'salsa@example.com',
+        payload: { contentName: 'Evg_1' },
+      },
+    ]);
+
+    await expect(new PrismaEmailLogStore(prisma).stuckSending(AT)).resolves.toEqual([
+      {
+        eventKey: 'e1',
+        template: 'content_scheduled',
+        recipient: 'salsa@example.com',
+        payload: { contentName: 'Evg_1' },
+      },
+    ]);
+    expect(prisma.email_log.findMany).toHaveBeenCalledWith({
+      where: { status: 'sending', updated_at: { lt: new Date('2026-11-25T00:30:00.000Z') } },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      select: { event_key: true, template: true, recipient: true, payload: true },
+    });
+  });
+});

@@ -68,7 +68,12 @@ describe('email_log (e2e)', () => {
     expect(await insert('rina@example.com')).toBeNull();
   });
 
-  it('knows only pending, sent and failed', async () => {
+  // Review on #253 (Kak Satria): sending marks a row whose mail server was already asked.
+  it('marks an email sending', async () => {
+    expect(await insert('sending@example.com', { status: 'sending' })).toBeNull();
+  });
+
+  it('knows only pending, sending, sent and failed', async () => {
     expect(String(await insert('x@example.com', { status: 'bounced' }))).toMatch(
       /invalid input value for enum email_status/,
     );

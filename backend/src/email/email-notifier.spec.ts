@@ -19,6 +19,8 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     markSent: vi.fn<EmailLogStore['markSent']>().mockResolvedValue(),
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
     markNotReady: vi.fn<EmailLogStore['markNotReady']>().mockResolvedValue(),
+    startSending: vi.fn<EmailLogStore['startSending']>().mockResolvedValue(),
+    stuckSending: vi.fn<EmailLogStore['stuckSending']>().mockResolvedValue([]),
     failedToRetry: vi.fn<EmailLogStore['failedToRetry']>().mockResolvedValue([]),
     claimRetry: vi.fn<EmailLogStore['claimRetry']>().mockResolvedValue(true),
     abandon: vi.fn<EmailLogStore['abandon']>().mockResolvedValue(),
@@ -339,6 +341,29 @@ describe('EmailNotifier, review follow-ups', () => {
 
     expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
     expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Kak Satria (AC 8): the row says sending before the mail server is asked, so a send whose
+  // sent mark is lost is never taken for one that never started.
+  it('marks the row sending right before asking the mail server', async () => {
+    const { store, sender, notifier } = setup();
+
+    await notifier.notify(EVENT);
+
+    expect(store.startSending).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+    expect(store.startSending.mock.invocationCallOrder[0]).toBeLessThan(
+      sender.send.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('sends nothing when the row cannot be marked sending, and marks it failed', async () => {
+    const { store, sender, notifier } = setup();
+    store.startSending.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'TypeError', NOW);
   });
 
   // Davin: SMTP accepted it, so one more try at marking it sent keeps the log honest.

@@ -28,6 +28,7 @@ function setup({
   failed = [] as LoggedEmail[],
   due = [content()] as unknown[],
   resent = true,
+  stuck = [] as LoggedEmail[],
 } = {}) {
   const prisma = {
     contents: { findMany: vi.fn().mockResolvedValue(due) },
@@ -39,6 +40,7 @@ function setup({
   };
   const store = {
     failedToRetry: vi.fn<(at: Date) => Promise<LoggedEmail[]>>().mockResolvedValue(failed),
+    stuckSending: vi.fn<(at: Date) => Promise<LoggedEmail[]>>().mockResolvedValue(stuck),
     abandon: vi.fn<(eventKey: string, recipient: string, reason: string, at: Date) => Promise<void>>()
       .mockResolvedValue(),
   };
@@ -181,6 +183,17 @@ describe('DailyEmailRun, review follow-ups', () => {
       select: { id: true },
     });
     expect(store.abandon).toHaveBeenCalledWith(FAILED.eventKey, FAILED.recipient, 'RecipientGone', NOW);
+    expect(notifier.retry).not.toHaveBeenCalled();
+  });
+
+  // Kak Satria (AC 8): a row left sending may have gone out, like a timeout, so it is closed.
+  it('closes an email left sending for 30 minutes as UnknownOutcome, never sending it again', async () => {
+    const { notifier, store, run } = setup({ stuck: [FAILED], due: [] });
+
+    await expect(run.run()).resolves.toEqual({ retried: 0, resent: 0, reminded: 0 });
+
+    expect(store.stuckSending).toHaveBeenCalledWith(NOW);
+    expect(store.abandon).toHaveBeenCalledWith(FAILED.eventKey, FAILED.recipient, 'UnknownOutcome', NOW);
     expect(notifier.retry).not.toHaveBeenCalled();
   });
 
