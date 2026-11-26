@@ -15,10 +15,10 @@ const CREATOR_NAMES = { first_name: true, middle_name: true, last_name: true } a
 export interface AdminEmailClient {
   users: {
     findMany(args: {
-      where: { is_admin: true };
-      select: { email: true };
+      where: { is_admin: true; is_active: true };
+      select: { email: true; name: true };
       orderBy: { email: 'asc' };
-    }): Promise<{ email: string }[]>;
+    }): Promise<{ email: string; name: string | null }[]>;
   };
   contents: {
     findUnique(args: {
@@ -83,16 +83,15 @@ export class AdminEmails implements AdminNotifier {
     });
   }
 
-  // Every Admin. No Admin can be deactivated on this branch yet; once PBI-23's status is here,
-  // this is where "active only" goes (PBI-11 AC 5). No Admin name exists yet either, so the
-  // greeting uses the address until PBI-23 adds names.
+  // Every active Admin (PBI-11 AC 5): a deactivated Admin hears nothing about creators any more.
+  // Each is greeted by name, or by the address while unnamed, as PBI-23 shows them elsewhere.
   private async admins(): Promise<EmailRecipient[]> {
     const rows = await this.prisma.users.findMany({
-      where: { is_admin: true },
-      select: { email: true },
+      where: { is_admin: true, is_active: true },
+      select: { email: true, name: true },
       orderBy: { email: 'asc' },
     });
-    return rows.map(({ email }) => ({ email, name: email }));
+    return rows.map(({ email, name }) => ({ email, name: name ?? email }));
   }
 
   /** Finds the event and its Admins, then sends; a failed read is logged, never thrown (AC 9). */
