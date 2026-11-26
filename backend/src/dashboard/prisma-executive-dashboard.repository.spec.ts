@@ -82,6 +82,9 @@ describe('the executive dashboard repository', () => {
         submitted_at: new Date('2026-10-10T00:00:00.000Z'),
         platform: 'tiktok',
         views: 400,
+        likes: 20,
+        comments: 5,
+        shares: 3,
         data_state: 'synced',
         contents: { contracts: { creator_id: 'budi' } },
       },
@@ -101,7 +104,16 @@ describe('the executive dashboard repository', () => {
       }),
     );
     expect(rows).toEqual([
-      { creatorId: 'budi', submittedAt: '2026-10-10', platform: 'tiktok', views: 400, dataState: 'synced' },
+      {
+        creatorId: 'budi',
+        submittedAt: '2026-10-10',
+        platform: 'tiktok',
+        views: 400,
+        likes: 20,
+        comments: 5,
+        shares: 3,
+        dataState: 'synced',
+      },
     ]);
   });
 
