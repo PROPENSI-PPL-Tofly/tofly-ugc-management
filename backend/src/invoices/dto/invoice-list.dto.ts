@@ -5,6 +5,7 @@ import type {
   InvoiceLine,
 } from '../invoice-component.js';
 import type { InvoiceStatus } from '../invoice-status.js';
+import type { RateChangeDto } from '../rate-change.js';
 import type { RateFormula } from '../rate-formula.js';
 import type { InvoiceConfirmationFields } from './invoice-confirmation.dto.js';
 import type { InvoicePaymentFields } from './invoice-payment.dto.js';
@@ -38,6 +39,11 @@ export interface InvoiceAdjustmentDto {
   amount: number;
   reason: string;
   actorId: string;
+  /**
+   * The admin who recorded it, by name else email (PBI-23, 23.10, AC 25). On live reads, for the
+   * admin and the creator alike; never frozen into a snapshot.
+   */
+  actorName?: string;
   createdAt: string;
 }
 
@@ -51,6 +57,11 @@ export interface InvoiceSnapshotDto {
   total: number;
   floored: boolean;
   finalizedAt: string;
+  /**
+   * The total at the moment of Finalize (PBI-23, AC 25). `total` moves with a later adjustment; this
+   * never does. Absent from a snapshot saved before it was kept.
+   */
+  finalizedTotal?: number;
   /**
    * The formula the breakdown was calculated with, null if none was saved then. Absent from a
    * snapshot saved before the formula was kept with it.
@@ -99,11 +110,18 @@ export interface InvoiceListItem extends CalculatedInvoice {
 export interface InvoiceView
   extends InvoiceListItem, InvoiceConfirmationFields {
   periodNumber: number;
+  /** Every change of the fixed rate while the invoice ran, oldest first (PBI-16). */
+  rateChanges: RateChangeDto[];
   /**
    * The current formula while the invoice is calculated live; once finalized, the one saved with
    * its snapshot, or null when that snapshot predates keeping it.
    */
   formula: RateFormula | null;
+  /**
+   * The admin who finalized it, by name else email (PBI-23, 23.10); null before Finalize and on
+   * an invoice finalized before the admin was recorded.
+   */
+  finalizedBy: string | null;
 }
 
 /** The admin's view of one invoice: the breakdown popups and the Rincian panel. */

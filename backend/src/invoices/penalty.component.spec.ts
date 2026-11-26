@@ -77,10 +77,11 @@ describe('PenaltyComponent', () => {
     expect(result.lines[0].basis.daysLate).toBe(1);
   });
 
-  it('stops counting from the day access was revoked', () => {
+  // PBI-37: an early end moved end_date to the last day.
+  it('stops counting at the last day of a contract ended early', () => {
     const result = component.calculate(
       context({
-        contract: contract({ endedEarlyOn: day(-11) }),
+        contract: contract({ endDate: day(-11) }),
         contents: [content({ status: 'scheduled', deadline: day(-12) })],
       }),
     );

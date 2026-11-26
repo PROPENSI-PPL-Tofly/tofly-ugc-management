@@ -2,9 +2,13 @@ import { Prisma } from '@prisma/client';
 import { FORMULA, SYNCED_AT, TODAY, day } from './invoice-test-data.js';
 import {
   CONTENT_SELECT,
+  INVOICE_ADJUSTMENT_READ_SELECT,
+  INVOICE_ADJUSTMENT_SELECT,
   INVOICE_SELECT,
+  adjustmentDto,
   creatorName,
   listedContracts,
+  namedAdjustmentDto,
   pickContract,
   savedSnapshot,
   toInvoiceContent,
@@ -77,7 +81,6 @@ function creatorRow(
     first_name: 'Rangga',
     middle_name: null,
     last_name: 'Pratama',
-    access_revoke_date: null,
     contracts: [contractRow()],
     ...overrides,
   };
@@ -189,14 +192,13 @@ describe('toInvoiceContent', () => {
 });
 
 describe('toInvoiceContract', () => {
-  it('reads the numeric fixed rate as rupiah and the revocation as the early end', () => {
-    expect(toInvoiceContract(contractRow(), day(-3))).toEqual({
+  it('reads the numeric fixed rate as rupiah', () => {
+    expect(toInvoiceContract(contractRow())).toEqual({
       id: 'contract-1',
       startDate: day(-60),
       endDate: day(60),
       fixedRate: 5_500_000,
       contentQuota: 11,
-      endedEarlyOn: day(-3),
     });
   });
 });
@@ -315,10 +317,13 @@ describe('toInvoiceItem', () => {
     expect(item.components.fixedRate.amount).toBe(0);
   });
 
-  it('stops counting a never-delivered item at the day access was revoked', () => {
+  // PBI-37: a contract ended early has its last day as end_date (the original end is kept apart).
+  const endedEarly = () => contractRow({ end_date: day(-11) });
+
+  it('stops counting a never-delivered item at the last day of a contract ended early', () => {
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-11) }),
-      contractRow(),
+      creatorRow({ contracts: [endedEarly()] }),
+      endedEarly(),
       [contentRow({ deadline: day(-12) })],
       FORMULA,
       TODAY,
@@ -327,29 +332,28 @@ describe('toInvoiceItem', () => {
     expect(item.components.penalty.lines[0].basis.daysLate).toBe(1);
   });
 
-  // An early end moves the day the contract stops, not its end date: the period still reads as
-  // agreed, and lastDay is what finalizing waits for.
-  it('gives the day access was revoked as the last day of a contract that ended early', () => {
+  // lastDay is what finalizing waits for: the last day an early end set.
+  it('gives the last day of a contract that ended early', () => {
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-11) }),
-      contractRow(),
+      creatorRow({ contracts: [endedEarly()] }),
+      endedEarly(),
       [],
       FORMULA,
       TODAY,
     );
 
     expect(item.contract).toMatchObject({
-      endDate: '2026-11-17',
+      endDate: '2026-09-07',
       lastDay: '2026-09-07',
     });
   });
 
   // OWASP Top 10:2025 A06 (Insecure Design): the contract column, its filter and the
   // needs-action order all read an early end as the end, as finalizing does.
-  it('marks a contract that ended early as ended, although its end date has not come', () => {
+  it('marks a contract that ended early as ended, although its original end has not come', () => {
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-11) }),
-      contractRow(),
+      creatorRow({ contracts: [endedEarly()] }),
+      endedEarly(),
       [],
       FORMULA,
       TODAY,
@@ -358,10 +362,11 @@ describe('toInvoiceItem', () => {
     expect(item.contract.status).toBe('expired');
   });
 
-  it('keeps a contract running on the day access is revoked', () => {
+  it('keeps a contract ended early running on its last day', () => {
+    const lastDayToday = contractRow({ end_date: day(0) });
     const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(0) }),
-      contractRow(),
+      creatorRow({ contracts: [lastDayToday] }),
+      lastDayToday,
       [],
       FORMULA,
       TODAY,
@@ -377,19 +382,6 @@ describe('toInvoiceItem', () => {
 
     expect(toInvoiceItem(row, first, [], FORMULA, TODAY).contract.period).toBe(1);
     expect(toInvoiceItem(row, renewal, [], FORMULA, TODAY).contract.period).toBe(2);
-  });
-
-  it('keeps the end date as the last day when access is revoked after it', () => {
-    const ended = contractRow({ start_date: day(-60), end_date: day(-5) });
-    const item = toInvoiceItem(
-      creatorRow({ access_revoke_date: day(-1), contracts: [ended] }),
-      ended,
-      [],
-      FORMULA,
-      TODAY,
-    );
-
-    expect(item.contract.lastDay).toBe('2026-09-13');
   });
 
   it('pays the fixed rate and waits on the rest while no formula is saved', () => {
@@ -575,7 +567,6 @@ describe('the columns an invoice is read from', () => {
       first_name: true,
       middle_name: true,
       last_name: true,
-      access_revoke_date: true,
       contracts: {
         select: {
           id: true,
@@ -770,5 +761,43 @@ describe('savedSnapshot', () => {
     ['a formula that is not an object', { ...complete, formula: 'FORMULA' }],
   ])('reads a saved value with %s as no usable snapshot', (_case, value) => {
     expect(savedSnapshot(value)).toBeNull();
+  });
+});
+
+// PBI-23, 23.10: who recorded an adjustment, for the admin's invoice activity.
+describe('namedAdjustmentDto', () => {
+  const saved = {
+    id: 'adj-1',
+    amount: new Prisma.Decimal('25000.50'),
+    reason: 'Koreksi',
+    actor_user_id: 'admin-1',
+    created_at: new Date('2026-09-10T02:00:00.000Z'),
+  };
+
+  it.each([
+    ['by name', { name: 'Sinta Dewi', email: 'sinta@tofly.id' }, 'Sinta Dewi'],
+    ['by email while the account has no name', { name: null, email: 'sinta@tofly.id' }, 'sinta@tofly.id'],
+  ])('names the admin who recorded it %s', (_label, users, actorName) => {
+    expect(namedAdjustmentDto({ ...saved, users })).toEqual({
+      id: 'adj-1',
+      amount: 25_000.5,
+      reason: 'Koreksi',
+      actorId: 'admin-1',
+      actorName,
+      createdAt: '2026-09-10T02:00:00.000Z',
+    });
+  });
+
+  it('reads the account by name and email only', () => {
+    expect(INVOICE_ADJUSTMENT_READ_SELECT).toEqual({
+      ...INVOICE_ADJUSTMENT_SELECT,
+      users: { select: { name: true, email: true } },
+    });
+  });
+
+  // OWASP A08: a snapshot is frozen, and a name that can change later has no place in it.
+  it('leaves the name out of what Finalize and a frozen adjustment store', () => {
+    expect(INVOICE_ADJUSTMENT_SELECT).not.toHaveProperty('users');
+    expect(adjustmentDto(saved)).not.toHaveProperty('actorName');
   });
 });

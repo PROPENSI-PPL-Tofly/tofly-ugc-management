@@ -36,6 +36,7 @@ const CONTENT_LIST_SELECT = {
   status: true,
   video_submitted_at: true,
   approval_bypassed: true,
+  closed_at: true,
   // Only which platforms have a link, for the row's icons (PBI-38 AC 13), never the links.
   content_links: { select: { platform: true } },
   contracts: {
@@ -70,6 +71,7 @@ export interface ContentListRow {
   deadline: Date;
   status: ContentStatus;
   video_submitted_at: Date | null;
+  closed_at: Date | null;
   approval_bypassed: boolean;
   content_links: { platform: social_platform | null }[];
   contracts: {
@@ -251,15 +253,20 @@ export class ContentListService implements ContentListLister {
       // Postgres `date` arrives as midnight UTC, so the ISO day is its first ten characters.
       deadline: row.deadline.toISOString().slice(0, 10),
       status: row.status,
-      tags: contentTags(
-        {
-          deadline: row.deadline,
-          status: row.status,
-          videoSubmittedAt: row.video_submitted_at,
-          approvalBypassed: row.approval_bypassed,
-        },
-        now,
-      ),
+      closedAt: row.closed_at?.toISOString() ?? null,
+      // PBI-37 (AC 7): a closed content shows "Ditutup", never Overdue.
+      tags:
+        row.closed_at === null
+          ? contentTags(
+              {
+                deadline: row.deadline,
+                status: row.status,
+                videoSubmittedAt: row.video_submitted_at,
+                approvalBypassed: row.approval_bypassed,
+              },
+              now,
+            )
+          : [],
       revisionCount: row._count.submissions,
       platforms: linkPlatforms(row.content_links),
     };

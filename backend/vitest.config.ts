@@ -51,6 +51,22 @@ export default defineConfig({
           functions: 100,
           statements: 100,
         },
+        // "Log Aktivitas" (SCRUM-296): who may read the audit trail and what it shows of each entry are
+        // access and logging rules, so every line and branch is held to the auth standard.
+        'src/audit-logs/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // The deadline buffer (SCRUM-298): who may change it and the one window every deadline rule
+        // draws with it are held to the auth standard, so no line or branch goes untested.
+        'src/deadline-buffer/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
         'src/me/**': {
           lines: 100,
           branches: 100,
@@ -76,6 +92,15 @@ export default defineConfig({
           statements: 100,
         },
         'src/invoices/{payment-proof*,proof-upload*,invoice-payments*,invoice-comments*,comment-request,invoice-lifecycle,invoice-confirmation*,invoice-command*}.ts':
+          {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
+        // 31.4: an export that sends the wrong amount or skips the wrong invoice is a finance
+        // bug, so every line, branch and function in the new code is held to full coverage.
+        'src/invoices/{bulk-export-request,invoice-export*,prisma-invoice-export*,zip-archive}.ts':
           {
             lines: 100,
             branches: 100,

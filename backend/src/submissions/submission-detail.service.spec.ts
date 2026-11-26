@@ -28,7 +28,7 @@ function stubClient(
         id: string;
         body: string;
         created_at: Date;
-        users: { email: string };
+        users: { name?: string | null; email: string };
       }[];
     }[];
   } | null,
@@ -177,7 +177,7 @@ describe('SubmissionDetailService.getDetail', () => {
                     id: true,
                     body: true,
                     created_at: true,
-                    users: { select: { email: true } },
+                    users: { select: { name: true, email: true } },
                   },
                 },
               },
@@ -211,7 +211,7 @@ describe('SubmissionDetailService.getDetail', () => {
               id: 'fu-2',
               body: 'Ralat: musik versi kedua.',
               created_at: new Date('2026-09-21T05:00:00.000Z'),
-              users: { email: 'bima.admin@tofly.id' },
+              users: { name: 'Bima Santoso', email: 'bima.admin@tofly.id' },
             },
           ],
         },
@@ -237,7 +237,8 @@ describe('SubmissionDetailService.getDetail', () => {
             id: 'fu-2',
             note: 'Ralat: musik versi kedua.',
             at: '2026-09-21T05:00:00.000Z',
-            actor: { name: 'bima.admin@tofly.id' },
+            // PBI-23, 23.10: by name when the account has one, by email until then.
+            actor: { name: 'Bima Santoso' },
           },
         ],
       },

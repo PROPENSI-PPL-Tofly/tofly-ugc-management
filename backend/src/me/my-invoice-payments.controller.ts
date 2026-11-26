@@ -12,6 +12,7 @@ import {
 import type { Response } from 'express';
 import { CurrentCreator } from '../auth/current-creator.decorator.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
+import { PaymentsPage } from '../auth/payments-page.decorator.js';
 import { checkInvoiceComment } from '../invoices/comment-request.js';
 import type { InvoiceCommentDto } from '../invoices/dto/invoice-payment.dto.js';
 import { InvoiceCommentsService } from '../invoices/invoice-comments.service.js';
@@ -25,6 +26,8 @@ import { sendOpenedFile } from '../storage/open-file-response.js';
  */
 @Controller('me/invoices')
 @UseGuards(DevCreatorGuard)
+// PBI-37 (AC 13): open to a creator who only waits for payment.
+@PaymentsPage()
 export class MyInvoicePaymentsController {
   constructor(
     @Inject(PaymentProofService)

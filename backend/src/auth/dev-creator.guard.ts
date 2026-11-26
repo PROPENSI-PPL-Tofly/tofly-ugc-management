@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   Optional,
@@ -8,6 +9,7 @@ import {
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { isUuid } from '../uuid.js';
+import { isPaymentsPage } from './payments-page.decorator.js';
 import { assertSameOrigin } from './same-origin.js';
 import { ACCESS_CHECK, type AccessCheck } from './session/access-check.js';
 import {
@@ -95,6 +97,13 @@ export class DevCreatorGuard implements CanActivate {
         current.creatorId !== principal.creatorId
       ) {
         throw unauthenticated();
+      }
+      // PBI-37 (AC 13): while only an invoice waits, "Pembayaran" is the one page left.
+      if (current.paymentsOnly && !isPaymentsPage(context.getClass())) {
+        throw new ForbiddenException({
+          code: 'PAYMENTS_ONLY',
+          message: 'Hanya halaman Pembayaran yang bisa dibuka sampai invoice selesai',
+        });
       }
       request.principal = principal;
       request.creatorId = principal.creatorId;

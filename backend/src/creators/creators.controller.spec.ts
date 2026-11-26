@@ -5,6 +5,8 @@ import {
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AdminGuard } from '../auth/admin.guard.js';
+import { DeadlineBufferService } from '../deadline-buffer/deadline-buffer.service.js';
+import { CreatorEditService } from './creator-edit.service.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import { CreatorsController } from './creators.controller.js';
 import { CreatorsService } from './creators.service.js';
@@ -23,6 +25,10 @@ describe('CreatorsController', () => {
 
   const onboarding = {
     onboard: vi.fn(),
+  };
+
+  const editor = {
+    edit: vi.fn(),
   };
 
   const response = {
@@ -67,22 +73,66 @@ describe('CreatorsController', () => {
     drafts: [],
   };
 
+  // The stored deadline buffer (SCRUM-298).
+  const buffer = { current: vi.fn() };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
     service.list.mockResolvedValue(response);
     service.findOne.mockResolvedValue(detailResponse);
     onboarding.onboard.mockResolvedValue({ id: 'creator-9' });
+    buffer.current.mockResolvedValue(5);
 
     const module = await Test.createTestingModule({
       controllers: [CreatorsController],
       providers: [
         { provide: CreatorsService, useValue: service },
         { provide: CreatorOnboardingService, useValue: onboarding },
+        { provide: DeadlineBufferService, useValue: buffer },
+        { provide: CreatorEditService, useValue: editor },
       ],
     }).compile();
 
     controller = module.get(CreatorsController);
+  });
+
+  // PBI-16, 16.1: Ubah Data.
+  describe('update', () => {
+    const saved = { id: 'creator-1', changed: ['name'] };
+
+    it('hands only the checked fields to the editor, with the signed-in admin', async () => {
+      editor.edit.mockResolvedValue(saved);
+
+      await expect(
+        controller.update('creator-1', { name: 'Rani Kusuma', is_admin: true }, {
+          principal: { userId: 'admin-1', role: 'admin' },
+        }),
+      ).resolves.toBe(saved);
+      expect(editor.edit).toHaveBeenCalledExactlyOnceWith(
+        'creator-1',
+        {
+          name: { first_name: 'Rani', middle_name: null, last_name: 'Kusuma' },
+          usernames: {},
+          terms: {},
+        },
+        expect.any(Date),
+        'admin-1',
+      );
+    });
+
+    it('names no admin behind the local development stand-in', async () => {
+      editor.edit.mockResolvedValue(saved);
+      await controller.update('creator-1', { name: 'Rani' }, {});
+      expect(editor.edit.mock.calls[0][3]).toBeUndefined();
+    });
+
+    it('refuses an invalid body before the editor is asked', async () => {
+      await expect(
+        controller.update('creator-1', { email: 'bukan-email' }, {}),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(editor.edit).not.toHaveBeenCalled();
+    });
   });
 
   it('hands the requested page to the service', async () => {
@@ -223,6 +273,17 @@ describe('CreatorsController', () => {
       await expect(
         controller.create({ ...body, email: 'salsa' }, signedIn),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(onboarding.onboard).not.toHaveBeenCalled();
+    });
+
+    // PBI-23 AC 22 (SCRUM-298): Tambah Creator is judged by the stored buffer, read once.
+    it('judges the deadlines by the stored buffer, read once for the request', async () => {
+      buffer.current.mockResolvedValue(9);
+
+      await expect(controller.create(body, signedIn)).rejects.toMatchObject({
+        response: { errors: { deadlines: 'Deadline paling cepat 10 Okt 2026' } },
+      });
+      expect(buffer.current).toHaveBeenCalledTimes(1);
       expect(onboarding.onboard).not.toHaveBeenCalled();
     });
 

@@ -273,7 +273,8 @@ describe("EmailCodeSignIn: entering the code", () => {
     [{ kind: "wrong" }, "Kode salah."],
     [{ kind: "invalid" }, "Masukkan 6 digit kode."],
     [{ kind: "expired" }, "Kode sudah kedaluwarsa. Kirim ulang kode."],
-    [{ kind: "denied" }, "Akses ditolak. Hubungi Admin untuk meminta akses."],
+    // PBI-23: the same no-access message as Google's, so neither path tells accounts apart.
+    [{ kind: "denied" }, "Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan."],
     [{ kind: "failed" }, "Gagal masuk. Silakan coba lagi."],
   ] as const)("announces %o and clears the boxes for another try", async (outcome, message) => {
     vi.mocked(verifyCode).mockResolvedValueOnce(outcome);
@@ -289,6 +290,25 @@ describe("EmailCodeSignIn: entering the code", () => {
     expect(boxes()[0]).toHaveFocus();
     expect(screen.getByRole("button", { name: "Masuk" })).toBeEnabled();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  // OWASP A07: a wrong, short or expired code, or a failure, never reads as a closed account.
+  it.each([
+    [{ kind: "wrong", attemptsLeft: 3 }],
+    [{ kind: "wrong" }],
+    [{ kind: "invalid" }],
+    [{ kind: "expired" }],
+    [{ kind: "failed" }],
+  ] as const)("never says %o has no access", async (outcome) => {
+    vi.mocked(verifyCode).mockResolvedValueOnce(outcome);
+    render(<EmailCodeSignIn />);
+    await reachCodeStep();
+    typeCode("012345");
+
+    submitCode();
+    await settle();
+
+    expect(screen.getByRole("alert")).not.toHaveTextContent("tidak punya akses");
   });
 
   it("clears the problem once a new code is typed", async () => {

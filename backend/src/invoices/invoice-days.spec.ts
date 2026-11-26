@@ -44,21 +44,7 @@ describe('onTime', () => {
 });
 
 describe('contractLastDay', () => {
-  it('is the end date when access was never revoked', () => {
-    expect(contractLastDay({ endDate: day(30), endedEarlyOn: null })).toBe(
-      '2026-10-18',
-    );
-  });
-
-  it('is the revocation day when access was revoked before the end', () => {
-    expect(contractLastDay({ endDate: day(30), endedEarlyOn: day(5) })).toBe(
-      '2026-09-23',
-    );
-  });
-
-  it('keeps the end date when the revocation came after it', () => {
-    expect(contractLastDay({ endDate: day(30), endedEarlyOn: day(40) })).toBe(
-      '2026-10-18',
-    );
+  it('is the end date, the last day an early end set included (PBI-37)', () => {
+    expect(contractLastDay({ endDate: day(30) })).toBe('2026-10-18');
   });
 });

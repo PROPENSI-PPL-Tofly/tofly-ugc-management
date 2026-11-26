@@ -53,9 +53,16 @@ function contract(
     start_date: day(start),
     end_date: day(end),
     days_between: 14,
-    content_quota: contents.length,
+    content_quota: contents.filter(
+      (item) => item.type === 'evergreen' && item.status !== 'pending',
+    ).length,
     fixed_rate: new Prisma.Decimal('1500000'),
     contract_type: 'regular',
+    original_end_date: null,
+    end_reason: null,
+    end_note: null,
+    ended_at: null,
+    invoice: null,
     contents,
   };
 }
@@ -114,6 +121,37 @@ describe('toContractPeriods', () => {
     row.content_quota = 4;
 
     expect(toContractPeriods([row], TODAY)[0].remainingEvergreenQuota).toBe(2);
+  });
+
+  // PBI-16: what Ubah Data locks and floors by.
+  it('counts the Evergreen content itself, which the quota may not fall below', () => {
+    const row = contract('only', -30, 150, [
+      content({ id: 'a' }),
+      content({ id: 'b' }),
+      content({ id: 'c', type: 'specific' }),
+    ]);
+    row.content_quota = 1;
+
+    expect(toContractPeriods([row], TODAY)[0].evergreenCount).toBe(2);
+  });
+
+  it('counts progress against the quota', () => {
+    const row = contract('only', -30, 150, [content()]);
+    row.content_quota = 4;
+
+    expect(toContractPeriods([row], TODAY)[0]).toMatchObject({
+      progress: { submitted: 0, total: 4, percent: 0 },
+      total: 4,
+    });
+  });
+
+  it.each([
+    [null, 'running'],
+    [{ status: 'running' as const }, 'running'],
+    [{ status: 'finalized' as const }, 'finalized'],
+  ])('reads where the invoice %j stands as %s', (invoice, status) => {
+    const row = { ...contract('only', -30, 150), invoice };
+    expect(toContractPeriods([row], TODAY)[0].invoiceStatus).toBe(status);
   });
 
   it('never reports fewer than zero Evergreen slots left', () => {
@@ -349,5 +387,37 @@ describe('toDraftEntries', () => {
         lastSubmittedAt: '2026-09-02',
       },
     ]);
+  });
+});
+
+// PBI-37: Creator Detail tells which period was ended early, so "Akhiri Kontrak Lebih Awal" is
+// offered only on a running period that was not, and the period shows its original end.
+describe('toContractPeriods, an early end', () => {
+  it('reports no early end on a period that runs as agreed', () => {
+    const [period] = toContractPeriods([contract('only', -30, 150)], TODAY);
+    expect(period.earlyEnd).toBeNull();
+    expect(period.earlyEndReason).toBeNull();
+  });
+
+  it('reports the original end, the reason, the admin note and when it was ended', () => {
+    const row: DetailContractRow = {
+      ...contract('ended', -30, 5),
+      original_end_date: day(60),
+      end_reason: 'fraud',
+      end_note: 'Views dibeli.',
+      ended_at: new Date('2026-09-18T03:00:00Z'),
+    };
+
+    expect(toContractPeriods([row], TODAY)[0]).toMatchObject({
+      endDate: '2026-09-23',
+      // The field "Perpanjang Kontrak" reads for its warning (PBI-30, AC 3).
+      earlyEndReason: 'fraud',
+      earlyEnd: {
+        originalEndDate: '2026-11-17',
+        reason: 'fraud',
+        note: 'Views dibeli.',
+        endedAt: '2026-09-18T03:00:00.000Z',
+      },
+    });
   });
 });

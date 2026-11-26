@@ -1,24 +1,38 @@
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { Module } from '@nestjs/common';
 import { PerformanceSyncModule } from '../performance/sync/performance-sync.module.js';
 import { RateFormulaModule } from '../rate-formula/rate-formula.module.js';
 import { InvoicePaymentsModule } from './invoice-payments.module.js';
 import { InvoiceCommandService } from './invoice-command.service.js';
 import { InvoiceConfirmationService } from './invoice-confirmation.service.js';
+import { InvoiceExportController } from './invoice-export.controller.js';
+import {
+  INVOICE_EXPORT_READER,
+  InvoiceExportService,
+} from './invoice-export.service.js';
 import { INVOICE_ROSTER_REPOSITORY } from './invoice-roster.repository.js';
 import { INVOICE_STATUS_SOURCE } from './invoice-status.js';
 import { InvoicesController } from './invoices.controller.js';
+import { InvoicePdfController } from './invoice-pdf.controller.js';
+import { InvoicePdfService } from './invoice-pdf.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { LAST_SYNC } from './last-sync.js';
 import { PerformanceLastSync } from './performance-last-sync.adapter.js';
 import { PersistedInvoiceStatusSource } from './persisted-invoice-status.source.js';
+import { PrismaInvoiceExportReader } from './prisma-invoice-export.reader.js';
 import { PrismaInvoiceRosterRepository } from './prisma-invoice-roster.repository.js';
 import { RATE_FORMULA_SOURCE } from './rate-formula.js';
 import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
 
 @Module({
   // The payment proof each row shows (PBI-13); 27.4's sync for Finalize's last sync (PBI-28).
-  imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule],
-  controllers: [InvoicesController],
+  // Finalize emails the creator (PBI-11).
+  imports: [RateFormulaModule, InvoicePaymentsModule, PerformanceSyncModule, EmailModule],
+  controllers: [InvoicesController, InvoicePdfController, InvoiceExportController],
   providers: [
     InvoicesService,
     // The creators, contracts and content the running invoice is calculated from (Repository).
@@ -29,16 +43,28 @@ import { StoredRateFormulaSource } from './stored-rate-formula.source.js';
     // The admin's adjustments and finalizing (PBI-12), for this module's admin-only controller.
     // Not exported: the creator's routes that import this module cannot inject them.
     InvoiceCommandService,
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
+    { provide: ADMIN_NOTIFIER, useExisting: AdminEmails },
     // The formula admins saved in "Atur Formula Rate" (8.1).
     { provide: RATE_FORMULA_SOURCE, useClass: StoredRateFormulaSource },
     // Where each invoice stands, from the lifecycle finalizing saves (PBI-12).
     { provide: INVOICE_STATUS_SOURCE, useClass: PersistedInvoiceStatusSource },
     // The creator's acknowledge and receipt confirmation (13.1).
     InvoiceConfirmationService,
+    // 31.4: the selected invoices are read from their snapshot and zipped for Finance.
+    InvoiceExportService,
+    { provide: INVOICE_EXPORT_READER, useClass: PrismaInvoiceExportReader },
     // Finalize's last sync (PBI-28 AC 7): 27.4's syncContract behind the LastSync port (Adapter).
     { provide: LAST_SYNC, useClass: PerformanceLastSync },
+    // "Unduh PDF" for an admin here and for the creator in MeModule (PBI-31).
+    InvoicePdfService,
   ],
   // The creator's routes in MeModule read their invoices and make their moves through these.
-  exports: [InvoicesService, InvoiceConfirmationService, InvoicePaymentsModule],
+  exports: [
+    InvoicesService,
+    InvoiceConfirmationService,
+    InvoicePdfService,
+    InvoicePaymentsModule,
+  ],
 })
 export class InvoicesModule {}

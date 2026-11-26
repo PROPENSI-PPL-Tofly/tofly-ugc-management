@@ -45,7 +45,6 @@ export function contract(
     endDate: day(60),
     fixedRate: 5_500_000,
     contentQuota: 11,
-    endedEarlyOn: null,
     ...overrides,
   };
 }

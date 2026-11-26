@@ -6,7 +6,15 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { latestDeadline, pastLatestDeadline } from '../creators/evergreen.js';
+import { jakartaDay } from '../creators/evergreen.js';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import {
+  DEFAULT_BUFFER_DAYS,
+  DeadlineWindow,
+} from '../deadline-buffer/deadline-window.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   adminActor,
@@ -24,7 +32,7 @@ interface ProposalRow {
   status: string;
   name: string;
   deadline: Date;
-  contracts: { creator_id: string; end_date: Date };
+  contracts: { creator_id: string; start_date: Date; end_date: Date };
 }
 
 /** The slice of Prisma this service touches, so tests can stub exactly that. */
@@ -74,23 +82,20 @@ export interface ProposalReviewClient {
   $transaction<T>(work: (transaction: ProposalReviewClient) => Promise<T>): Promise<T>;
 }
 
-/** Who hears that a proposal was turned down; the PRD sends it by email. */
+/** Who hears that a proposal was turned down (PBI-11 AC 1, by email); it never throws. */
 export interface ProposalNotifier {
   proposalRejected(input: {
     creatorId: string;
+    contentId: string;
     contentName: string;
     reason: string | null;
-  }): void;
+  }): Promise<void>;
+  proposalApproved(input: { contentId: string }): Promise<void>;
+  /** Scheduled by the system at H-1 (PBI-14 AC 7). */
+  proposalScheduled(input: { contentId: string }): Promise<void>;
 }
 
 export const PROPOSAL_NOTIFIER = Symbol('PROPOSAL_NOTIFIER');
-
-/** Stands in for the email until notifications are built, like Add Content's mock email. */
-const mockEmail: ProposalNotifier = {
-  proposalRejected(input) {
-    console.info('[MOCK EMAIL] Creator proposal rejected', input);
-  },
-};
 
 export interface ApprovedProposal {
   id: string;
@@ -120,18 +125,34 @@ const PROPOSAL_SELECT = {
   status: true,
   name: true,
   deadline: true,
-  contracts: { select: { creator_id: true, end_date: true } },
+  contracts: { select: { creator_id: true, start_date: true, end_date: true } },
 } as const;
 
-/** The refusal of a proposal past the H-5 line (PBI-38 AC 15), or nothing when it fits. */
-function pastLatest(row: ProposalRow): UnprocessableEntityException | null {
-  const end = row.contracts.end_date.toISOString().slice(0, 10);
-  if (row.deadline.toISOString().slice(0, 10) <= latestDeadline(end)) {
+function isoDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The refusal of a proposal past the latest line (PBI-38 AC 15), or nothing when it fits. The line
+ * is the stored buffer before the contract end (PBI-23 AC 22), so H-5 reads H-N; approval checks
+ * only this line, as it did before.
+ */
+function pastLatest(
+  row: ProposalRow,
+  bufferDays: number,
+): UnprocessableEntityException | null {
+  const window = DeadlineWindow.of({
+    contractStart: isoDay(row.contracts.start_date),
+    contractEnd: isoDay(row.contracts.end_date),
+    today: jakartaDay(new Date()),
+    bufferDays,
+  });
+  if (isoDay(row.deadline) <= window.latest) {
     return null;
   }
   return new UnprocessableEntityException({
     code: 'PROPOSAL_PAST_LATEST_DEADLINE',
-    message: pastLatestDeadline(end),
+    message: window.tooLate(),
   });
 }
 
@@ -140,9 +161,14 @@ export class ProposalReviewService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ProposalReviewClient,
-    @Optional()
     @Inject(PROPOSAL_NOTIFIER)
-    private readonly notifier: ProposalNotifier = mockEmail,
+    private readonly notifier: ProposalNotifier,
+    // The stored buffer from DeadlineBufferModule, as Tambah Konten takes it (SCRUM-298).
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
   ) {}
 
   /**
@@ -150,7 +176,7 @@ export class ProposalReviewService {
    * records who approved it, in the same transaction so neither stands without the other.
    */
   async approve(id: string, adminUserId?: string): Promise<ApprovedProposal> {
-    return this.prisma.$transaction(async (transaction) => {
+    const approved = await this.prisma.$transaction(async (transaction) => {
       const row = await transaction.contents.findUnique({
         where: { id },
         select: PROPOSAL_SELECT,
@@ -158,7 +184,7 @@ export class ProposalReviewService {
       if (!row) {
         throw contentNotFound();
       }
-      const refusal = pastLatest(row);
+      const refusal = pastLatest(row, await this.scheduling.bufferDays());
       if (row.status === 'pending' && refusal) {
         throw refusal;
       }
@@ -181,8 +207,11 @@ export class ProposalReviewService {
           event_data: {},
         },
       });
-      return { id, status: 'scheduled' };
+      return { id, status: 'scheduled' } as const;
     });
+    // PBI-11 (AC 1, AC 9): once the approval is saved; the email never fails it.
+    await this.notifier.proposalApproved({ contentId: id });
+    return approved;
   }
 
   /** A rejected proposal is discarded entirely (PRD 3.10); its creator is told why, if given. */
@@ -201,8 +230,10 @@ export class ProposalReviewService {
       throw notPending();
     }
 
-    this.notifier.proposalRejected({
+    // PBI-11 (AC 9): after the removal is saved; the helper never throws.
+    await this.notifier.proposalRejected({
       creatorId: row.contracts.creator_id,
+      contentId: id,
       contentName: row.name,
       reason,
     });
@@ -221,7 +252,7 @@ export class ProposalReviewService {
     const due = { status: 'pending', deadline: { lte: schedulingCutoff(now) } } as const;
     if ((await this.prisma.contents.count({ where: due })) === 0) return 0;
 
-    return this.prisma.$transaction(async (transaction) => {
+    const promoted = await this.prisma.$transaction(async (transaction) => {
       // The status guard is in the UPDATE itself, so two requests promoting at once move (and
       // record) each proposal once: the second finds it no longer pending.
       const promoted = await transaction.contents.updateManyAndReturn({
@@ -242,7 +273,12 @@ export class ProposalReviewService {
           })),
         });
       }
-      return promoted.length;
+      return promoted;
     });
+    // PBI-11 (AC 1): each creator hears their proposal was scheduled, once it is saved.
+    for (const { id } of promoted) {
+      await this.notifier.proposalScheduled({ contentId: id });
+    }
+    return promoted.length;
   }
 }

@@ -1,17 +1,11 @@
 // Pure rules for adding ONE content item to a creator's already-active schedule (PBI-10's
 // "Tambah Konten"), re-run on the server since a request can skip the client entirely. Kept
 // apart from evergreen.ts, which validates the whole deadline batch at onboarding — this
-// judges a single new slot against the quota that batch already used up. The buffer formula,
-// the calendar-day check and the H-5 line are shared with evergreen.ts rather than re-derived
-// here, so onboarding, Tambah Konten and editing a content (content-edit.ts) can never quietly
-// disagree.
-import {
-  earliestDeadline,
-  isCalendarDay,
-  latestDeadline,
-  pastLatestDeadline,
-  readableDay,
-} from './evergreen.js';
+// judges a single new slot against the quota that batch already used up. The deadline window
+// (DeadlineWindow) and the calendar-day check are shared rather than re-derived here, so
+// onboarding, Tambah Konten and editing a content (content-edit.ts) can never quietly disagree.
+import { DeadlineWindow } from '../deadline-buffer/deadline-window.js';
+import { isCalendarDay } from './evergreen.js';
 
 export type ContentType = 'evergreen' | 'specific';
 
@@ -65,18 +59,10 @@ export function checkEvergreenSlot(
     return errors;
   }
 
-  const earliest = earliestDeadline(
-    context.contractStart,
-    today,
-    context.bufferDays,
-  );
-  // PBI-38 AC 14: no deadline later than the contract end minus the H-5 buffer.
-  const latest = latestDeadline(context.contractEnd);
-
-  if (deadline < earliest) {
-    errors.deadline = `Deadline paling cepat ${readableDay(earliest)}`;
-  } else if (deadline > latest) {
-    errors.deadline = pastLatestDeadline(context.contractEnd);
+  // PBI-23 AC 22: one buffer draws both lines (PBI-38's H-5 is now H-N).
+  const problem = DeadlineWindow.of({ ...context, today }).problem(deadline);
+  if (problem) {
+    errors.deadline = problem;
   }
 
   return errors;

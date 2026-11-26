@@ -1,13 +1,14 @@
 // Role vocabulary shared by server routing and pages. Plain module (no server-only imports), so
 // client code may use it too.
 
-export type Role = "admin" | "creator";
+export type Role = "admin" | "creator" | "super_admin";
 
 /** The product's full name. "Tofly" alone reads like the company's public site. */
 export const APP_NAME = "Tofly Creator Management System";
 
 const HOME: Record<Role, string> = {
   admin: "/admin/creators",
+  super_admin: "/admin/creators",
   creator: "/creator/dashboard",
 };
 

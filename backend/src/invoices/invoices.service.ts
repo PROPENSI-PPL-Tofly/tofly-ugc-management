@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminLabel,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceConfirmationFields } from './dto/invoice-confirmation.dto.js';
 import type {
@@ -17,14 +21,14 @@ import {
   type InvoiceRosterRepository,
 } from './invoice-roster.repository.js';
 import {
-  adjustmentDto,
   creatorName,
-  INVOICE_ADJUSTMENT_SELECT,
+  INVOICE_ADJUSTMENT_READ_SELECT,
   INVOICE_SELECT,
   type InvoiceContractRow,
   invoiceContractStatus,
   type InvoiceCreatorRow,
   listedContracts,
+  namedAdjustmentDto,
   periodNumber,
   type SavedInvoice,
   savedSnapshot,
@@ -38,12 +42,14 @@ import {
 } from './invoice-sort.js';
 import {
   INVOICE_STATUS_SOURCE,
+  type InvoiceStatus,
   type InvoiceStatusSource,
 } from './invoice-status.js';
 import {
   PaymentProofService,
   type PaymentProofReader,
 } from './payment-proof.service.js';
+import { RATE_CHANGES, rateChangeDto, type RateChangeDto } from './rate-change.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /**
@@ -103,7 +109,12 @@ interface SavedListing {
 /** A saved invoice with its adjustments, snapshot and the creator's moves, for one invoice view. */
 interface SavedLifecycle extends SavedInvoice {
   confirmations: InvoiceConfirmationFields;
+  finalizedBy: string | null;
+  rateChanges: RateChangeDto[];
 }
+
+/** Where an invoice has nothing left to do: paid, or cancelled by an early end (PBI-37). */
+const SETTLED: ReadonlySet<InvoiceStatus> = new Set<InvoiceStatus>(['paid', 'cancelled']);
 
 /** Neither of the creator's moves: no saved invoice, or one they have not moved yet. */
 const NO_CONFIRMATIONS: InvoiceConfirmationFields = {
@@ -148,7 +159,7 @@ function matches(
   return (
     endsInRange(contract, filters) &&
     (!filters.contract ||
-      invoiceContractStatus(contract, today, row.access_revoke_date) ===
+      invoiceContractStatus(contract, today) ===
         filters.contract)
   );
 }
@@ -220,7 +231,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
       total: items.length,
       totalPages,
       summary: {
-        total: items.reduce((sum, item) => sum + item.total, 0),
+        // A cancelled invoice is not owed (PBI-37), so the outstanding total leaves it out.
+        total: items
+          .filter((item) => item.invoiceStatus !== 'cancelled')
+          .reduce((sum, item) => sum + item.total, 0),
         runningInvoices,
         formulaSet,
       },
@@ -307,10 +321,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         ),
         invoiceStatus: statuses.get(contract.id)!,
         periodNumber: periodNumber(row, contract),
+        rateChanges: lifecycle?.rateChanges ?? [],
         // A finalized invoice keeps the rules its saved totals were worked out with.
         formula: lifecycle?.snapshot
           ? (lifecycle.snapshot.formula ?? null)
           : formula,
+        finalizedBy: lifecycle?.finalizedBy ?? null,
       };
     });
   }
@@ -334,9 +350,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const kept = everyone.filter(
       (creator) =>
-        // An earlier contract's invoice stays listed until it is paid, then there is nothing
-        // left to do on it.
-        (creator.current || statuses.get(creator.contract.id) !== 'paid') &&
+        // An earlier contract's invoice stays listed until it is paid or cancelled, then there
+        // is nothing left to do on it; the Paid filter still finds a paid one, for its invoice
+        // and receipt (PBI-31).
+        (creator.current ||
+          filters.status === 'paid' ||
+          !SETTLED.has(statuses.get(creator.contract.id)!)) &&
         matches(creator, filters, today) &&
         (!filters.status ||
           statuses.get(creator.contract.id) === filters.status),
@@ -407,10 +426,12 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         snapshot: true,
         acknowledged_at: true,
         paid_at: true,
+        finalizer: { select: ADMIN_ACCOUNT_SELECT },
         adjustments: {
-          select: INVOICE_ADJUSTMENT_SELECT,
+          select: INVOICE_ADJUSTMENT_READ_SELECT,
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         },
+        rate_changes: RATE_CHANGES,
       },
     });
 
@@ -418,9 +439,11 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     for (const invoice of persisted) {
       result.set(invoice.contract_id, {
-        adjustments: invoice.adjustments.map(adjustmentDto),
+        adjustments: invoice.adjustments.map(namedAdjustmentDto),
         snapshot: savedSnapshot(invoice.snapshot),
         confirmations: confirmationsOf(invoice),
+        finalizedBy: adminLabel(invoice.finalizer),
+        rateChanges: invoice.rate_changes.map(rateChangeDto),
       });
     }
 
@@ -481,7 +504,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const rows = await this.prisma.invoice_adjustments.findMany({
       where: { invoice_id: { in: ids } },
-      select: { ...INVOICE_ADJUSTMENT_SELECT, invoice_id: true },
+      select: { ...INVOICE_ADJUSTMENT_READ_SELECT, invoice_id: true },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     });
 
@@ -489,7 +512,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     for (const row of rows) {
       const list = byInvoice.get(row.invoice_id) ?? [];
-      list.push(adjustmentDto(row));
+      list.push(namedAdjustmentDto(row));
       byInvoice.set(row.invoice_id, list);
     }
 

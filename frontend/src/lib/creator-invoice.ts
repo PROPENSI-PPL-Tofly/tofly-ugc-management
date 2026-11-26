@@ -3,13 +3,15 @@
 // invoice has walked, and what the creator is asked to do next. Pure module: no React and no
 // next/headers, so the server page, the client components and the tests all share it.
 //
-// The amounts and the breakdown are the backend's. Nothing here adds them up again, so the
-// creator reads exactly what the admin froze.
+// The amounts and the breakdown are the backend's. Only the activity's Finalize line on a snapshot
+// older than finalizedTotal adds them up; everything else shows what the admin froze as it came.
 
+import { ADMIN_LABEL } from "./admin-actor";
 import type { AdjustmentLine } from "./invoice-adjustment";
-import type { InvoiceStatus } from "./invoice";
+import { INVOICE_STATUS_LABELS, type InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
 import { formatDate, formatRupiah, jakartaDay } from "./format";
+import { rateChangeEvents, type RateChange } from "./rate-change";
 import type { Role } from "./session";
 
 /** The page's own address. */
@@ -25,6 +27,8 @@ export interface PaymentProof {
   fileName: string;
   /** ISO instant. */
   uploadedAt: string;
+  /** The Admin who sent it (PBI-23, 23.10); absent when the API names no one. */
+  uploadedBy?: string;
 }
 
 /** One message in an invoice's thread, from the admin or the creator (13.2). */
@@ -37,8 +41,11 @@ export interface InvoiceComment {
   createdAt: string;
 }
 
-/** The steps past Berjalan, each dated when the invoice reached it. */
-export type ReachedAt = Record<Exclude<InvoiceStatus, "accruing">, string | null>;
+/**
+ * The steps past Berjalan, each dated when the invoice reached it. Cancelled is not a step: an
+ * early end takes the invoice off the pipeline, and the API dates no such move (PBI-37).
+ */
+export type ReachedAt = Record<Exclude<InvoiceStatus, "accruing" | "cancelled">, string | null>;
 
 /** One of the creator's invoices, one per contract. */
 export interface CreatorInvoice {
@@ -66,6 +73,8 @@ export interface CreatorInvoice {
   proof: PaymentProof | null;
   /** Oldest first. */
   comments: InvoiceComment[];
+  /** Every change of the fixed rate while the invoice ran (PBI-16). */
+  rateChanges?: RateChange[];
 }
 
 /** A failed read of the creator's invoices, with the HTTP status that says why. */
@@ -78,6 +87,15 @@ export class CreatorInvoicesError extends Error {
     this.status = status;
   }
 }
+
+/**
+ * Each status as the creator reads it: the admin table's words, except an invoice an early end
+ * cancelled, which the creator reads as "Dibatalkan" rather than the internal "Cancelled" (PBI-37).
+ */
+export const CREATOR_INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  ...INVOICE_STATUS_LABELS,
+  cancelled: "Dibatalkan",
+};
 
 /** The total's name as the prototype gives it to a creator: an estimate until it is frozen. */
 export function totalLabel(status: InvoiceStatus): string {
@@ -101,7 +119,7 @@ export function totalNote(status: InvoiceStatus): string | null {
 }
 
 /** The pipeline in the order it walks, with the tracker's words for each step. */
-const STEPS: readonly { status: InvoiceStatus; label: string }[] = [
+const STEPS: readonly { status: Exclude<InvoiceStatus, "cancelled">; label: string }[] = [
   { status: "accruing", label: "Berjalan" },
   { status: "finalized", label: "Final" },
   { status: "creator_acked", label: "Di-ack Creator" },
@@ -141,7 +159,8 @@ export function invoiceSteps(invoice: CreatorInvoice): InvoiceStep[] {
   return STEPS.map((step, index) => {
     let state: StepState = "todo";
     if (index <= reached) state = "done";
-    else if (index === reached + 1) state = "current";
+    // A cancelled invoice is off the pipeline, so it waits on no step.
+    else if (index === reached + 1 && invoice.status !== "cancelled") state = "current";
 
     let caption: string | null;
     if (step.status === "accruing") {
@@ -170,6 +189,8 @@ const NEXT_STEPS: Record<InvoiceStatus, CreatorNextStep> = {
   creator_acked: { hint: "Menunggu bukti bayar dari Admin.", action: null },
   payment_uploaded: { hint: "Admin sudah mengirim bukti bayar.", action: "confirm" },
   paid: { hint: "Lunas", action: null },
+  // Nothing is left to acknowledge or confirm on an invoice an early end cancelled.
+  cancelled: { hint: CREATOR_INVOICE_STATUS_LABELS.cancelled, action: null },
 };
 
 /**
@@ -216,29 +237,75 @@ export type ActivityEntry =
   | { kind: "event"; id: string; text: string; at: string }
   | { kind: "comment"; id: string; author: string; text: string; at: string };
 
+/** How a step reads: fixed words, or words around the Admin who acted and the total at that step. */
+export type ActivityText = Record<keyof ReachedAt, string | ((admin: string, total: string) => string)>;
+
+/** The two steps an Admin takes, in the prototype's words, for the creator and the Admin alike. */
+export const ADMIN_STEP_TEXT = {
+  finalized: (admin: string, total: string) => `${admin} memfinalisasi invoice · ${total}`,
+  payment_uploaded: (admin: string) => `${admin} mengirim bukti bayar`,
+};
+
 /** Each step past Berjalan as the creator reads it in the activity. */
-const EVENT_TEXT: Record<keyof ReachedAt, string> = {
-  finalized: "Invoice difinalisasi Admin",
+const EVENT_TEXT: ActivityText = {
+  ...ADMIN_STEP_TEXT,
   creator_acked: "Kamu meng-acknowledge invoice",
-  payment_uploaded: "Admin mengirim bukti bayar",
   paid: "Kamu mengonfirmasi pembayaran diterima",
 };
 
+/** Who took a step: the finalizer, or the proof's sender. */
+function actingAdmin(invoice: CreatorInvoice, step: keyof ReachedAt): string {
+  const named = step === "finalized" ? invoice.breakdown.finalizedBy : invoice.proof?.uploadedBy;
+  return named ?? ADMIN_LABEL;
+}
+
+/**
+ * The total the Finalize line shows: the one the backend froze. A snapshot from before it was kept
+ * has only the latest total, which a later adjustment moves, so that line rebuilds its own from the
+ * frozen parts and the adjustments made by then, held at zero as the backend holds it.
+ */
+function totalAtFinalize(invoice: CreatorInvoice, at: string): string {
+  const { finalizedTotal } = invoice.breakdown;
+  if (finalizedTotal !== undefined) return formatRupiah(finalizedTotal);
+
+  const moment = Date.parse(at);
+  const adjusted = invoice.adjustments
+    .filter((adjustment) => Date.parse(adjustment.createdAt) <= moment)
+    .reduce((sum, adjustment) => sum + adjustment.amount, 0);
+  const { fixedAmount, extraAmount, bonusAmount, penaltyAmount } = invoice;
+  return formatRupiah(Math.max(0, fixedAmount + extraAmount + (bonusAmount ?? 0) - penaltyAmount + adjusted));
+}
+
+/** An adjustment's line in the prototype's words, its minus right against the Rp. */
+function adjustmentText({ actorName, reason, amount }: AdjustmentLine): string {
+  const moved = amount < 0 ? `−${formatRupiah(-amount)}` : `+${formatRupiah(amount)}`;
+  return `${actorName ?? ADMIN_LABEL} menambah penyesuaian: ${reason} (${moved})`;
+}
+
 /**
  * The invoice's story, oldest first, as the prototype's activity tab tells it: every step it
- * reached woven together with the comments. A step comes before a comment written at the same
- * moment. An admin is named by their email, as the API names them and the Content Detail timeline
- * does.
+ * reached and every adjustment woven together with the comments. At the same moment a step comes
+ * first, then an adjustment, then a comment. An admin is named as the API names them, by name else
+ * email, as the Content Detail timeline does (PBI-23, 23.11).
  */
 export function invoiceActivity(
   invoice: CreatorInvoice,
   /** How each step reads; the creator's words unless the admin's are handed in. */
-  texts: Record<keyof ReachedAt, string> = EVENT_TEXT,
+  texts: ActivityText = EVENT_TEXT,
 ): ActivityEntry[] {
   const events: ActivityEntry[] = (Object.keys(texts) as (keyof ReachedAt)[]).flatMap((step) => {
     const at = invoice.reachedAt[step];
-    return at === null ? [] : [{ kind: "event" as const, id: step, text: texts[step], at }];
+    if (at === null) return [];
+    const words = texts[step];
+    const text = typeof words === "string" ? words : words(actingAdmin(invoice, step), totalAtFinalize(invoice, at));
+    return [{ kind: "event" as const, id: step, text, at }];
   });
+  const adjustments: ActivityEntry[] = invoice.adjustments.map((adjustment) => ({
+    kind: "event",
+    id: adjustment.id,
+    text: adjustmentText(adjustment),
+    at: adjustment.createdAt,
+  }));
   const comments: ActivityEntry[] = invoice.comments.map((comment) => ({
     kind: "comment",
     id: comment.id,
@@ -247,8 +314,10 @@ export function invoiceActivity(
     at: comment.createdAt,
   }));
 
-  // A stable sort keeps every step ahead of a comment at the same moment.
-  return [...events, ...comments].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  // A stable sort keeps this order among entries of the same moment: every step ahead of a comment.
+  return [...events, ...adjustments, ...rateChangeEvents(invoice.rateChanges), ...comments].sort(
+    (a, b) => Date.parse(a.at) - Date.parse(b.at),
+  );
 }
 
 /** A refusal of one of the creator's moves, worded for the creator. */

@@ -50,7 +50,7 @@ describe("toCreatorInvoices", () => {
     });
   });
 
-  it("lists the adjustments with what the creator reads, without who recorded them", () => {
+  it("lists the adjustments with what the creator reads, never the Admin's id", () => {
     expect(only(RAW_MY_PAID).adjustments).toEqual([
       {
         id: "adadadad-0000-4000-8000-000000000001",
@@ -61,12 +61,51 @@ describe("toCreatorInvoices", () => {
     ]);
   });
 
+  // PBI-23 AC 25: the creator's activity names the Admin who recorded an adjustment.
+  it("keeps an adjustment's Admin name, trimmed, and never the Admin's id", () => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName: "  Sinta Dewi  " };
+
+    const [line] = only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments;
+
+    expect(line).toHaveProperty("actorName", "Sinta Dewi");
+    expect(line).not.toHaveProperty("actorId");
+  });
+
+  it.each([
+    ["null", null],
+    ["blank", "   "],
+    ["not text", 42],
+  ])("names no one on an adjustment when the name is %s", (_label, actorName) => {
+    const named = { ...RAW_MY_PAID.adjustments![0], actorName };
+
+    expect(only({ ...RAW_MY_PAID, adjustments: [named] }).adjustments[0]).not.toHaveProperty("actorName");
+  });
+
   it("keeps the payment proof with its link, file name and upload moment", () => {
     expect(only(RAW_MY_PAID).proof).toEqual({
       url: "https://files.tofly.test/proofs/rangga-1.pdf?token=abc",
       fileName: "transfer-rangga-agustus.pdf",
       uploadedAt: "2026-09-05T02:00:00Z",
     });
+  });
+
+  // PBI-23, 23.11: the creator's activity names the Admin who sent the proof.
+  it("keeps who sent the proof", () => {
+    const proof = RAW_MY_PAID.paymentProof!;
+
+    expect(only({ ...RAW_MY_PAID, paymentProof: { ...proof, uploadedBy: "Sinta Dewi" } }).proof?.uploadedBy).toBe(
+      "Sinta Dewi",
+    );
+  });
+
+  it("keeps who finalized the invoice", () => {
+    expect(only({ ...RAW_MY_PAID, finalizedBy: "Sinta Dewi" }).breakdown.finalizedBy).toBe("Sinta Dewi");
+  });
+
+  it("keeps the total frozen at Finalize", () => {
+    const snapshot = { finalizedAt: "2026-09-02T02:00:00Z", finalizedTotal: 1060000 };
+
+    expect(only({ ...RAW_MY_PAID, snapshot }).breakdown).toHaveProperty("finalizedTotal", 1060000);
   });
 
   it("has no proof before the admin uploads one", () => {
@@ -126,9 +165,40 @@ describe("toCreatorInvoices", () => {
   });
 });
 
+// OWASP A01: GET /me/invoices sends no early-end reason or note (37.1). Should one ever arrive,
+// the creator's model is built field by field, so it never carries them to the page. Hiding it
+// here is not the access control: the backend not sending it is.
+describe("toCreatorInvoices, given admin-only early-end fields", () => {
+  it("drops the reason and the note an answer should never have carried", () => {
+    const leaky = {
+      ...RAW_MY_RUNNING,
+      invoiceStatus: "cancelled",
+      earlyEnd: { reason: "fraud", note: "Catatan admin rahasia" },
+      contract: {
+        ...RAW_MY_RUNNING.contract,
+        earlyEnd: { originalEndDate: "2026-12-31", reason: "fraud", note: "Catatan admin rahasia" },
+        earlyEndReason: "fraud",
+      },
+    } as unknown as RawCreatorInvoice;
+
+    const read = JSON.stringify(only(leaky));
+
+    expect(read).not.toContain("fraud");
+    expect(read).not.toContain("Catatan admin rahasia");
+    expect(read).not.toContain("2026-12-31");
+  });
+});
+
 describe("isRawCreatorInvoices", () => {
   it("accepts the answer the page reads", () => {
     expect(isRawCreatorInvoices({ items: [RAW_MY_RUNNING, RAW_MY_PAID] })).toBe(true);
+  });
+
+  // OWASP A10: before 37.3 one cancelled invoice made the whole Pembayaran page a failed load.
+  it("accepts an invoice an early end cancelled", () => {
+    expect(isRawCreatorInvoices({ items: [RAW_MY_PAID, { ...RAW_MY_RUNNING, invoiceStatus: "cancelled" }] })).toBe(
+      true,
+    );
   });
 
   it("accepts a creator with no invoices yet", () => {

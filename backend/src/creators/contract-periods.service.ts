@@ -1,11 +1,23 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AuditAction } from '../audit/audit-actions.js';
+import {
+  AuditLogger,
+  type AuditActorReader,
+  type AuditWriter,
+} from '../audit/audit-logger.js';
 import { lockContractRow } from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -17,6 +29,11 @@ import { evergreenSchedule } from './creator-onboarding.service.js';
 import type { SavedPeriod } from './dto/contract-period.dto.js';
 import { joinName } from './evergreen.js';
 import type { ContractTerms } from './new-creator.js';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 /** The creator and every period they have, with the Specific content an edit must keep in range. */
 const CREATOR_PERIODS = {
@@ -28,6 +45,10 @@ const CREATOR_PERIODS = {
       id: true,
       start_date: true,
       end_date: true,
+      contract_type: true,
+      days_between: true,
+      content_quota: true,
+      fixed_rate: true,
       contents: {
         where: { type: 'specific' },
         select: { name: true, deadline: true },
@@ -56,7 +77,9 @@ type SavedRow = Prisma.contractsGetPayload<{ select: typeof SAVED_SELECT }>;
 type PeriodsTransaction = Pick<
   Prisma.TransactionClient,
   '$queryRaw' | 'creators' | 'contracts' | 'contents'
->;
+> &
+  AuditWriter &
+  AuditActorReader;
 
 /** The slice of the database client periods touch; tests hand in a stub of just that. */
 export interface PeriodsClient {
@@ -86,6 +109,29 @@ function contractColumns(terms: ContractTerms) {
   };
 }
 
+// A period's terms as Log Aktivitas keeps them: plain days and numbers, never a Prisma Decimal.
+function termsForLog(terms: ContractTerms): Record<string, unknown> {
+  return {
+    startDate: toDay(terms.contractStart),
+    endDate: toDay(terms.contractEnd),
+    contractType: terms.contractType,
+    interval: terms.interval,
+    quota: terms.quota,
+    fixedRate: terms.fixedRate,
+  };
+}
+
+function storedTermsForLog(period: PeriodRow): Record<string, unknown> {
+  return {
+    startDate: toDay(period.start_date),
+    endDate: toDay(period.end_date),
+    contractType: period.contract_type,
+    interval: period.days_between,
+    quota: period.content_quota,
+    fixedRate: Number(period.fixed_rate),
+  };
+}
+
 function toSaved(row: SavedRow): SavedPeriod {
   return {
     contractId: row.id,
@@ -110,7 +156,12 @@ export interface PeriodKeeper {
     now: Date,
     adminUserId?: string,
   ): Promise<SavedPeriod>;
-  remove(creatorId: string, contractId: string, now: Date): Promise<void>;
+  remove(
+    creatorId: string,
+    contractId: string,
+    now: Date,
+    adminUserId?: string,
+  ): Promise<void>;
 }
 
 /**
@@ -121,15 +172,29 @@ export interface PeriodKeeper {
  */
 @Injectable()
 export class ContractPeriodsService implements PeriodKeeper {
-  constructor(@Inject(PrismaService) private readonly prisma: PeriodsClient) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PeriodsClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
+    // The stored buffer from DeadlineBufferModule, as Tambah Konten takes it (SCRUM-298).
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'periodAdded'> = noCreatorEmail,
+  ) {}
 
-  create(
+  async create(
     creatorId: string,
     terms: ContractTerms,
     now: Date,
     adminUserId?: string,
   ): Promise<SavedPeriod> {
-    return this.prisma.$transaction(async (tx) => {
+    const saved = await this.prisma.$transaction(async (tx) => {
       const creator = await this.lockCreator(tx, creatorId);
       this.refuseOverlap(terms, creator.contracts);
 
@@ -143,8 +208,19 @@ export class ContractPeriodsService implements PeriodKeeper {
         },
         select: SAVED_SELECT,
       });
+      await this.log(tx, 'contract_extended', creator, creatorId, row.id, adminUserId, {
+        newValues: termsForLog(terms),
+      });
       return toSaved(row);
     });
+    // PBI-11 (AC 1, AC 9): once the period is saved; the email never fails it.
+    await this.notifier.periodAdded({
+      creatorId,
+      contractId: saved.contractId,
+      startDate: saved.startDate,
+      endDate: saved.endDate,
+    });
+    return saved;
   }
 
   update(
@@ -166,6 +242,7 @@ export class ContractPeriodsService implements PeriodKeeper {
         terms,
         period.contents,
         now,
+        await this.scheduling.bufferDays(),
       );
       if (stranded) {
         throw invalid({ contents: stranded });
@@ -184,19 +261,27 @@ export class ContractPeriodsService implements PeriodKeeper {
         },
         select: SAVED_SELECT,
       });
+      await this.log(tx, 'period_changed', creator, creatorId, contractId, adminUserId, {
+        oldValues: storedTermsForLog(period),
+        newValues: termsForLog(terms),
+      });
       return toSaved(row);
     });
   }
 
   /**
    * Deletes a period that has not started; its contents, their history and its empty invoice
-   * cascade with it. "Log Aktivitas" (AC 9) waits on the audit log store (PBI-23, 23.5): the
-   * deletion is to be recorded here, inside this transaction, once that store exists.
+   * cascade with it. The deletion is recorded in "Log Aktivitas" (AC 9) inside this transaction.
    */
-  remove(creatorId: string, contractId: string, now: Date): Promise<void> {
+  remove(
+    creatorId: string,
+    contractId: string,
+    now: Date,
+    adminUserId?: string,
+  ): Promise<void> {
     return this.prisma.$transaction(async (tx) => {
       const creator = await this.lockCreator(tx, creatorId);
-      await this.lockUnstarted(tx, creator, contractId, now, 'dihapus');
+      const period = await this.lockUnstarted(tx, creator, contractId, now, 'dihapus');
 
       if (creator.contracts.length === 1) {
         throw new ConflictException({
@@ -205,6 +290,27 @@ export class ContractPeriodsService implements PeriodKeeper {
         });
       }
       await tx.contracts.delete({ where: { id: contractId } });
+      await this.log(tx, 'period_deleted', creator, creatorId, contractId, adminUserId, {
+        oldValues: storedTermsForLog(period),
+      });
+    });
+  }
+
+  // On the write's own transaction, so a period never changes without its entry (OWASP A09:2025).
+  private async log(
+    tx: PeriodsTransaction,
+    action: AuditAction,
+    creator: CreatorPeriods,
+    creatorId: string,
+    contractId: string,
+    adminUserId: string | undefined,
+    values: { oldValues?: Record<string, unknown>; newValues?: Record<string, unknown> },
+  ): Promise<void> {
+    await this.audit.recordBy(tx, adminUserId, {
+      action,
+      target: { id: contractId, label: joinName(creator) },
+      creatorId,
+      ...values,
     });
   }
 

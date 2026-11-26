@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { AdminNotifier } from '../email/admin-notifier.js';
 import {
   DraftSubmissionService,
   type DraftSubmissionClient,
@@ -31,6 +32,10 @@ function stub(
     content?: { id: string; status: string } | null;
     /** The start day of the content's contract period. */
     periodStart?: Date;
+    /** PBI-37: when an early end closed the content. */
+    closedAt?: Date;
+    /** PBI-37: the last day of a contract ended early. */
+    endedEarlyOn?: Date;
     updated?: number;
     creator?: {
       first_name: string;
@@ -46,7 +51,12 @@ function stub(
           ? null
           : {
               ...(options.content ?? { id: CONTENT_ID, status: 'scheduled' }),
-              contracts: { start_date: options.periodStart ?? LONG_STARTED },
+              closed_at: options.closedAt ?? null,
+              contracts: {
+                start_date: options.periodStart ?? LONG_STARTED,
+                end_date: options.endedEarlyOn ?? new Date('2099-12-31T00:00:00Z'),
+                original_end_date: options.endedEarlyOn ? new Date('2099-12-31T00:00:00Z') : null,
+              },
             },
       ),
       updateMany: vi.fn().mockResolvedValue({ count: options.updated ?? 1 }),
@@ -110,11 +120,13 @@ describe('DraftSubmissionService.submit', () => {
         status: { in: COMMITTED },
         contracts: { creator_id: CREATOR_ID },
       },
-      // Also the period's start day, to refuse a draft before the period starts (PBI-30.2).
+      // Also the period's start day, to refuse a draft before the period starts (PBI-30.2), and
+      // when an early end closed it (PBI-37).
       select: {
         id: true,
         status: true,
-        contracts: { select: { start_date: true } },
+        closed_at: true,
+        contracts: { select: { start_date: true, end_date: true, original_end_date: true } },
       },
     });
   });
@@ -140,6 +152,50 @@ describe('DraftSubmissionService.submit', () => {
     expect(transaction.contents.updateMany).not.toHaveBeenCalled();
     expect(transaction.submissions.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  // PBI-37: content due after the last day of a contract ended early is closed.
+  it('returns 409 CONTENT_CLOSED for content an early end closed and saves nothing', async () => {
+    const { transaction, service } = stub({ closedAt: new Date('2026-11-24T03:00:00Z') });
+
+    const error = await failure(service.submit(CONTENT_ID, CREATOR_ID, INPUT));
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'CONTENT_CLOSED',
+      message: 'Konten ini ditutup karena kontrak diakhiri lebih awal',
+    });
+    expect(transaction.contents.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ closed_at: true }),
+      }),
+    );
+    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+    expect(transaction.submissions.create).not.toHaveBeenCalled();
+  });
+
+  // PBI-37 (AC 8): nothing is handed in after the last day of a contract ended early.
+  it('returns 409 CONTRACT_ENDED_EARLY the day after the last day and saves nothing', async () => {
+    const { transaction, service } = stub({ endedEarlyOn: new Date('2026-11-23T00:00:00Z') });
+
+    // 10:00 WIB on 24 November.
+    const error = await failure(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT, new Date('2026-11-24T03:00:00Z')),
+    );
+
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'CONTRACT_ENDED_EARLY',
+      message: 'Kontrak sudah diakhiri lebih awal. Tidak ada kiriman setelah hari terakhir',
+    });
+    expect(transaction.contents.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('accepts the draft on the last day itself', async () => {
+    const { service } = stub({ endedEarlyOn: new Date('2026-11-24T00:00:00Z') });
+
+    await expect(
+      service.submit(CONTENT_ID, CREATOR_ID, INPUT, new Date('2026-11-24T16:59:00Z')),
+    ).resolves.toBeDefined();
   });
 
   it('accepts the draft from Jakarta midnight on the start date', async () => {
@@ -365,5 +421,37 @@ describe('DraftSubmissionService.submit', () => {
 
     expect(transaction.submissions.create).not.toHaveBeenCalled();
     expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-11 (11.2, AC 5): every Admin hears a draft waits for review, once it is saved.
+describe('DraftSubmissionService.submit, the Admin email', () => {
+  function emails() {
+    return { draftSubmitted: vi.fn<AdminNotifier['draftSubmitted']>().mockResolvedValue() };
+  }
+
+  it('tells the Admins after the draft is saved', async () => {
+    const notifier = emails();
+    const { client, transaction } = stub({});
+    notifier.draftSubmitted.mockImplementation(async () => {
+      expect(transaction.content_events.create).toHaveBeenCalled();
+    });
+
+    await new DraftSubmissionService(client, notifier).submit(CONTENT_ID, CREATOR_ID, INPUT);
+
+    expect(notifier.draftSubmitted).toHaveBeenCalledExactlyOnceWith({
+      contentId: CONTENT_ID,
+      submissionId: SUBMISSION_ID,
+    });
+  });
+
+  it('tells nobody when the draft is refused', async () => {
+    const notifier = emails();
+    const { client } = stub({ updated: 0 });
+
+    await expect(
+      new DraftSubmissionService(client, notifier).submit(CONTENT_ID, CREATOR_ID, INPUT),
+    ).rejects.toThrow();
+    expect(notifier.draftSubmitted).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,9 @@
 import { INVOICE_TONES } from "@/components/invoice/invoice-table";
+import { InvoiceDocumentButtons } from "@/components/invoicing/invoice-pdf-button";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
-import { totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
+import { CREATOR_INVOICE_STATUS_LABELS, totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
 import { formatContractWindow } from "@/lib/format";
-import { INVOICE_STATUS_LABELS } from "@/lib/invoice";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
 
 const HEAD = "px-5 py-3 text-left font-semibold";
@@ -69,7 +69,7 @@ export function InvoiceHistory({
                   </span>
                 </td>
                 <td data-label="Status" className={`${CELL} ${LABELLED}`}>
-                  <Pill tone={INVOICE_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Pill>
+                  <Pill tone={INVOICE_TONES[invoice.status]}>{CREATOR_INVOICE_STATUS_LABELS[invoice.status]}</Pill>
                 </td>
                 <td
                   data-label="Total"
@@ -78,15 +78,24 @@ export function InvoiceHistory({
                   {totalAmountLabel(invoice)}
                 </td>
                 <td className={`${CELL} text-right max-lg:pt-2`}>
-                  <Button
-                    variant="ghost"
-                    // A full-width target on a phone; the border keeps it reading as a button.
-                    className="max-lg:min-h-11 max-lg:w-full max-lg:border-rule"
-                    aria-label={`Rincian invoice Periode ${invoice.periodNumber}`}
-                    onClick={() => onOpen(invoice)}
-                  >
-                    Rincian
-                  </Button>
+                  <span className="inline-flex items-start gap-2 max-lg:flex max-lg:flex-col max-lg:items-stretch">
+                    {/* PBI-31: an earlier invoice's documents, once acknowledged and once paid. */}
+                    <InvoiceDocumentButtons
+                      contractId={invoice.contractId}
+                      audience="creator"
+                      status={invoice.status}
+                      className="max-lg:min-h-11 max-lg:w-full"
+                    />
+                    <Button
+                      variant="ghost"
+                      // A full-width target on a phone; the border keeps it reading as a button.
+                      className="max-lg:min-h-11 max-lg:w-full max-lg:border-rule"
+                      aria-label={`Rincian invoice Periode ${invoice.periodNumber}`}
+                      onClick={() => onOpen(invoice)}
+                    >
+                      Rincian
+                    </Button>
+                  </span>
                 </td>
               </tr>
             ))

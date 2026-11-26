@@ -77,6 +77,19 @@ describe("validateEvergreenSlot", () => {
       expect(errors.deadline).toBe("Deadline paling lambat 26 Des 2026 (H-5 akhir kontrak)");
     });
 
+    // PBI-23 AC: the configured buffer sets both lines, and the message names it.
+    it("holds both lines to the configured buffer", () => {
+      const input = { ...VALID_INPUT, bufferDays: 10 };
+
+      expect(validateEvergreenSlot({ ...input, deadline: "2026-10-10" }).deadline).toBe(
+        "Deadline paling cepat 11 Okt 2026",
+      );
+      expect(validateEvergreenSlot({ ...input, deadline: "2026-12-22" }).deadline).toBe(
+        "Deadline paling lambat 21 Des 2026 (H-10 akhir kontrak)",
+      );
+      expect(validateEvergreenSlot({ ...input, deadline: "2026-12-21" }).deadline).toBeUndefined();
+    });
+
     it("accepts the H-5 line itself", () => {
       const errors = validateEvergreenSlot({ ...VALID_INPUT, deadline: "2026-12-26" });
 

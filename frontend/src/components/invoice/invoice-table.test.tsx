@@ -53,7 +53,7 @@ const WAITING: InvoiceRow = {
   totalAmount: 4500000,
   floored: false,
   invoiceStatus: "finalized",
-  contractId: "11111111-1111-4111-8111-111111111111",
+  contractId: "33333333-3333-4333-8333-333333333333",
   contractEnd: "2026-12-31",
   adjustments: [],
   frozenAt: "2026-10-18T03:00:00.000Z",
@@ -160,6 +160,13 @@ describe("InvoiceTable", () => {
     render(<InvoiceTable rows={[FULL]} />);
 
     expect(screen.getByText("Berjalan")).toBeInTheDocument();
+  });
+
+  // PBI-37: an invoice an early end cancelled, in an existing tone rather than a new colour.
+  it("draws a cancelled invoice as a Cancelled pill in the danger tone", () => {
+    render(<InvoiceTable rows={[{ ...FULL, invoiceStatus: "cancelled" }]} />);
+
+    expect(screen.getByText("Cancelled").className).toContain("bg-red-wash");
   });
 
   it("dashes every amount that is nothing, and never calls it a zero", () => {
@@ -521,5 +528,95 @@ describe("InvoiceTable", () => {
     render(<InvoiceTable rows={[FULL]} />);
 
     expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
+  });
+
+  describe("with the bulk-selection column of 31.5", () => {
+    function selection(ids: string[] = []) {
+      return { ids, onToggle: vi.fn(), onToggleAll: vi.fn() };
+    }
+
+    it("adds one named checkbox per row and one for the whole page", () => {
+      const picked = selection();
+      const { container } = render(
+        <InvoiceTable rows={[FULL, WAITING]} selection={picked} />,
+      );
+
+      expect(screen.getAllByRole("columnheader")).toHaveLength(8);
+      expect(
+        screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", { name: "Pilih Dimas Aji" }),
+      ).toBeInTheDocument();
+      expect(
+        container.querySelector("col.w-10")?.className.split(" ")[0],
+      ).toBe("w-10");
+    });
+
+    // The row checkbox looks like the header's (16px); the 44px touch target is the label
+    // around it, not the box itself, which drew a 44px empty square in every row.
+    it("draws each row checkbox at the header's size inside a 44px touch target", () => {
+      render(<InvoiceTable rows={[FULL]} selection={selection()} />);
+
+      const header = screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" });
+      const row = screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" });
+
+      expect(row.className).toBe(header.className);
+      expect(row.closest("label")?.className).toContain("min-h-11");
+      expect(row.closest("label")?.className).toContain("min-w-11");
+    });
+
+    it("reports a row press and a select-all press to the board", () => {
+      const picked = selection();
+      render(<InvoiceTable rows={[FULL, WAITING]} selection={picked} onOpen={vi.fn()} />);
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" }));
+
+      expect(picked.onToggle).toHaveBeenCalledWith(FULL.contractId);
+      expect(picked.onToggleAll).toHaveBeenCalledWith([
+        FULL.contractId,
+        WAITING.contractId,
+      ]);
+    });
+
+    it("reflects a selection, marks a partial page, and never opens Rincian from a checkbox", () => {
+      const onOpen = vi.fn();
+      const picked = selection([FULL.contractId]);
+      render(<InvoiceTable rows={[FULL, WAITING]} selection={picked} onOpen={onOpen} />);
+
+      const one = screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" });
+      const all = screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" });
+      expect(one).toBeChecked();
+      expect(all).toHaveProperty("indeterminate", true);
+      expect(screen.getByRole("checkbox", { name: "Pilih Dimas Aji" })).not.toBeChecked();
+
+      fireEvent.click(one);
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it("checks select-all when every row on the page is ticked", () => {
+      const picked = selection([FULL.contractId, WAITING.contractId]);
+      render(<InvoiceTable rows={[FULL, WAITING]} selection={picked} />);
+
+      const all = screen.getByRole("checkbox", { name: "Pilih semua di halaman ini" });
+      expect(all).toBeChecked();
+      expect(all).toHaveProperty("indeterminate", false);
+    });
+
+    it("widens the empty-state and footer rows to include the new column", () => {
+      const { container } = render(
+        <InvoiceTable
+          rows={[]}
+          summary={{ total: 0, count: 0 }}
+          selection={selection()}
+        />,
+      );
+
+      expect(container.querySelector("td[colspan]")).toHaveAttribute("colspan", "8");
+    });
   });
 });

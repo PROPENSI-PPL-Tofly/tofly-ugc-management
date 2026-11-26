@@ -3,8 +3,12 @@
 // database, and the service is left with loading rows and paging.
 
 import { Prisma } from '@prisma/client';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminName,
+  type AdminAccount,
+} from '../contents/content-event-actors.js';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
-import { jakartaDay } from '../creators/evergreen.js';
 import { effectiveState } from '../performance/link-performance.js';
 import {
   CONNECTION_SELECT,
@@ -41,7 +45,6 @@ export const INVOICE_SELECT = {
   first_name: true,
   middle_name: true,
   last_name: true,
-  access_revoke_date: true,
   contracts: {
     select: {
       id: true,
@@ -144,17 +147,13 @@ export function toInvoiceContent(row: InvoiceContentRow): InvoiceContent {
   };
 }
 
-export function toInvoiceContract(
-  row: InvoiceContractRow,
-  accessRevokeDate: Date | null,
-): InvoiceContract {
+export function toInvoiceContract(row: InvoiceContractRow): InvoiceContract {
   return {
     id: row.id,
     startDate: row.start_date,
     endDate: row.end_date,
     fixedRate: row.fixed_rate.toNumber(),
     contentQuota: row.content_quota,
-    endedEarlyOn: accessRevokeDate,
   };
 }
 
@@ -170,20 +169,15 @@ function period(contract: InvoiceContractRow): MetricsContract {
 
 /**
  * Where a contract stands today, as the table's contract column, its filter and the needs-action
- * order read it. An early end counts: past the day access was revoked, the contract has ended,
- * the same last day finalizing waits for.
+ * order read it. An early end counts: it moved end_date to the last day (PBI-37), the same last
+ * day finalizing waits for.
  */
 export function invoiceContractStatus(
   contract: InvoiceContractRow,
   today: Date,
-  endedEarlyOn: Date | null = null,
 ): InvoiceContractStatus {
   // A contract exists, so contractStatus never answers 'none' here.
-  const status = contractStatus(period(contract), today) as InvoiceContractStatus;
-  if (status !== 'active') return status;
-
-  const lastDay = contractLastDay(toInvoiceContract(contract, endedEarlyOn));
-  return jakartaDay(today) > lastDay ? 'expired' : 'active';
+  return contractStatus(period(contract), today) as InvoiceContractStatus;
 }
 
 /**
@@ -213,7 +207,7 @@ export function listedContracts(
   const ended = row.contracts.filter(
     (contract) =>
       contract.id !== current.id &&
-      invoiceContractStatus(contract, today, row.access_revoke_date) ===
+      invoiceContractStatus(contract, today) ===
         'expired',
   );
 
@@ -256,6 +250,19 @@ export function adjustmentDto(row: {
     actorId: row.actor_user_id,
     createdAt: row.created_at.toISOString(),
   };
+}
+
+/** An adjustment's columns with the account that recorded it, for live reads. */
+export const INVOICE_ADJUSTMENT_READ_SELECT = {
+  ...INVOICE_ADJUSTMENT_SELECT,
+  users: { select: ADMIN_ACCOUNT_SELECT },
+} satisfies Prisma.invoice_adjustmentsSelect;
+
+/** An adjustment as a read answers it, naming who recorded it; never what a snapshot stores. */
+export function namedAdjustmentDto(
+  row: Parameters<typeof adjustmentDto>[0] & { users: AdminAccount },
+): InvoiceAdjustmentDto {
+  return { ...adjustmentDto(row), actorName: adminName(row.users) };
 }
 
 /** What the manual adjustments add up to, as a decimal so amounts never drift. */
@@ -390,7 +397,7 @@ export function toInvoiceItem(
   const lifecycle = saved ?? { adjustments: [], snapshot: null };
   const snapshot = lifecycle.snapshot;
 
-  const contract = toInvoiceContract(contractRow, row.access_revoke_date);
+  const contract = toInvoiceContract(contractRow);
   const breakdown = snapshot
     ? null
     : calculateInvoice({
@@ -414,7 +421,7 @@ export function toInvoiceItem(
     snapshot,
     contract: {
       id: contractRow.id,
-      status: invoiceContractStatus(contractRow, today, row.access_revoke_date),
+      status: invoiceContractStatus(contractRow, today),
       startDate: calendarDay(contractRow.start_date),
       endDate: calendarDay(contractRow.end_date),
       lastDay: contractLastDay(contract),

@@ -10,6 +10,7 @@ import { AppModule } from '../src/app.module.js';
 import { jakartaMidnight } from '../src/creators/evergreen.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { as, signIn, signInAsAdmin } from './sessions.js';
+import { numbersFor } from './document-numbers.js';
 
 const MARKER = 'e2e-invoice-payments';
 const PDF = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n');
@@ -110,6 +111,8 @@ describe('Invoice payment proof and comments (e2e)', () => {
       snapshot: {},
       acknowledged_at: new Date(),
       acknowledged_by: acknowledgedBy,
+      // Issued once acknowledged (PBI-31): the database requires its number.
+      ...numbersFor('creator_acked'),
     };
     await prisma.invoices.upsert({
       where: { contract_id: contractId },
@@ -206,6 +209,8 @@ describe('Invoice payment proof and comments (e2e)', () => {
         fileName: 'Transfer Agustus ✅.pdf',
         url: `/api/invoices/${nadiaContract}/payment-proof`,
         uploadedAt: uploaded.body.uploadedAt,
+        // PBI-23, 23.10: an Admin with no name yet is named by email.
+        uploadedBy: `${MARKER}-signed-in-admin@example.com`,
       });
 
       const asAdmin = await admin
@@ -451,6 +456,7 @@ describe('Invoice payment proof and comments (e2e)', () => {
           acknowledged_by: acked ? creatorUser : null,
           paid_at: paid ? new Date() : null,
           paid_by: paid ? creatorUser : null,
+          ...numbersFor(status),
         },
       });
 
