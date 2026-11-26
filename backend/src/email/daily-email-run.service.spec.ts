@@ -197,6 +197,28 @@ describe('DailyEmailRun, review follow-ups', () => {
     expect(notifier.retry).not.toHaveBeenCalled();
   });
 
+  // Kak Satria (AC 2): a slow mail server can use up the run's time, and a reminder cannot wait
+  // for tomorrow while a retry can.
+  it('sends the H-1 reminders before trying failed emails again', async () => {
+    const { notifier, run } = setup({ failed: [FAILED] });
+
+    await run.run();
+
+    expect(notifier.notify.mock.invocationCallOrder[0]).toBeLessThan(
+      notifier.retry.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('reads what to retry before reminding, so a reminder failing now is not retried at once', async () => {
+    const { notifier, store, run } = setup({ failed: [FAILED] });
+
+    await run.run();
+
+    expect(store.failedToRetry.mock.invocationCallOrder[0]).toBeLessThan(
+      notifier.notify.mock.invocationCallOrder[0],
+    );
+  });
+
   // Davin: a reminder counts only once it went out.
   it('counts only the reminders that went out', async () => {
     const { notifier, run } = setup({ due: [content(), content({ id: 'other' })] });
