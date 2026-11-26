@@ -43,6 +43,7 @@ export function adminInvoiceView(row: InvoiceRow, breakdown: InvoiceBreakdown): 
     proof: proof ? { url: proof.href, fileName: proof.fileName, uploadedAt: proof.uploadedAt } : null,
     // The admin's thread reads its own comments (InvoiceComments); none ride on the row.
     comments: [],
+    rateChanges: breakdown.rateChanges,
   };
 }
 

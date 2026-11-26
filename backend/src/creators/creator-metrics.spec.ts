@@ -22,6 +22,7 @@ function content(overrides: Partial<MetricsContent> = {}): MetricsContent {
     deadline: day(-10),
     videoSubmittedAt: day(-10),
     isProposal: false,
+    type: 'evergreen',
     submissionCount: 1,
     ...overrides,
   };
@@ -191,7 +192,7 @@ describe('computeProgress', () => {
       content({ videoSubmittedAt: null }),
       content({ videoSubmittedAt: null }),
     ];
-    expect(computeProgress(contents)).toEqual({
+    expect(computeProgress(contents, 3)).toEqual({
       submitted: 1,
       total: 3,
       percent: 33,
@@ -203,15 +204,42 @@ describe('computeProgress', () => {
       content(),
       content({ isProposal: true, videoSubmittedAt: null }),
     ];
-    expect(computeProgress(contents)).toEqual({
+    expect(computeProgress(contents, 1)).toEqual({
       submitted: 1,
       total: 1,
       percent: 100,
     });
   });
 
+  // PBI-16: the quota is what was agreed, so a raised one is owed before its slots are scheduled.
+  it('counts against the quota, unallocated Evergreen slots included', () => {
+    expect(computeProgress([content(), content({ videoSubmittedAt: null })], 8)).toEqual({
+      submitted: 1,
+      total: 8,
+      percent: 13,
+    });
+  });
+
+  it('adds Specific content on top of the quota', () => {
+    const contents = [
+      content(),
+      content({ type: 'specific' }),
+      content({ type: 'specific', videoSubmittedAt: null }),
+      content({ type: 'specific', isProposal: true, videoSubmittedAt: null }),
+    ];
+    expect(computeProgress(contents, 2)).toEqual({ submitted: 2, total: 4, percent: 50 });
+  });
+
+  it('never owes less than the Evergreen content already there', () => {
+    expect(computeProgress([content(), content()], 1)).toEqual({
+      submitted: 2,
+      total: 2,
+      percent: 100,
+    });
+  });
+
   it('is zero without content rather than dividing by zero', () => {
-    expect(computeProgress([])).toEqual({ submitted: 0, total: 0, percent: 0 });
+    expect(computeProgress([], 0)).toEqual({ submitted: 0, total: 0, percent: 0 });
   });
 });
 

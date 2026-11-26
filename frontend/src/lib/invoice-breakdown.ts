@@ -7,6 +7,7 @@
 
 import { formatDate, formatDeduction, formatJakartaDay, formatRupiah, formatTimestamp } from "./format";
 import { DATA_STATE_LABELS, type DataState } from "./link-performance";
+import type { RateChange } from "./rate-change";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -107,6 +108,8 @@ export interface PenaltyLine {
 /** One creator's running invoice, column by column, as the popups read it. */
 export interface InvoiceBreakdown {
   creatorName: string;
+  /** Every change of the fixed rate while the invoice ran (PBI-16). */
+  rateChanges?: RateChange[];
   fixed: {
     period: FixedPeriod;
     total: number;
