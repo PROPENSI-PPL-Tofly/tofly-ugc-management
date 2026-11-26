@@ -91,6 +91,58 @@ describe("the executive dashboard's creator rows", () => {
     expect(creatorRows(inputs, invoices, links, [], 'costPer1000Views', 'desc', TODAY).map((r) => r.creatorId)).toEqual(['ana', 'budi']);
   });
 
+  it('sorts null rates last in either direction and breaks two nulls by name', () => {
+    expect(
+      creatorRows([budi, ana], [], [], [], 'onTimeRate', 'desc', TODAY).map((r) => r.name),
+    ).toEqual(['Ana', 'Budi']);
+    expect(
+      creatorRows([budi, ana], [], [], [], 'onTimeRate', 'asc', TODAY).map((r) => r.name),
+    ).toEqual(['Ana', 'Budi']);
+    const oneWithRate = [
+      { ...ana, creatorId: 'with-rate', name: 'Zea' },
+      { ...budi, creatorId: 'without', name: 'Yanto' },
+    ];
+    const contents = [
+      { creatorId: 'with-rate', deadline: '2026-11-05', videoSubmittedAt: '2026-11-04', isProposal: false },
+    ];
+    expect(
+      creatorRows(oneWithRate, [], [], contents, 'onTimeRate', 'desc', TODAY).map((r) => r.name),
+    ).toEqual(['Zea', 'Yanto']);
+    expect(
+      creatorRows(oneWithRate, [], [], contents, 'costPer1000Views', 'asc', TODAY).map((r) => r.name),
+    ).toEqual(['Yanto', 'Zea']);
+  });
+
+  it('breaks a tie of two nulls or two equal names by creator id', () => {
+    const sameName: CreatorInput[] = [
+      { creatorId: 'z', name: 'Sama', contract: ana.contract },
+      { creatorId: 'a', name: 'Sama', contract: budi.contract },
+    ];
+    expect(
+      creatorRows(sameName, [], [], [], 'onTimeRate', 'desc', TODAY).map((r) => r.creatorId),
+    ).toEqual(['a', 'z']);
+    expect(
+      creatorRows(sameName, [], [], [], 'name', 'asc', TODAY).map((r) => r.creatorId),
+    ).toEqual(['a', 'z']);
+  });
+
+  it('keeps a null on-time rate after a numeric one in either direction', () => {
+    const inputs: CreatorInput[] = [
+      { creatorId: 'with', name: 'With', contract: ana.contract },
+      { creatorId: 'without', name: 'Without', contract: budi.contract },
+    ];
+    const contents = [
+      { creatorId: 'with', deadline: '2026-11-05', videoSubmittedAt: '2026-11-04', isProposal: false },
+    ];
+    expect(
+      creatorRows(inputs, [], [], contents, 'onTimeRate', 'asc', TODAY).map((r) => r.creatorId),
+    ).toEqual(['with', 'without']);
+    // Reversed input puts the numeric value on the left of the comparator, hitting the other arm.
+    expect(
+      creatorRows([...inputs].reverse(), [], [], contents, 'onTimeRate', 'asc', TODAY).map((r) => r.creatorId),
+    ).toEqual(['with', 'without']);
+  });
+
   it('breaks equal values by name so the order never depends on the database', () => {
     const inputs = [budi, ana];
     const rows = creatorRows(inputs, [], [], [], 'views', 'desc', TODAY);

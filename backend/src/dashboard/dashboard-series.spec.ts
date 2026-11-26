@@ -83,6 +83,25 @@ describe("the executive dashboard's three monthly charts", () => {
     expect(month.parts[0].value).toBe(2_500_000);
   });
 
+  it('puts a rounding remainder on the first part so the bar still totals the snapshot', () => {
+    const [chart] = buildCharts(
+      [
+        invoice('2026-11', {
+          fixedRate: 1,
+          additionalContent: 1,
+          performanceBonus: 1,
+          total: 2,
+        }),
+      ],
+      [],
+      [],
+      TODAY,
+    );
+
+    expect(chart.months[0].total).toBe(2);
+    expect(chart.months[0].parts.reduce((sum, part) => sum + part.value, 0)).toBe(2);
+  });
+
   it('keeps a snapshot with no components at zero rather than dividing by it', () => {
     const [chart] = buildCharts(
       [invoice('2026-11', { fixedRate: 0, additionalContent: 0, performanceBonus: 0, total: 0 })],

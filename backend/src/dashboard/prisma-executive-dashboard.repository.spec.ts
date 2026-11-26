@@ -64,6 +64,21 @@ describe('the executive dashboard repository', () => {
     ]);
   });
 
+  it('reads a waiting component as zero rather than failing on its null amount', async () => {
+    const { prisma, invoices } = stub();
+    invoices.findMany.mockResolvedValue([
+      {
+        finalized_at: new Date('2026-10-20T00:00:00.000Z'),
+        status: 'finalized',
+        snapshot: { ...snapshot, performanceBonus: { amount: null, status: 'waiting_for_data', lines: [] } },
+        contracts: { creator_id: 'ana' },
+      },
+    ]);
+
+    const rows = await new PrismaExecutiveDashboardRepository(prisma as never).finalizedInRange(FROM, TO);
+    expect(rows[0].performanceBonus).toBe(0);
+  });
+
   it('skips an invoice with no readable snapshot, rather than recalculating it live', async () => {
     const { prisma, invoices } = stub();
     invoices.findMany.mockResolvedValue([

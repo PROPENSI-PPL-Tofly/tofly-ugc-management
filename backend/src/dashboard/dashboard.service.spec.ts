@@ -1,5 +1,4 @@
 import { DashboardService } from './dashboard.service.js';
-import { EXECUTIVE_DASHBOARD_REPOSITORY } from './executive-dashboard.repository.js';
 
 const TODAY = new Date('2026-11-26T03:00:00.000Z');
 
@@ -138,6 +137,22 @@ describe('DashboardService', () => {
 
     expect(result.missingViewLinks).toBe(1);
     expect(result.kpis.find((kpi) => kpi.key === 'totalViews')?.value).toBe(50);
+  });
+
+  it('treats missing link metrics and unpaid statuses as zero and unpaid spending', async () => {
+    const { service, repo } = setup({
+      invoices: [invoice(100, '2026-11', 'finalized')],
+      links: [{ ...link('2026-11', 50), likes: null, comments: null, shares: null }],
+      contents: [content('2026-11')],
+    });
+    // Previous range has the same rows, so only the values matter here.
+    const result = await service.executive(TODAY, 6);
+    const byKey = Object.fromEntries(result.kpis.map((kpi) => [kpi.key, kpi]));
+
+    expect(byKey.unpaid.value).toBe(100);
+    expect(byKey.engagementRate.value).toBe(0);
+    expect(byKey.onTimeRate.value).toBe(0);
+    expect(repo.contentsDueInRange).toHaveBeenCalledTimes(2);
   });
 
   it('shows empty dashboards as "—" rather than errors', async () => {
