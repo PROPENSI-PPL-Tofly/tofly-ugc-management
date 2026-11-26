@@ -1,5 +1,6 @@
 "use client";
 
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -94,9 +95,11 @@ export function ExtendContractModal({
   const [terms, setTerms] = useState<ContractTermsInput>(initial);
   const [confirming, setConfirming] = useState(false);
 
-  const { allocation, picks, setPicks } = useDeadlineAllocation(terms, today);
+  // The buffer a Super Admin set (PBI-23), the same one Tambah Creator counts with.
+  const bufferDays = useDeadlineBuffer();
+  const { allocation, picks, setPicks } = useDeadlineAllocation(terms, today, bufferDays);
   const remaining = allocation?.remaining ?? 0;
-  const liveErrors = validateContractExtension(terms, previous.endDate);
+  const liveErrors = validateContractExtension(terms, previous.endDate, undefined, bufferDays);
   const isValid = Object.keys(liveErrors).length === 0;
   const { markTouched, markEdited, fieldError } = useFieldErrors<keyof CreatorFormErrors>(
     liveErrors,

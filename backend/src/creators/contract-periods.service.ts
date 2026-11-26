@@ -24,6 +24,11 @@ import { evergreenSchedule } from './creator-onboarding.service.js';
 import type { SavedPeriod } from './dto/contract-period.dto.js';
 import { joinName } from './evergreen.js';
 import type { ContractTerms } from './new-creator.js';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 /** The creator and every period they have, with the Specific content an edit must keep in range. */
 const CREATOR_PERIODS = {
@@ -167,6 +172,12 @@ export class ContractPeriodsService implements PeriodKeeper {
     @Optional()
     @Inject(AuditLogger)
     private readonly audit: AuditLogger = new AuditLogger(),
+    // The stored buffer from DeadlineBufferModule, as Tambah Konten takes it (SCRUM-298).
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
   ) {}
 
   create(
@@ -215,6 +226,7 @@ export class ContractPeriodsService implements PeriodKeeper {
         terms,
         period.contents,
         now,
+        await this.scheduling.bufferDays(),
       );
       if (stranded) {
         throw invalid({ contents: stranded });

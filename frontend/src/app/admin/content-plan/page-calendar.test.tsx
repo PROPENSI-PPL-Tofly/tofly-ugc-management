@@ -9,6 +9,10 @@ const { fetchPlan, fetchMonth, fetchCreators, replace } = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 
+// Only a Super Admin sees "Atur Buffer Deadline"; an Admin unless a test says otherwise.
+const { superAdmin } = vi.hoisted(() => ({ superAdmin: vi.fn(async () => false) }));
+vi.mock("@/lib/session.server", () => ({ isSuperAdmin: () => superAdmin() }));
+
 vi.mock("@/lib/content-plan.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/content-plan.server")>()),
   fetchContentPlan: (state: unknown) => fetchPlan(state),

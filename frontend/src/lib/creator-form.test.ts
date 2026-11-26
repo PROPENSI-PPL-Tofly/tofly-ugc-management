@@ -198,7 +198,7 @@ describe("localCalendarDay", () => {
 
 describe("contractDateLimits", () => {
   it("keeps the start between today and the chosen end", () => {
-    expect(contractDateLimits({ contractStart: "", contractEnd: "2026-12-31" }, "2026-09-24")).toEqual({
+    expect(contractDateLimits({ contractStart: "", contractEnd: "2026-12-31" }, "2026-09-24", 5)).toEqual({
       startMin: "2026-09-24",
       startMax: "2026-12-31",
       endMin: "2026-09-29",
@@ -207,7 +207,7 @@ describe("contractDateLimits", () => {
 
   // The picker itself already refuses an end inside the buffer, not only the validation.
   it("keeps the end at least the buffer after the chosen start", () => {
-    expect(contractDateLimits({ contractStart: "2026-10-01", contractEnd: "" }, "2026-09-24")).toEqual({
+    expect(contractDateLimits({ contractStart: "2026-10-01", contractEnd: "" }, "2026-09-24", 5)).toEqual({
       startMin: "2026-09-24",
       startMax: undefined,
       endMin: "2026-10-06",
@@ -217,16 +217,21 @@ describe("contractDateLimits", () => {
 
 describe("earliestContractEnd", () => {
   it("is the buffer after the start when the start is still ahead", () => {
-    expect(earliestContractEnd("2026-10-01", "2026-09-24")).toBe("2026-10-06");
+    expect(earliestContractEnd("2026-10-01", "2026-09-24", 5)).toBe("2026-10-06");
   });
 
   it("counts from today when the start is today or already past", () => {
-    expect(earliestContractEnd("2026-09-24", "2026-09-24")).toBe("2026-09-29");
-    expect(earliestContractEnd("", "2026-09-24")).toBe("2026-09-29");
+    expect(earliestContractEnd("2026-09-24", "2026-09-24", 5)).toBe("2026-09-29");
+    expect(earliestContractEnd("", "2026-09-24", 5)).toBe("2026-09-29");
   });
 
   it("crosses a month end", () => {
-    expect(earliestContractEnd("2026-10-29", "2026-09-24")).toBe("2026-11-03");
+    expect(earliestContractEnd("2026-10-29", "2026-09-24", 5)).toBe("2026-11-03");
+  });
+
+  // PBI-23 AC: the buffer a Super Admin sets, not a fixed five days.
+  it("counts the buffer it is given", () => {
+    expect(earliestContractEnd("2026-10-01", "2026-09-24", 12)).toBe("2026-10-13");
   });
 });
 
@@ -251,6 +256,14 @@ describe("validateCreatorForm contract end and limits", () => {
 
     expect(errors.contractEnd).toBe(
       "Akhir kontrak paling cepat 6 Okt 2026 (masa buffer 5 hari)",
+    );
+  });
+
+  it("names the configured buffer when the contract ends inside it (PBI-23 AC)", () => {
+    const errors = validateCreatorForm({ ...INPUT, contractEnd: "2026-10-09" }, TODAY, [], 9);
+
+    expect(errors.contractEnd).toBe(
+      "Akhir kontrak paling cepat 10 Okt 2026 (masa buffer 9 hari)",
     );
   });
 
@@ -353,7 +366,7 @@ describe("scheduleDeadlines", () => {
   };
 
   it("places the deadlines five days after the later of start and today, one interval apart", () => {
-    expect(scheduleDeadlines(FORM, "2026-09-24")).toEqual({
+    expect(scheduleDeadlines(FORM, "2026-09-24", 5)).toEqual({
       autoDeadlines: ["2026-10-06", "2026-10-20", "2026-11-03"],
       allocatedCount: 3,
       remainingCount: 0,
@@ -368,7 +381,18 @@ describe("scheduleDeadlines", () => {
     { quota: 0 },
     { interval: 0 },
   ])("has no schedule while the contract is incomplete: %j", (change) => {
-    expect(scheduleDeadlines({ ...FORM, ...change }, "2026-09-24")).toBeNull();
+    expect(scheduleDeadlines({ ...FORM, ...change }, "2026-09-24", 5)).toBeNull();
+  });
+
+  it("starts after the configured buffer and stops at its H-n line (PBI-23 AC)", () => {
+    expect(
+      scheduleDeadlines({ ...FORM, contractEnd: "2026-10-30", quota: 5 }, "2026-09-24", 10),
+    ).toEqual({
+      autoDeadlines: ["2026-10-11"],
+      allocatedCount: 1,
+      remainingCount: 4,
+      quota: 5,
+    });
   });
 });
 

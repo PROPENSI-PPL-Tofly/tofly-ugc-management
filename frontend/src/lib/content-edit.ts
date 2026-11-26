@@ -4,6 +4,7 @@
 
 import { apiFetch } from "./api-client";
 import type { ContentType } from "./contents";
+import { DEFAULT_BUFFER_DAYS } from "./deadline-buffer";
 import { DecisionError } from "./decisions";
 import { formatDate } from "./format";
 
@@ -84,6 +85,8 @@ export function checkEdit(
   fields: EditFields,
   detail: EditableDetail,
   bounds: EditWindow,
+  /** Only names the H-n line in the message; the API's window already counts with it. */
+  bufferDays: number = DEFAULT_BUFFER_DAYS,
 ): EditErrors {
   const errors: EditErrors = {};
 
@@ -98,7 +101,7 @@ export function checkEdit(
     if (fields.deadline < bounds.earliestDeadline) {
       errors.deadline = `Deadline paling cepat ${formatDate(bounds.earliestDeadline)}`;
     } else if (fields.deadline > bounds.latestDeadline) {
-      errors.deadline = `Deadline paling lambat ${formatDate(bounds.latestDeadline)} (H-5 akhir kontrak)`;
+      errors.deadline = `Deadline paling lambat ${formatDate(bounds.latestDeadline)} (H-${bufferDays} akhir kontrak)`;
     }
   }
 

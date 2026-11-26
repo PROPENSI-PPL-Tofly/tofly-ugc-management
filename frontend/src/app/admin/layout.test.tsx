@@ -1,14 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import { redirect } from "next/navigation";
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import { useIsSuperAdmin } from "@/components/shell/super-admin-context";
+import { fetchDeadlineBuffer } from "@/lib/deadline-buffer.server";
 import { currentSession } from "@/lib/session.server";
 import AdminLayout from "./layout";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session.server", () => ({ currentSession: vi.fn() }));
+vi.mock("@/lib/deadline-buffer.server", () => ({ fetchDeadlineBuffer: vi.fn(async () => 5) }));
 
 function SuperAdminState() {
   return <p>{useIsSuperAdmin() ? "Menu Super Admin" : "Menu Admin"}</p>;
+}
+
+function BufferShown() {
+  return <p>Buffer {useDeadlineBuffer()} hari</p>;
 }
 
 async function renderLayout() {
@@ -56,6 +63,30 @@ describe("Admin area", () => {
     await renderLayout();
 
     expect(screen.getByText("Menu Super Admin")).toBeInTheDocument();
+  });
+
+  // PBI-23 AC: one buffer, read once, holds every date picker under the admin area.
+  it("hands every admin page the buffer the API stores", async () => {
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false });
+    vi.mocked(fetchDeadlineBuffer).mockResolvedValueOnce(9);
+
+    render(
+      await AdminLayout({
+        children: <BufferShown />,
+        params: Promise.resolve({}),
+      } as Parameters<typeof AdminLayout>[0]),
+    );
+
+    expect(screen.getByText("Buffer 9 hari")).toBeInTheDocument();
+  });
+
+  it("reads no buffer for a visitor it turns away", async () => {
+    vi.mocked(currentSession).mockResolvedValue({ role: "creator", isSuperAdmin: false });
+    vi.mocked(fetchDeadlineBuffer).mockClear();
+
+    await renderLayout();
+
+    expect(fetchDeadlineBuffer).not.toHaveBeenCalled();
   });
 
   // Told why rather than bounced: a bookmarked page that silently turns into the login screen

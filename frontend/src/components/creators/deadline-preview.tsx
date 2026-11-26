@@ -15,7 +15,7 @@ interface DeadlinePreviewProps {
   quota: number;
   /** The last day a deadline may fall on; manual picks stop here. */
   contractEnd?: string;
-  /** The last day a manual pick may land on: the H-5 line. Defaults to the contract end. */
+  /** The last day a manual pick may land on: the H-n line. Defaults to the contract end. */
   lastDeadline?: string;
   /** Days the admin picked by hand, once per content. */
   manualDeadlines?: string[];
@@ -203,7 +203,7 @@ export default function DeadlinePreview({
 
                     const manualCount = manualDeadlines.filter((picked) => picked === date).length;
 
-                    // A manual pick has to land after the buffer and on or before the H-5 line.
+                    // A manual pick has to land after the buffer and on or before the H-n line.
                     const isPickable =
                       bufferWindow !== null &&
                       lastDeadline !== undefined &&

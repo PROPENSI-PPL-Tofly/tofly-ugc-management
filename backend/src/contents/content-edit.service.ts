@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
-import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 import { lockContractOfContent } from '../invoices/contract-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {

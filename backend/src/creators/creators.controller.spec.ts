@@ -5,6 +5,7 @@ import {
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AdminGuard } from '../auth/admin.guard.js';
+import { DeadlineBufferService } from '../deadline-buffer/deadline-buffer.service.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import { CreatorsController } from './creators.controller.js';
 import { CreatorsService } from './creators.service.js';
@@ -67,18 +68,23 @@ describe('CreatorsController', () => {
     drafts: [],
   };
 
+  // The stored deadline buffer (SCRUM-298).
+  const buffer = { current: vi.fn() };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
     service.list.mockResolvedValue(response);
     service.findOne.mockResolvedValue(detailResponse);
     onboarding.onboard.mockResolvedValue({ id: 'creator-9' });
+    buffer.current.mockResolvedValue(5);
 
     const module = await Test.createTestingModule({
       controllers: [CreatorsController],
       providers: [
         { provide: CreatorsService, useValue: service },
         { provide: CreatorOnboardingService, useValue: onboarding },
+        { provide: DeadlineBufferService, useValue: buffer },
       ],
     }).compile();
 
@@ -223,6 +229,17 @@ describe('CreatorsController', () => {
       await expect(
         controller.create({ ...body, email: 'salsa' }, signedIn),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(onboarding.onboard).not.toHaveBeenCalled();
+    });
+
+    // PBI-23 AC 22 (SCRUM-298): Tambah Creator is judged by the stored buffer, read once.
+    it('judges the deadlines by the stored buffer, read once for the request', async () => {
+      buffer.current.mockResolvedValue(9);
+
+      await expect(controller.create(body, signedIn)).rejects.toMatchObject({
+        response: { errors: { deadlines: 'Deadline paling cepat 10 Okt 2026' } },
+      });
+      expect(buffer.current).toHaveBeenCalledTimes(1);
       expect(onboarding.onboard).not.toHaveBeenCalled();
     });
 

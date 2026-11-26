@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -104,8 +105,10 @@ export function EditForm({
   const [refusal, setRefusal] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Names the H-n line in the message; the API's window already counts with the same buffer.
+  const bufferDays = useDeadlineBuffer();
 
-  const checked = checkEdit(fields, detail, bounds);
+  const checked = checkEdit(fields, detail, bounds, bufferDays);
   const changes = editChanges(fields, detail);
   const specific = detail.type === "specific";
   // The date is judged as soon as it is picked; the text fields once left, so a field is not
@@ -226,7 +229,7 @@ export function EditForm({
         <span className="absolute right-0 top-0">
           <InfoTip
             label="Tentang batas tanggal"
-            text="Paling cepat 5 hari dari hari ini (atau dari mulai kontrak, mana yang lebih akhir), paling lambat H-5 sebelum kontrak berakhir."
+            text={`Paling cepat ${bufferDays} hari dari hari ini (atau dari mulai kontrak, mana yang lebih akhir), paling lambat H-${bufferDays} sebelum kontrak berakhir.`}
             align="end"
           />
         </span>

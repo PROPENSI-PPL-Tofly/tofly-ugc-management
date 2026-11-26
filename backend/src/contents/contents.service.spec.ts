@@ -718,7 +718,8 @@ describe('atomic Evergreen allocation', () => {
 
     const service = creationService(transactional(transaction), {
       today: () => new Date('2026-09-24Z'),
-      bufferDays: async () => 20,
+      // The largest buffer AC 20 allows; 7 Okt would pass with the default 5.
+      bufferDays: async () => 14,
     });
 
     await expect(
@@ -727,11 +728,12 @@ describe('atomic Evergreen allocation', () => {
         type: 'specific',
         name: 'Campaign',
         brief: 'Brief',
+        deadline: '2026-10-07',
       }),
     ).rejects.toMatchObject({
       response: {
         errors: {
-          deadline: 'Deadline paling cepat 14 Okt 2026',
+          deadline: 'Deadline paling cepat 8 Okt 2026',
         },
       },
     });

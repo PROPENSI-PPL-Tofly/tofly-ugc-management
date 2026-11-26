@@ -3,13 +3,8 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
-import {
-  earliestDeadline,
-  evergreenName,
-  isCalendarDay,
-  latestDeadline,
-  readableDay,
-} from '../creators/evergreen.js';
+import { evergreenName, isCalendarDay } from '../creators/evergreen.js';
+import { DeadlineWindow } from '../deadline-buffer/deadline-window.js';
 import {
   invoiceState,
   type InvoiceLifecycleStatus,
@@ -207,39 +202,25 @@ export function editWindow(
   if (changeRefusal(facts)) {
     return null;
   }
-  return {
-    earliestDeadline: earliestDeadline(
-      facts.contractStart,
-      rules.today,
-      rules.bufferDays,
-    ),
-    latestDeadline: latestDeadline(facts.contractEnd),
-  };
+  const window = DeadlineWindow.of({ ...facts, ...rules });
+  return { earliestDeadline: window.earliest, latestDeadline: window.latest };
 }
 
 function isoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** AC 3: the earliest-deadline rule from Tambah Konten, and the H-5 line before the contract end. */
+/** AC 3: the deadline window Tambah Konten uses, both lines drawn by the stored buffer (PBI-23 AC 22). */
 function deadlineProblem(
   deadline: string,
   content: EditableContent,
   rules: SchedulingRules,
 ): string | undefined {
-  const earliest = earliestDeadline(
-    isoDay(content.contracts.start_date),
-    rules.today,
-    rules.bufferDays,
-  );
-  const latest = latestDeadline(isoDay(content.contracts.end_date));
-  if (deadline < earliest) {
-    return `Deadline paling cepat ${readableDay(earliest)}`;
-  }
-  if (deadline > latest) {
-    return `Deadline paling lambat ${readableDay(latest)} (H-5 akhir kontrak)`;
-  }
-  return undefined;
+  return DeadlineWindow.of({
+    contractStart: isoDay(content.contracts.start_date),
+    contractEnd: isoDay(content.contracts.end_date),
+    ...rules,
+  }).problem(deadline);
 }
 
 /** `Evg_<sequence>_…`: the sequence an Evergreen name was given, or null for any other name. */
