@@ -109,6 +109,9 @@ export class EmailNotifier {
     let sent = false;
     try {
       const rendered = this.templates.render(template, payload);
+      // Review on #253 (Kak Satria, AC 8): from here the mail server may accept it, so a row
+      // whose sent mark is lost stays sending and is closed by the 08:00 run, never sent again.
+      await this.store.startSending(eventKey, recipient, this.clock());
       await this.withinTimeout(
         this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered }),
       );

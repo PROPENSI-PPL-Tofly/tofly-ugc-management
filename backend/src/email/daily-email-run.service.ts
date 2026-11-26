@@ -86,7 +86,7 @@ export class DailyEmailRun {
       retry(email: LoggedEmail): Promise<boolean>;
     },
     @Inject(EMAIL_LOG_STORE)
-    private readonly store: Pick<EmailLogStore, 'failedToRetry' | 'abandon'>,
+    private readonly store: Pick<EmailLogStore, 'failedToRetry' | 'stuckSending' | 'abandon'>,
     @Optional()
     @Inject(DAILY_EMAIL_CLOCK)
     private readonly clock: () => Date = () => new Date(),
@@ -94,6 +94,11 @@ export class DailyEmailRun {
 
   async run(): Promise<DailyEmailReport> {
     const now = this.clock();
+    // Review on #253 (Kak Satria, AC 8): the mail server may have accepted a row left sending, as
+    // with a timeout, so it is closed rather than sent a second time.
+    for (const email of await this.store.stuckSending(now)) {
+      await this.store.abandon(email.eventKey, email.recipient, 'UnknownOutcome', now);
+    }
     const failed = await this.store.failedToRetry(now);
     let retried = 0;
     let resent = 0;

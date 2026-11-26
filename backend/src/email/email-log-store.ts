@@ -26,6 +26,10 @@ export interface EmailLogStore {
   markFailed(eventKey: string, recipient: string, error: string, at: Date): Promise<void>;
   /** Templates or SMTP not set up: failed for now, with no attempt used, so it is sent once they are. */
   markNotReady(eventKey: string, recipient: string, at: Date): Promise<void>;
+  /** Marks the row sending just before the mail server is asked (review on #253, AC 8). */
+  startSending(eventKey: string, recipient: string, at: Date): Promise<void>;
+  /** The rows left sending for 30 minutes at `at`: they may have gone out, so they are closed. */
+  stuckSending(at: Date): Promise<LoggedEmail[]>;
   /** The failed emails the 08:00 run may still try again at `at`, oldest first (11.3). */
   failedToRetry(at: Date): Promise<LoggedEmail[]>;
   /** Moves a retryable row to pending in one guarded update; false when another run got it. */
@@ -34,7 +38,10 @@ export interface EmailLogStore {
   abandon(eventKey: string, recipient: string, reason: string, at: Date): Promise<void>;
 }
 
-/** A pending row untouched this long was cut off mid-send (a crash or a lost mark): retry it. */
+/**
+ * A pending row untouched this long was cut off before the mail server was asked: retry it. A row
+ * left sending this long may have gone out: close it (review on #253).
+ */
 export const STALE_PENDING_MS = 30 * 60 * 1000;
 
 /**
@@ -141,9 +148,28 @@ export class PrismaEmailLogStore implements EmailLogStore {
     });
   }
 
-  async failedToRetry(at: Date): Promise<LoggedEmail[]> {
+  async startSending(eventKey: string, recipient: string, at: Date): Promise<void> {
+    // No attempt yet: markSent or markFailed counts it once the mail server has answered.
+    await this.prisma.email_log.update({
+      where: byEventAndRecipient(eventKey, recipient),
+      data: { status: 'sending', updated_at: at },
+    });
+  }
+
+  failedToRetry(at: Date): Promise<LoggedEmail[]> {
+    return this.read(retryable(at));
+  }
+
+  stuckSending(at: Date): Promise<LoggedEmail[]> {
+    return this.read({
+      status: 'sending',
+      updated_at: { lt: new Date(at.getTime() - STALE_PENDING_MS) },
+    });
+  }
+
+  private async read(where: Prisma.email_logWhereInput): Promise<LoggedEmail[]> {
     const rows = await this.prisma.email_log.findMany({
-      where: retryable(at),
+      where,
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       select: { event_key: true, template: true, recipient: true, payload: true },
     });
