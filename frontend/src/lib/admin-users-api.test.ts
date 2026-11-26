@@ -41,18 +41,19 @@ describe("saving an admin", () => {
     ).resolves.toEqual({ ok: true });
 
     expect(sent()).toEqual({
-      path: "/api/admin/users",
+      path: "/api/admin-users",
       method: "POST",
       body: { name: "Rangga", email: "rangga@example.com", role: "admin" },
     });
   });
 
-  it("puts a 409 on the email field, in the AC's words", async () => {
-    answers(409, { code: "EMAIL_TAKEN" });
+  // The backend names the field it refused, as POST /admin-users answers a taken email (23.2).
+  it("puts a refused email on the email field, in the AC's words", async () => {
+    answers(422, { message: "Data admin tidak valid", errors: { email: "Email sudah dipakai" } });
 
     await expect(createAdmin(NEW_ADMIN)).resolves.toEqual({
       ok: false,
-      message: "Email sudah dipakai",
+      message: "Data admin tidak valid",
       errors: { email: "Email sudah dipakai" },
     });
   });
@@ -78,17 +79,18 @@ describe("saving an admin", () => {
     });
   });
 
-  it("patches a name and a changed role with its confirmation", async () => {
+  // The backend holds the confirmation on the session (23.2), so the request carries no id.
+  it("patches a name and a changed role", async () => {
     answers(200);
 
-    await expect(
-      updateAdmin("u1", { name: "Rangga P", role: "super_admin" }, "c1"),
-    ).resolves.toEqual({ ok: true });
+    await expect(updateAdmin("u1", { name: "Rangga P", role: "super_admin" })).resolves.toEqual({
+      ok: true,
+    });
 
     expect(sent()).toEqual({
-      path: "/api/admin/users/u1",
+      path: "/api/admin-users/u1",
       method: "PATCH",
-      body: { name: "Rangga P", role: "super_admin", confirmationId: "c1" },
+      body: { name: "Rangga P", role: "super_admin" },
     });
   });
 
@@ -100,25 +102,58 @@ describe("saving an admin", () => {
     expect(sent().body).toEqual({ name: "Rangga P" });
   });
 
-  it("deactivates with the confirmation it was given", async () => {
-    answers(204);
+  it("deactivates on the session's confirmation", async () => {
+    answers(200);
 
-    await expect(deactivateAdmin("u1", "c1")).resolves.toEqual({ ok: true });
+    await expect(deactivateAdmin("u1")).resolves.toEqual({ ok: true });
 
     expect(sent()).toEqual({
-      path: "/api/admin/users/u1/deactivate",
+      path: "/api/admin-users/u1/deactivate",
       method: "POST",
-      body: { confirmationId: "c1" },
+      body: undefined,
     });
   });
 
-  it("reactivates without asking for a code", async () => {
-    answers(204);
+  it("names the Super Admin's own row when the backend refuses deactivating it", async () => {
+    answers(409, { code: "CANNOT_DEACTIVATE_SELF" });
+
+    await expect(deactivateAdmin("u1")).resolves.toEqual({
+      ok: false,
+      message: "Super Admin tidak bisa menonaktifkan dirinya sendiri",
+      errors: {},
+    });
+  });
+
+  it("asks for the email code when the backend says the session is not confirmed", async () => {
+    answers(403, {
+      code: "CONFIRMATION_REQUIRED",
+      message: "Konfirmasi dengan kode yang dikirim ke email kamu dulu.",
+    });
+
+    await expect(deactivateAdmin("u1")).resolves.toEqual({
+      ok: false,
+      message: "Konfirmasi dengan kode yang dikirim ke email kamu dulu.",
+      errors: {},
+    });
+  });
+
+  it("keeps only the fields the form has from a refusal", async () => {
+    answers(422, { message: "Data admin tidak valid", errors: { role: "Role wajib dipilih", other: "x" } });
+
+    await expect(createAdmin(NEW_ADMIN)).resolves.toEqual({
+      ok: false,
+      message: "Data admin tidak valid",
+      errors: { role: "Role wajib dipilih" },
+    });
+  });
+
+  it("reactivates without sending a code itself", async () => {
+    answers(200);
 
     await expect(reactivateAdmin("u1")).resolves.toEqual({ ok: true });
 
     expect(sent()).toEqual({
-      path: "/api/admin/users/u1/reactivate",
+      path: "/api/admin-users/u1/reactivate",
       method: "POST",
       body: undefined,
     });
@@ -127,7 +162,7 @@ describe("saving an admin", () => {
   it("names a stale role's refusal on the action rather than a field", async () => {
     answers(403, { code: "FORBIDDEN" });
 
-    await expect(deactivateAdmin("u1", "c1")).resolves.toEqual({
+    await expect(deactivateAdmin("u1")).resolves.toEqual({
       ok: false,
       message: "Hanya Super Admin yang bisa mengelola admin",
       errors: {},
@@ -140,66 +175,65 @@ describe("the email confirmation", () => {
     vi.mocked(apiFetch).mockReset();
   });
 
-  it("asks for a code for the action and keeps the id it will be checked by", async () => {
-    answers(201, { confirmationId: "c1" });
+  it("asks the backend to email a code to the signed-in Super Admin", async () => {
+    answers(200, { validMinutes: 15 });
 
-    await expect(requestConfirmation("role_change")).resolves.toEqual({
+    await expect(requestConfirmation()).resolves.toEqual({
       kind: "sent",
-      confirmationId: "c1",
       message: "Kode dikirim ke email kamu.",
     });
 
     expect(sent()).toEqual({
-      path: "/api/admin/users/confirmations",
+      path: "/api/admin-users/confirmation",
       method: "POST",
-      body: { action: "role_change" },
+      body: undefined,
     });
     expect(CONFIRMATION_MINUTES).toBe(15);
   });
 
   it("says how long a resend waits when the backend limits it", async () => {
-    answers(429, { retryAfterMinutes: 5 });
+    answers(429, { code: "CONFIRMATION_LIMITED", retryAfterMinutes: 5 });
 
-    await expect(requestConfirmation("deactivate")).resolves.toEqual({
+    await expect(requestConfirmation()).resolves.toEqual({
       kind: "limited",
       message: "Terlalu sering meminta kode. Coba lagi dalam 5 menit.",
     });
   });
 
-  it("reads a right code as confirmed until the expiry the backend names", async () => {
-    answers(200, { expiresAt: "2026-11-21T05:15:00.000Z" });
+  it("reads a right code as confirmed until the time the backend names", async () => {
+    answers(200, { confirmedUntil: "2026-11-21T05:15:00.000Z" });
 
-    await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({
+    await expect(verifyConfirmation("123456")).resolves.toEqual({
       kind: "confirmed",
       expiresAt: "2026-11-21T05:15:00.000Z",
     });
 
     expect(sent()).toEqual({
-      path: "/api/admin/users/confirmations/c1/verify",
+      path: "/api/admin-users/confirmation/verify",
       method: "POST",
       body: { code: "123456" },
     });
   });
 
   it("reads a wrong code and how many tries are left", async () => {
-    answers(422, { code: "CODE_WRONG", attemptsLeft: 2 });
+    answers(422, { code: "CONFIRMATION_WRONG", attemptsLeft: 2 });
 
-    await expect(verifyConfirmation("c1", "000000")).resolves.toEqual({
+    await expect(verifyConfirmation("000000")).resolves.toEqual({
       kind: "wrong",
       attemptsLeft: 2,
     });
   });
 
   it("reads an expired code apart from a wrong one", async () => {
-    answers(410, { code: "CODE_EXPIRED" });
+    answers(422, { code: "CONFIRMATION_EXPIRED" });
 
-    await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({ kind: "expired" });
+    await expect(verifyConfirmation("123456")).resolves.toEqual({ kind: "expired" });
   });
 
   it("reads anything else as failed, without the body's own words", async () => {
     answers(500, { message: "SES error" });
 
-    await expect(verifyConfirmation("c1", "123456")).resolves.toEqual({ kind: "failed" });
+    await expect(verifyConfirmation("123456")).resolves.toEqual({ kind: "failed" });
   });
 });
 
@@ -221,21 +255,21 @@ describe("the api's edge answers", () => {
   it("says to wait when the code request was limited without a count", async () => {
     answers(429, {});
 
-    await expect(requestConfirmation("deactivate")).resolves.toEqual({
+    await expect(requestConfirmation()).resolves.toEqual({
       kind: "limited",
       message: "Terlalu sering meminta kode. Coba lagi nanti.",
     });
   });
 
   it("keeps an unnumbered wrong code from looking like a counted one", async () => {
-    answers(422, { code: "CODE_WRONG" });
+    answers(422, { code: "CONFIRMATION_WRONG" });
 
-    await expect(verifyConfirmation("c1", "000000")).resolves.toEqual({ kind: "wrong" });
+    await expect(verifyConfirmation("000000")).resolves.toEqual({ kind: "wrong" });
   });
 
   it("does not mistake a server error for a wrong code", async () => {
-    answers(500, { code: "CODE_WRONG" });
+    answers(500, { code: "CONFIRMATION_WRONG" });
 
-    await expect(verifyConfirmation("c1", "000000")).resolves.toEqual({ kind: "failed" });
+    await expect(verifyConfirmation("000000")).resolves.toEqual({ kind: "failed" });
   });
 });

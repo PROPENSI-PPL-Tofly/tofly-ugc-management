@@ -8,7 +8,7 @@ vi.mock("@/lib/admin-users-api", async (importOriginal) => {
 });
 
 /** A page's one row action, with the hook standing between it and the backend. */
-function Harness({ run }: { run: (confirmationId: string) => void }) {
+function Harness({ run }: { run: () => void }) {
   const { withConfirmation, prompt } = useAdminConfirmation();
 
   return (
@@ -22,7 +22,6 @@ function Harness({ run }: { run: (confirmationId: string) => void }) {
 function codeIsSent(expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()) {
   vi.mocked(requestConfirmation).mockResolvedValue({
     kind: "sent",
-    confirmationId: "c1",
     message: "Kode dikirim ke email kamu.",
   });
   vi.mocked(verifyConfirmation).mockResolvedValue({ kind: "confirmed", expiresAt });
@@ -53,14 +52,14 @@ describe("the confirmation before a sensitive action", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(requestConfirmation).toHaveBeenCalledWith("role_change");
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
     expect(run).not.toHaveBeenCalled();
 
     await typeCode("123456");
     await confirm();
 
-    await waitFor(() => expect(run).toHaveBeenCalledWith("c1"));
-    expect(verifyConfirmation).toHaveBeenCalledWith("c1", "123456");
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(verifyConfirmation).toHaveBeenCalledWith("123456");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 

@@ -25,8 +25,8 @@ const ANSWER = {
       name: "Rangga Pratama",
       email: "rangga@example.com",
       role: "admin",
-      isActive: true,
-      lastSignInAt: null,
+      status: "active",
+      lastSignedInAt: null,
       createdAt: "2026-10-01T02:00:00.000Z",
     },
   ],
@@ -56,7 +56,7 @@ describe("fetchAdminUsers", () => {
       list: { items: expect.any(Array), page: 1, pageSize: 10, total: 1, totalPages: 1 },
     });
     expect(fetchSpy).toHaveBeenCalledWith(
-      "http://backend:3001/admin/users?search=rangga+pratama&page=2&pageSize=10",
+      "http://backend:3001/admin-users?q=rangga+pratama&page=2",
       {
         cache: "no-store",
         headers: { cookie: "__session=opaque-session-id" },

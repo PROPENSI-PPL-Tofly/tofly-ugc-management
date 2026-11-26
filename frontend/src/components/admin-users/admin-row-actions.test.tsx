@@ -15,7 +15,7 @@ vi.mock("@/lib/admin-users-api", async (importOriginal) => {
 
 function renderActions(
   user = adminUser({ id: "u1" }),
-  withConfirmation = (_action: string, run: (id: string) => void) => run("c1"),
+  withConfirmation = (_action: string, run: () => void) => run(),
   onChanged = vi.fn(),
 ) {
   render(
@@ -51,21 +51,40 @@ describe("the Pengguna Admin row actions", () => {
   });
 
   it("confirms a deactivation, then sends the id the code confirmed", async () => {
-    const withConfirmation = vi.fn((_action: string, run: (id: string) => void) => run("c1"));
+    const withConfirmation = vi.fn((_action: string, run: () => void) => run());
     const { onChanged } = renderActions(adminUser({ id: "u1" }), withConfirmation);
 
     fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
 
-    await waitFor(() => expect(deactivateAdmin).toHaveBeenCalledWith("u1", "c1"));
+    await waitFor(() => expect(deactivateAdmin).toHaveBeenCalledWith("u1"));
     expect(withConfirmation).toHaveBeenCalledWith("deactivate", expect.any(Function));
     expect(onChanged).toHaveBeenCalledWith("Admin dinonaktifkan.");
   });
 
+  // The backend asks for the email code before a Super Admin comes back (23.2), so the page asks
+  // for it first instead of failing the press.
+  it("asks for the code before reactivating a Super Admin", async () => {
+    const withConfirmation = vi.fn((_action: string, run: () => void) => run());
+    const { onChanged } = renderActions(
+      adminUser({ id: "u1", isActive: false, role: "super_admin" }),
+      withConfirmation,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktifkan" }));
+
+    await waitFor(() => expect(reactivateAdmin).toHaveBeenCalledWith("u1"));
+    expect(withConfirmation).toHaveBeenCalledWith("reactivate_super_admin", expect.any(Function));
+    expect(onChanged).toHaveBeenCalledWith("Admin diaktifkan kembali.");
+  });
+
   it("reactivates an inactive admin without a code or a dialog", async () => {
     const withConfirmation = vi.fn();
-    const { onChanged } = renderActions(adminUser({ id: "u1", isActive: false }), withConfirmation);
+    const { onChanged } = renderActions(
+      adminUser({ id: "u1", isActive: false, role: "admin" }),
+      withConfirmation,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Aktifkan" }));
 
@@ -75,7 +94,7 @@ describe("the Pengguna Admin row actions", () => {
   });
 
   it("asks for the code before sending a changed role", async () => {
-    const withConfirmation = vi.fn((_action: string, run: (id: string) => void) => run("c1"));
+    const withConfirmation = vi.fn((_action: string, run: () => void) => run());
     renderActions(adminUser({ id: "u1" }), withConfirmation);
 
     fireEvent.click(screen.getByRole("button", { name: "Ubah" }));
@@ -88,7 +107,6 @@ describe("the Pengguna Admin row actions", () => {
       expect(updateAdmin).toHaveBeenCalledWith(
         "u1",
         { name: "Rangga Pratama", role: "super_admin" },
-        "c1",
       ),
     );
     expect(withConfirmation).toHaveBeenCalledWith("role_change", expect.any(Function));
@@ -103,7 +121,7 @@ describe("the Pengguna Admin row actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
 
     await waitFor(() =>
-      expect(updateAdmin).toHaveBeenCalledWith("u1", { name: "Rangga P" }, undefined),
+      expect(updateAdmin).toHaveBeenCalledWith("u1", { name: "Rangga P" }),
     );
     expect(withConfirmation).not.toHaveBeenCalled();
   });

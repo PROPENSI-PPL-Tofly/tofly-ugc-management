@@ -39,17 +39,18 @@ describe("the admin list's address", () => {
 });
 
 describe("the admin list's query", () => {
-  it("asks the API for ten rows a page, always", () => {
+  // GET /admin-users (23.2) reads `q` and `page` and always answers ten rows.
+  it("asks the API for the page, which is always ten rows", () => {
     expect(ADMIN_USERS_PAGE_SIZE).toBe(10);
-    expect(buildAdminUsersQuery({ q: "" }, 1)).toBe("page=1&pageSize=10");
+    expect(buildAdminUsersQuery({ q: "" }, 1)).toBe("page=1");
   });
 
   it("sends the search under the API's name, however it was typed", () => {
     const query = new URLSearchParams(buildAdminUsersQuery({ q: "rangga pratama" }, 2));
 
-    expect(query.get("search")).toBe("rangga pratama");
+    expect(query.get("q")).toBe("rangga pratama");
     expect(query.get("page")).toBe("2");
-    expect(query.get("pageSize")).toBe("10");
+    expect(query.has("pageSize")).toBe(false);
   });
 
   // The page's own address, for Pagination and the retry link, keeps the app's `q` and leaves
@@ -66,9 +67,10 @@ const API_USER = {
   name: "Rangga Pratama",
   email: "rangga@example.com",
   role: "super_admin",
-  isActive: true,
-  lastSignInAt: "2026-11-10T03:00:00.000Z",
+  status: "active",
+  lastSignedInAt: "2026-11-10T03:00:00.000Z",
   createdAt: "2026-10-01T02:00:00.000Z",
+  isSelf: false,
 };
 
 describe("the admin list's rows", () => {
@@ -104,6 +106,17 @@ describe("the admin list's rows", () => {
     expect(list.totalPages).toBe(2);
   });
 
+  it("reads an inactive admin who never signed in", () => {
+    const list = toAdminUserList({
+      items: [{ ...API_USER, status: "inactive", lastSignedInAt: null }],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+    });
+
+    expect(list.items[0]).toMatchObject({ isActive: false, lastSignInAt: null });
+  });
+
   it("keeps a row's own-name flag, which shuts its self-actions", () => {
     const list = toAdminUserList({
       items: [{ ...API_USER, isSelf: true }],
@@ -121,9 +134,9 @@ describe("the admin list's rows", () => {
     ["a row with no id", { items: [{ ...API_USER, id: undefined }], page: 1, pageSize: 10, total: 1 }],
     ["a row with no email", { items: [{ ...API_USER, email: null }], page: 1, pageSize: 10, total: 1 }],
     ["a role it does not know", { items: [{ ...API_USER, role: "owner" }], page: 1, pageSize: 10, total: 1 }],
-    ["a row without a status", { items: [{ ...API_USER, isActive: "yes" }], page: 1, pageSize: 10, total: 1 }],
+    ["a row without a status", { items: [{ ...API_USER, status: "yes" }], page: 1, pageSize: 10, total: 1 }],
     ["a row that is not a row", { items: [null], page: 1, pageSize: 10, total: 1 }],
-    ["an unreadable sign-in", { items: [{ ...API_USER, lastSignInAt: 123 }], page: 1, pageSize: 10, total: 1 }],
+    ["an unreadable sign-in", { items: [{ ...API_USER, lastSignedInAt: 123 }], page: 1, pageSize: 10, total: 1 }],
     ["a row with no date added", { items: [{ ...API_USER, createdAt: undefined }], page: 1, pageSize: 10, total: 1 }],
     ["a non-number page", { items: [API_USER], page: "1", pageSize: 10, total: 1 }],
     ["a non-number page size", { items: [API_USER], page: 1, pageSize: "10", total: 1 }],
