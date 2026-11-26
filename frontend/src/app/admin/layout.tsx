@@ -1,4 +1,5 @@
 import { AccessDenied } from "@/components/shell/access-denied";
+import { AdminRoleProvider } from "@/components/shell/admin-role";
 import { homeFor } from "@/lib/session";
 import { currentRole } from "@/lib/session.server";
 
@@ -21,7 +22,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       />
     );
   }
-  if (role !== "admin") {
+  if (role === "creator") {
     return (
       <AccessDenied
         reason="Halaman ini hanya untuk Admin."
@@ -30,5 +31,5 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       />
     );
   }
-  return children;
+  return <AdminRoleProvider role={role}>{children}</AdminRoleProvider>;
 }

@@ -28,7 +28,7 @@ describe("currentRole", () => {
     vi.unstubAllEnvs();
   });
 
-  it.each(["admin", "creator"] as const)(
+  it.each(["admin", "creator", "super_admin"] as const)(
     "reads the signed-in %s from the backend, forwarding only the session cookie",
     async (role) => {
       browserHasSession();

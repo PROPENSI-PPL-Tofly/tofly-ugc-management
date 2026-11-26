@@ -1,5 +1,5 @@
 /** The icon each place in the menu carries above its name on a phone tile. */
-export type PlaceIconName = "home" | "tasks" | "wallet" | "people" | "calendar" | "receipt" | "chart";
+export type PlaceIconName = "home" | "tasks" | "wallet" | "people" | "calendar" | "receipt" | "chart" | "shield";
 
 // One 24-unit stroke drawing per place, in the menu's current colour.
 const PATHS: Record<PlaceIconName, readonly string[]> = {
@@ -11,6 +11,8 @@ const PATHS: Record<PlaceIconName, readonly string[]> = {
   receipt: ["M6 3h12v18l-3-2-3 2-3-2-3 2z", "M9 8h6", "M9 12h6"],
   // Performa (PBI-19/27): rising bars.
   chart: ["M4 20h16", "M7 16v-4", "M12 16V8", "M17 16V5"],
+  // Pengguna Admin (PBI-23, 23.3): a shield, the role that guards the other admins.
+  shield: ["M12 3l7 3v5.5c0 4.3-2.8 7.8-7 9.5-4.2-1.7-7-5.2-7-9.5V6z"],
 };
 
 /** Decorative: the place's name is the link's text, so screen readers skip the drawing. */

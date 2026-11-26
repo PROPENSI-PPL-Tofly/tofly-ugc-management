@@ -917,7 +917,7 @@ export function ContentDetailPanel({
               <LinkPerformanceSection
                 contentId={contentId}
                 links={loaded.links}
-                role={role}
+                role={role === "creator" ? "creator" : "admin"}
                 creatorFirstName={loaded.creatorName.split(" ")[0]}
                 onChanged={() => void readAgain()}
                 // Only the creator adds or changes a link, from its card; the form opens there.

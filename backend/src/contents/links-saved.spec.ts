@@ -51,4 +51,15 @@ describe('syncInBackground', () => {
       ),
     );
   });
+
+  it('logs a failure that is not an Error by its string value', async () => {
+    const { linksSaved, warn } = setup(() => Promise.reject('sync unavailable'));
+
+    linksSaved('content-1');
+    await vi.waitFor(() =>
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        expect.stringContaining('sync unavailable'),
+      ),
+    );
+  });
 });

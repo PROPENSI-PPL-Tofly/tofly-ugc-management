@@ -29,6 +29,16 @@ describe("Admin area", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  // The Super Admin is still an admin: every admin page stays theirs (PBI-23, 23.1).
+  it("shows its pages to a signed-in super admin too", async () => {
+    vi.mocked(currentRole).mockResolvedValue("super_admin");
+
+    await renderLayout();
+
+    expect(screen.getByText("Data admin")).toBeInTheDocument();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   // Told why rather than bounced: a bookmarked page that silently turns into the login screen
   // reads like a broken link.
   it("tells a visitor who is not signed in to sign in first, without rendering the page", async () => {
