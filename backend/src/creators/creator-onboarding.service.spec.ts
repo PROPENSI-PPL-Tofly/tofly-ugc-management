@@ -383,10 +383,17 @@ describe('CreatorOnboardingService', () => {
 describe('CreatorOnboardingService, the creator email', () => {
   async function built(create: ReturnType<typeof vi.fn>) {
     const notifier = { accountReady: vi.fn<CreatorNotifier['accountReady']>().mockResolvedValue() };
+    // The account and its Log Aktivitas entry are saved in one transaction (PBI-23).
+    const prisma = {
+      creators: { create },
+      users: { findUnique: vi.fn().mockResolvedValue({ name: 'Rani', email: 'rani@example.com', admin_role: 'admin' }) },
+      audit_logs: { create: vi.fn().mockResolvedValue({}) },
+      $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) => work(prisma)),
+    };
     const module = await Test.createTestingModule({
       providers: [
         CreatorOnboardingService,
-        { provide: PrismaService, useValue: { creators: { create } } },
+        { provide: PrismaService, useValue: prisma },
         { provide: CREATOR_NOTIFIER, useValue: notifier },
       ],
     }).compile();
