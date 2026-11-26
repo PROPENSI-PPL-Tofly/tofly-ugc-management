@@ -106,7 +106,15 @@ export class DashboardService {
       kpis: computeKpis(inputs(current, today), inputs(previous, today)),
       charts: buildCharts(current.invoices, current.links, current.contents, today),
       creators: creatorRows(
-        current.creators,
+        current.creators.map((creator) => ({
+          creatorId: creator.creatorId,
+          name: creator.name,
+          contract: {
+            quota: creator.quota,
+            startDate: creator.startDate,
+            endDate: creator.endDate,
+          },
+        })),
         current.invoices.map((invoice) => ({
           creatorId: invoice.creatorId,
           spending: invoice.total,

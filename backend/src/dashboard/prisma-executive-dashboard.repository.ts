@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { creatorName, savedSnapshot } from '../invoices/invoice-rows.js';
 import {
-  EXECUTIVE_DASHBOARD_REPOSITORY,
   FINALIZED_STATUSES,
   type DashboardContentRow,
   type DashboardCreatorRow,

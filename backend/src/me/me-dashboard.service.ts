@@ -2,7 +2,8 @@
 // contract's quota and the running invoice's estimate. Both read the same sources the creator's
 // other pages do, so a card can never disagree with Task Saya or Pembayaran.
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service.js';
 import {
   currentContract,
   computeProgress,
@@ -54,7 +55,7 @@ function toMetrics(contract: ContractRow): MetricsContract {
 @Injectable()
 export class MeDashboardService {
   constructor(
-    private readonly prisma: Client,
+    @Inject(PrismaService) private readonly prisma: Client,
     private readonly invoices: InvoicesService,
   ) {}
 
@@ -68,7 +69,10 @@ export class MeDashboardService {
     ]);
 
     const current = currentContract((row?.contracts ?? []).map(toMetrics), today);
-    const progress = computeProgress(current?.contents ?? [], current?.quota ?? 0);
+    const quota = (row?.contracts ?? []).find(
+      (contract) => contract.id === current?.id,
+    )?.content_quota ?? 0;
+    const progress = computeProgress(current?.contents ?? [], quota);
     const accruing = views.find((view) => view.invoiceStatus === 'accruing');
 
     return {

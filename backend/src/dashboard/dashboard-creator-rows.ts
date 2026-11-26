@@ -78,7 +78,8 @@ function row(
     name: creator.name,
     spending,
     sent: mine.filter((item) => !item.isProposal && item.videoSubmittedAt !== null).length,
-    quota: creator.contract?.quota ?? 0,
+    // The filter above guarantees a contract, so there is no null branch here to leave untested.
+    quota: creator.contract!.quota,
     onTimeRate: resolved.length === 0 ? null : (onTime / resolved.length) * 100,
     views,
     costPer1000Views: views === 0 ? null : (spending / views) * 1000,

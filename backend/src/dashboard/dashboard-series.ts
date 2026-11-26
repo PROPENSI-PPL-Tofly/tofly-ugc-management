@@ -55,16 +55,16 @@ function atMidnight(day: string): Date {
 const monthOf = (day: string): string => day.slice(0, 7);
 
 /** An array of months in order, each with one value per part. */
-function stack<T extends string>(
-  rows: readonly { month: string }[],
+function stack<R, T extends string>(
+  rows: readonly (R & { month: string })[],
   parts: readonly { key: T; label: string }[],
-  value: (row: never, part: T) => number,
+  value: (row: R, part: T) => number,
 ): ExecutiveChart['months'] {
   const byMonth = new Map<string, Map<T, number>>();
   for (const row of rows) {
     const values = byMonth.get(row.month) ?? new Map(parts.map((part) => [part.key, 0]));
     for (const part of parts) {
-      values.set(part.key, values.get(part.key)! + value(row as never, part.key));
+      values.set(part.key, values.get(part.key)! + value(row, part.key));
     }
     byMonth.set(row.month, values);
   }
