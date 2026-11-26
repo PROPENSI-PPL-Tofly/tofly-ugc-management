@@ -88,6 +88,37 @@ describe('Admin roles and status (e2e)', () => {
       expect(user.admin_role).toBeNull();
     });
 
+    // A Super Admin written to a null role must fail, never quietly become Admin (review on #225).
+    it('refuses to clear the role of a user who stays an Admin', async () => {
+      const user = await prisma.users.create({
+        data: {
+          email: email('keeps-role'),
+          is_admin: true,
+          admin_role: 'super_admin',
+        },
+      });
+
+      await expect(
+        prisma.$executeRaw`update users set admin_role = null where id = ${user.id}::uuid`,
+      ).rejects.toThrow(/users_admin_role_matches_is_admin/);
+      await expect(
+        prisma.users.findUniqueOrThrow({ where: { id: user.id } }),
+      ).resolves.toMatchObject({ admin_role: 'super_admin' });
+    });
+
+    it('makes a user who becomes an Admin with no role an Admin', async () => {
+      const user = await prisma.users.create({
+        data: { email: email('promoted-plain') },
+      });
+
+      const after = await prisma.users.update({
+        where: { id: user.id },
+        data: { is_admin: true },
+      });
+
+      expect(after.admin_role).toBe('admin');
+    });
+
     it.each([
       ['longer than 100 characters', 'a'.repeat(101)],
       ['blank', '   '],
@@ -236,6 +267,32 @@ describe('Admin roles and status (e2e)', () => {
       await expect(
         prisma.users.findUniqueOrThrow({ where: { email: email('creator') } }),
       ).resolves.toMatchObject({ is_admin: false, admin_role: null });
+    });
+  });
+
+  // PBI-23 AC 3: the frontend hides the Super Admin menus and button by this answer.
+  describe('GET /auth/session', () => {
+    it("answers a Super Admin's role, and a plain Admin's once demoted, on the next request", async () => {
+      const user = await prisma.users.create({
+        data: {
+          email: email('session-role'),
+          is_admin: true,
+          admin_role: 'super_admin',
+        },
+      });
+      const cookie = await signIn(app, { userId: user.id, role: 'admin' });
+
+      await as(app, cookie)
+        .get('/auth/session')
+        .expect(200, { role: 'admin', adminRole: 'super_admin' });
+
+      await prisma.users.update({
+        where: { id: user.id },
+        data: { admin_role: 'admin' },
+      });
+      await as(app, cookie)
+        .get('/auth/session')
+        .expect(200, { role: 'admin', adminRole: 'admin' });
     });
   });
 
