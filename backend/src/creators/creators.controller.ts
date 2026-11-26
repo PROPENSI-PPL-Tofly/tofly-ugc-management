@@ -7,12 +7,19 @@ import {
   Param,
   ParseIntPipe,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard, type AdminRequest } from '../auth/admin.guard.js';
+import { checkCreatorEdit } from './creator-edit.js';
+import {
+  CreatorEditService,
+  type CreatorEditor,
+  type EditedCreatorResult,
+} from './creator-edit.service.js';
 import {
   CreatorOnboardingService,
   type CreatorOnboarder,
@@ -62,6 +69,7 @@ export class CreatorsController {
     private readonly onboarding: CreatorOnboarder,
     @Inject(DeadlineBufferService)
     private readonly buffer: DeadlineBufferReader,
+    @Inject(CreatorEditService) private readonly editor: CreatorEditor,
   ) {}
 
   // The pipes turn anything that is not an integer into a 400 before this runs;
@@ -110,6 +118,24 @@ export class CreatorsController {
       // The stored buffer (PBI-23 AC 22), read once for the request.
       onboardingInput(checkNewCreator(body, now, await this.buffer.current())),
       now,
+      request.principal?.userId,
+    );
+  }
+
+  /**
+   * "Ubah Data" (PBI-16). The body holds only the fields the admin changed, taken as `unknown`
+   * and checked by checkCreatorEdit; what may change today is the editor's to judge.
+   */
+  @Patch(':id')
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: Pick<AdminRequest, 'principal'>,
+  ): Promise<EditedCreatorResult> {
+    return this.editor.edit(
+      id,
+      checkCreatorEdit(body),
+      new Date(),
       request.principal?.userId,
     );
   }

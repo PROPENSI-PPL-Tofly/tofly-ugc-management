@@ -50,6 +50,7 @@ export function adminInvoiceView(row: InvoiceRow, breakdown: InvoiceBreakdown): 
       : null,
     // The admin's thread reads its own comments (InvoiceComments); none ride on the row.
     comments: [],
+    rateChanges: breakdown.rateChanges,
   };
 }
 

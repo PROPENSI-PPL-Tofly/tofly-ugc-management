@@ -11,6 +11,7 @@ import type { AdjustmentLine } from "./invoice-adjustment";
 import { INVOICE_STATUS_LABELS, type InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
 import { formatDate, formatRupiah, jakartaDay } from "./format";
+import { rateChangeEvents, type RateChange } from "./rate-change";
 import type { Role } from "./session";
 
 /** The page's own address. */
@@ -72,6 +73,8 @@ export interface CreatorInvoice {
   proof: PaymentProof | null;
   /** Oldest first. */
   comments: InvoiceComment[];
+  /** Every change of the fixed rate while the invoice ran (PBI-16). */
+  rateChanges?: RateChange[];
 }
 
 /** A failed read of the creator's invoices, with the HTTP status that says why. */
@@ -311,8 +314,10 @@ export function invoiceActivity(
     at: comment.createdAt,
   }));
 
-  // A stable sort keeps this order among entries of the same moment.
-  return [...events, ...adjustments, ...comments].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  // A stable sort keeps this order among entries of the same moment: every step ahead of a comment.
+  return [...events, ...adjustments, ...rateChangeEvents(invoice.rateChanges), ...comments].sort(
+    (a, b) => Date.parse(a.at) - Date.parse(b.at),
+  );
 }
 
 /** A refusal of one of the creator's moves, worded for the creator. */

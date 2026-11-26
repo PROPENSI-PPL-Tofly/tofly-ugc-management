@@ -75,6 +75,7 @@ function view(contractId: string, overrides: Partial<InvoiceView> = {}) {
     formula: null,
     acknowledgedAt: null,
     paidAt: null,
+    rateChanges: [],
     ...overrides,
   } as InvoiceView;
 }
@@ -146,6 +147,23 @@ describe('MyInvoicesService', () => {
         comments: [COMMENT],
       },
     ]);
+  });
+
+  // OWASP A01: PBI-16's rate changes reach the creator without the admin behind them.
+  it('answers the fixed rate changes without naming the admin', async () => {
+    const change = {
+      id: 'change-1',
+      oldRate: 4_000_000,
+      newRate: 4_500_000,
+      createdAt: '2026-11-25T03:00:00.000Z',
+    };
+    const { service } = stubs([
+      view('current', { rateChanges: [{ ...change, actorName: 'rina@example.com' }] }),
+    ]);
+
+    const { items } = await service.list(CREATOR, TODAY);
+
+    expect(items[0].rateChanges).toEqual([change]);
   });
 
   // OWASP Top 10:2025 A01 (Broken Access Control): which admin recorded an adjustment is the

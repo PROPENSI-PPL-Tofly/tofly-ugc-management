@@ -128,7 +128,7 @@ describe('GET /creators (e2e)', () => {
         contentQuota: 2,
         type: 'regular',
       },
-      progress: { submitted: 1, total: 2, percent: 50 },
+      progress: { submitted: 1, total: 3, percent: 33 },
       performance: {
         onTimeRate: 100,
         avgRevisions: 0,

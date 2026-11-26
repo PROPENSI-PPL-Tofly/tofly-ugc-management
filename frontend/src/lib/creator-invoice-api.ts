@@ -17,6 +17,7 @@ import {
   type RawInvoiceComponent,
   type RawInvoiceDetail,
 } from "./invoice-api";
+import { readRateChanges } from "./rate-change";
 import { isSameSitePath } from "./safe-href";
 
 /** The proof the admin uploaded: a short-lived link to the file in Storage. */
@@ -167,6 +168,7 @@ function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
     },
     proof: toProof(raw.paymentProof),
     comments: (raw.comments ?? []).map(toComment),
+    rateChanges: readRateChanges(raw.rateChanges),
   };
 }
 
