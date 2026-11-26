@@ -20,7 +20,7 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
     markNotReady: vi.fn<EmailLogStore['markNotReady']>().mockResolvedValue(),
     startSending: vi.fn<EmailLogStore['startSending']>().mockResolvedValue(),
-    stuckSending: vi.fn<EmailLogStore['stuckSending']>().mockResolvedValue([]),
+    closeStuckSending: vi.fn<EmailLogStore['closeStuckSending']>().mockResolvedValue(0),
     failedToRetry: vi.fn<EmailLogStore['failedToRetry']>().mockResolvedValue([]),
     claimRetry: vi.fn<EmailLogStore['claimRetry']>().mockResolvedValue(true),
     abandon: vi.fn<EmailLogStore['abandon']>().mockResolvedValue(),

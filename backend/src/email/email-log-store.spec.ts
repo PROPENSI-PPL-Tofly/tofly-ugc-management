@@ -210,30 +210,17 @@ describe('PrismaEmailLogStore.startSending', () => {
   });
 });
 
-describe('PrismaEmailLogStore.stuckSending', () => {
-  it('reads the rows left sending for 30 minutes, oldest first', async () => {
+// Review on #264 (Kak Satria): one update closes every row left sending and says how many.
+describe('PrismaEmailLogStore.closeStuckSending', () => {
+  it('closes the rows left sending for 30 minutes as UnknownOutcome, every attempt used', async () => {
     const prisma = client();
-    prisma.email_log.findMany.mockResolvedValue([
-      {
-        event_key: 'e1',
-        template: 'content_scheduled',
-        recipient: 'salsa@example.com',
-        payload: { contentName: 'Evg_1' },
-      },
-    ]);
+    prisma.email_log.updateMany.mockResolvedValue({ count: 2 });
 
-    await expect(new PrismaEmailLogStore(prisma).stuckSending(AT)).resolves.toEqual([
-      {
-        eventKey: 'e1',
-        template: 'content_scheduled',
-        recipient: 'salsa@example.com',
-        payload: { contentName: 'Evg_1' },
-      },
-    ]);
-    expect(prisma.email_log.findMany).toHaveBeenCalledWith({
+    await expect(new PrismaEmailLogStore(prisma).closeStuckSending(AT)).resolves.toBe(2);
+
+    expect(prisma.email_log.updateMany).toHaveBeenCalledWith({
       where: { status: 'sending', updated_at: { lt: new Date('2026-11-25T00:30:00.000Z') } },
-      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-      select: { event_key: true, template: true, recipient: true, payload: true },
+      data: { status: 'failed', attempts: 3, last_error: 'UnknownOutcome', updated_at: AT },
     });
   });
 });
