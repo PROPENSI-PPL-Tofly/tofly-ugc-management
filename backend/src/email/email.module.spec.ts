@@ -1,6 +1,7 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { PrismaModule } from '../prisma/prisma.module.js';
+import { AdminEmails } from './admin-emails.js';
 import { CreatorEmails } from './creator-emails.js';
 import { EmailNotifier } from './email-notifier.js';
 import { EMAIL_TEMPLATES, unreadyEmailTemplates } from './email-templates.js';
@@ -98,7 +99,7 @@ describe('EmailModule', () => {
       useValue?: unknown;
     }[];
 
-    expect(exported).toEqual(expect.arrayContaining([EMAIL_SENDER, CreatorEmails]));
+    expect(exported).toEqual(expect.arrayContaining([EMAIL_SENDER, CreatorEmails, AdminEmails]));
     expect(providers).toContainEqual(
       expect.objectContaining({ provide: EMAIL_TEMPLATES, useValue: unreadyEmailTemplates }),
     );

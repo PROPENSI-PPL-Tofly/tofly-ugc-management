@@ -1,8 +1,14 @@
 import {
+  ADMIN_NOTIFIER,
+  noAdminEmail,
+  type AdminNotifier,
+} from '../email/admin-notifier.js';
+import {
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
@@ -115,6 +121,9 @@ export class DraftSubmissionService implements DraftSubmitter {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: DraftSubmissionClient,
+    @Optional()
+    @Inject(ADMIN_NOTIFIER)
+    private readonly admins: Pick<AdminNotifier, 'draftSubmitted'> = noAdminEmail,
   ) {}
 
   /**
@@ -128,7 +137,7 @@ export class DraftSubmissionService implements DraftSubmitter {
     input: DraftSubmission,
     now: Date = new Date(),
   ): Promise<SubmittedDraft> {
-    return this.prisma.$transaction(async (transaction) => {
+    const submitted = await this.prisma.$transaction(async (transaction) => {
       // Scoped to the caller's own committed contents: another creator's content and an
       // unapproved proposal read as missing, so a 404 never confirms they exist (OWASP A01).
       const content = await transaction.contents.findFirst({
@@ -235,5 +244,8 @@ export class DraftSubmissionService implements DraftSubmitter {
         submittedAt: submission.created_at.toISOString(),
       };
     });
+    // PBI-11 (AC 5, AC 9): every Admin hears once the draft is saved; never failing the hand-in.
+    await this.admins.draftSubmitted({ contentId, submissionId: submitted.submissionId });
+    return submitted;
   }
 }

@@ -69,6 +69,8 @@ function stubClient(stored: Stored | null, due?: string[]) {
 function notifier() {
   return {
     proposalRejected: vi.fn<ProposalNotifier['proposalRejected']>().mockResolvedValue(),
+    proposalApproved: vi.fn<ProposalNotifier['proposalApproved']>().mockResolvedValue(),
+    proposalScheduled: vi.fn<ProposalNotifier['proposalScheduled']>().mockResolvedValue(),
   } satisfies ProposalNotifier;
 }
 
@@ -367,5 +369,47 @@ describe('ProposalReviewService.scheduleDue', () => {
 
     expect(client.$transaction).toHaveBeenCalledTimes(1);
     expect(client.content_events.createMany).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-11 (11.2, AC 1): an approved proposal, or one the system scheduled at H-1, emails its creator.
+describe('ProposalReviewService, the creator email', () => {
+  it('tells the creator once the approval is saved', async () => {
+    const { client, current } = stubClient(pending);
+    const notify = notifier();
+    notify.proposalApproved.mockImplementation(async () => {
+      expect(current()?.status).toBe('scheduled');
+    });
+
+    await new ProposalReviewService(client, notify).approve(ID);
+
+    expect(notify.proposalApproved).toHaveBeenCalledExactlyOnceWith({ contentId: ID });
+  });
+
+  it('tells nobody when the proposal was already decided', async () => {
+    const { client } = stubClient({ ...pending, status: 'scheduled' });
+    const notify = notifier();
+
+    await expect(new ProposalReviewService(client, notify).approve(ID)).rejects.toThrow();
+    expect(notify.proposalApproved).not.toHaveBeenCalled();
+  });
+
+  it('tells each creator whose proposal the system scheduled at H-1, after it is saved', async () => {
+    const OTHER = '44444444-4444-4444-8444-444444444444';
+    const { client } = stubClient(pending, [ID, OTHER]);
+    const notify = notifier();
+
+    await new ProposalReviewService(client, notify).scheduleDue(new Date('2026-10-10T05:00:00.000Z'));
+
+    expect(notify.proposalScheduled.mock.calls).toEqual([[{ contentId: ID }], [{ contentId: OTHER }]]);
+  });
+
+  it('tells nobody when nothing was due', async () => {
+    const { client } = stubClient(pending);
+    const notify = notifier();
+
+    await new ProposalReviewService(client, notify).scheduleDue(new Date('2026-10-10T05:00:00.000Z'));
+
+    expect(notify.proposalScheduled).not.toHaveBeenCalled();
   });
 });

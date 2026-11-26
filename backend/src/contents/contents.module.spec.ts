@@ -9,7 +9,10 @@ import { ContentListService } from './content-list.service.js';
 import { ContentsController } from './contents.controller.js';
 import { ContentsModule } from './contents.module.js';
 import { CONTENT_NOTIFIER, ContentCreationService } from './contents.service.js';
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
 import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
 import { EmailModule } from '../email/email.module.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
@@ -41,6 +44,10 @@ describe('ContentsModule', () => {
 
     expect(imports).toContain(EmailModule);
     expect(providers).toContainEqual({ provide: CONTENT_NOTIFIER, useExisting: CreatorEmails });
+    // PBI-11 (11.2): Ubah Deadline and Hapus email the creator too.
+    expect(providers).toContainEqual({ provide: CREATOR_NOTIFIER, useExisting: CreatorEmails });
+    // PBI-11 (11.2, AC 5): a handed-in draft emails every Admin.
+    expect(providers).toContainEqual({ provide: ADMIN_NOTIFIER, useExisting: AdminEmails });
   });
 
   it('registers the edit and delete controller and service (PBI-25)', () => {

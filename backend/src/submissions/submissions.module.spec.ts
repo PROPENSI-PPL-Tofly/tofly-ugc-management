@@ -1,3 +1,6 @@
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module.js';
@@ -69,5 +72,14 @@ describe('SubmissionsModule', () => {
     ) as unknown[];
 
     expect(imports).toContain(SubmissionsModule);
+  });
+
+  // PBI-11 (11.2): revision, follow-up and approval emails go through the creator emails.
+  it('hands its services the creator emails', () => {
+    const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, SubmissionsModule) as unknown[];
+    const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, SubmissionsModule) as unknown[];
+
+    expect(imports).toContain(EmailModule);
+    expect(providers).toContainEqual({ provide: CREATOR_NOTIFIER, useExisting: CreatorEmails });
   });
 });

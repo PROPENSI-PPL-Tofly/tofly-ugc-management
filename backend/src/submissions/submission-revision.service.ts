@@ -1,3 +1,4 @@
+import { noCreatorEmail, type CreatorNotifier } from '../email/creator-notifier.js';
 import { checkReviewable } from './draft-review.js';
 import type { RevisedSubmission } from './dto/revised-submission.dto.js';
 import { reviewConflict, submissionNotFound } from './review-errors.js';
@@ -31,6 +32,7 @@ export interface RevisionStore {
 export class SubmissionRevisionService {
   constructor(
     private readonly repository: RevisionStore,
+    private readonly notifier: Pick<CreatorNotifier, 'revisionRequested'> = noCreatorEmail,
   ) {}
 
   async revise(
@@ -70,7 +72,17 @@ export class SubmissionRevisionService {
     if (!result) {
       throw reviewConflict('DRAFT_NOT_REVIEWABLE');
     } else {
-      return result;
+      return this.announced(result, submission.content_id, submissionId);
     }
+  }
+
+  // PBI-11 (AC 1, AC 9): the creator hears once the note is saved; the email never fails it.
+  private async announced(
+    revised: RevisedSubmission,
+    contentId: string,
+    submissionId: string,
+  ): Promise<RevisedSubmission> {
+    await this.notifier.revisionRequested({ contentId, submissionId });
+    return revised;
   }
 }

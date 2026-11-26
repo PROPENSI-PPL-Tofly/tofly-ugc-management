@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import { SubmissionRevisionService } from './submission-revision.service.js';
 
 const SUBMISSION_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -353,5 +354,44 @@ describe('SubmissionRevisionService', () => {
       NOTE,
       ADMIN_USER_ID,
     );
+  });
+});
+
+// PBI-11 (11.2, AC 1): a draft that needs revision emails its creator, once the note is saved.
+describe('SubmissionRevisionService, the creator email', () => {
+  function emails() {
+    return { revisionRequested: vi.fn<CreatorNotifier['revisionRequested']>().mockResolvedValue() };
+  }
+
+  const reviewable = { id: SUBMISSION_ID, content_id: CONTENT_ID, status: 'draft_review', isLatest: true };
+
+  it('tells the creator after the revision is saved', async () => {
+    const notifier = emails();
+    const saveRevision = vi.fn().mockResolvedValue({ id: SUBMISSION_ID, status: 'draft_revision' });
+    notifier.revisionRequested.mockImplementation(async () => {
+      expect(saveRevision).toHaveBeenCalled();
+    });
+
+    await new SubmissionRevisionService(
+      { findById: vi.fn().mockResolvedValue(reviewable), saveRevision },
+      notifier,
+    ).revise(SUBMISSION_ID, NOTE, ADMIN_USER_ID);
+
+    expect(notifier.revisionRequested).toHaveBeenCalledExactlyOnceWith({
+      contentId: CONTENT_ID,
+      submissionId: SUBMISSION_ID,
+    });
+  });
+
+  it('tells nobody when the revision is not saved', async () => {
+    const notifier = emails();
+
+    await expect(
+      new SubmissionRevisionService(
+        { findById: vi.fn().mockResolvedValue(reviewable), saveRevision: vi.fn().mockResolvedValue(null) },
+        notifier,
+      ).revise(SUBMISSION_ID, NOTE),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(notifier.revisionRequested).not.toHaveBeenCalled();
   });
 });
