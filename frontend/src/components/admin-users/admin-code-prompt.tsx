@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { CodeBoxes, CODE_LENGTH } from "@/components/auth/code-boxes";
 import { useCountdown } from "@/components/auth/use-countdown";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ export function AdminCodePrompt({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const { secondsLeft, restart } = useCountdown(RESEND_AFTER_SECONDS);
+  const asked = useRef(false);
 
   const ask = useCallback(async () => {
     setBusy(true);
@@ -65,9 +66,15 @@ export function AdminCodePrompt({
     }
   }, []);
 
-  // One code per opening; a later one is the resend button's work. The request is queued a tick
-  // after mounting so the opening render settles before it flips the prompt's busy state.
+  // One code per opening; a later one is the resend button's work. The ref holds across the second
+  // run StrictMode gives an effect in development, which would otherwise email a second code and
+  // leave the first one dead. The request is queued a tick after mounting so the opening render
+  // settles before it flips the prompt's busy state.
   useEffect(() => {
+    if (asked.current) {
+      return;
+    }
+    asked.current = true;
     queueMicrotask(() => {
       void ask();
     });

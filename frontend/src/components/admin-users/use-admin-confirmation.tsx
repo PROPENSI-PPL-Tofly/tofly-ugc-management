@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { CONFIRMATION_MINUTES, type SensitiveAction } from "@/lib/admin-users-api";
 import { AdminCodePrompt } from "./admin-code-prompt";
 
@@ -9,15 +17,31 @@ interface Asking {
   run: () => void;
 }
 
+/** Epoch milliseconds the session stays confirmed until, or null before any code. */
+type LiveUntil = [number | null, Dispatch<SetStateAction<number | null>>];
+
+const SharedConfirmation = createContext<LiveUntil | null>(null);
+
+/**
+ * Holds the one confirmation for the whole Pengguna Admin page. The backend confirms the session,
+ * not a screen, so a code entered in Tambah Admin also covers the rows for the same 15 minutes.
+ */
+export function AdminConfirmationProvider({ children }: { children: ReactNode }) {
+  const live = useState<number | null>(null);
+  return <SharedConfirmation.Provider value={live}>{children}</SharedConfirmation.Provider>;
+}
+
 /**
  * The one confirmation a Super Admin gives before a sensitive change. The first one opens the
  * prompt; once the code is accepted the backend holds this session as confirmed, so later ones go
  * straight through until the 15 minutes are up, whichever action they are (AC 11). The time kept
- * here only spares a prompt the backend would not need; the backend still decides.
+ * here only spares a prompt the backend would not need; the backend still decides. Under
+ * AdminConfirmationProvider every part of the page reads the same time; without it, the hook
+ * keeps its own.
  */
 export function useAdminConfirmation() {
-  /** Epoch milliseconds, so the 15-minute rule is one comparison at the next action. */
-  const [liveUntil, setLiveUntil] = useState<number | null>(null);
+  const own = useState<number | null>(null);
+  const [liveUntil, setLiveUntil] = useContext(SharedConfirmation) ?? own;
   const [asking, setAsking] = useState<Asking | null>(null);
 
   const withConfirmation = useCallback(

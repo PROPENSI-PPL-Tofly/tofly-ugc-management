@@ -12,7 +12,7 @@ import {
   type AdminFormErrors,
   type AdminFormValues,
 } from "@/lib/admin-user-form";
-import { adminUserDisplayName, type AdminRole, type AdminUser } from "@/lib/admin-users";
+import type { AdminRole, AdminUser } from "@/lib/admin-users";
 import { AdminUserFields } from "./admin-user-fields";
 
 /**
@@ -36,7 +36,7 @@ export function EditAdminModal({
 }) {
   const formId = useId();
   const [values, setValues] = useState<AdminFormValues>({
-    name: adminUserDisplayName(user),
+    name: user.name,
     email: user.email,
     role: user.role,
   });

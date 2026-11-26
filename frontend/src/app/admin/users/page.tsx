@@ -1,6 +1,7 @@
 import { AdminUserTable } from "@/components/admin-users/admin-user-table";
 import { AdminUserFilters } from "@/components/admin-users/admin-user-filters";
 import { AddAdminTrigger } from "@/components/admin-users/add-admin-trigger";
+import { AdminConfirmationProvider } from "@/components/admin-users/use-admin-confirmation";
 import { AppShell } from "@/components/shell/app-shell";
 import { LoadError } from "@/components/ui/load-error";
 import { Pagination } from "@/components/ui/pagination";
@@ -55,41 +56,44 @@ export default async function AdminUsersPage({
   const returnTo = new URLSearchParams(adminUserQuery(filters, page)).toString();
   const retryHref = returnTo ? `${ADMIN_USERS_PATH}?${returnTo}` : ADMIN_USERS_PATH;
 
+  // One email confirmation for Tambah Admin and the rows, as the backend holds one per session.
   return (
-    <AppShell role="super_admin" title="Pengguna Admin" action={<AddAdminTrigger />}>
-      {invalid !== null ? (
-        // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
-        <p
-          role="status"
-          className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
-        >
-          {`Halaman "${invalid}" tidak dikenal, menampilkan halaman pertama.`}
-        </p>
-      ) : null}
+    <AdminConfirmationProvider>
+      <AppShell role="super_admin" title="Pengguna Admin" action={<AddAdminTrigger />}>
+        {invalid !== null ? (
+          // Rendered as text: whatever was typed into the URL is shown back, never interpreted.
+          <p
+            role="status"
+            className="mb-4 rounded-(--radius-control) border border-amber-wash bg-amber-wash px-4 py-2 text-[13px] text-amber-ink"
+          >
+            {`Halaman "${invalid}" tidak dikenal, menampilkan halaman pertama.`}
+          </p>
+        ) : null}
 
-      <Panel>
-        <AdminUserFilters />
-        {result ? (
-          <>
-            <AdminUserTable
-              users={result.items}
-              total={result.total}
-              filtered={filters.q !== ""}
-            />
-            <Pagination
-              basePath={ADMIN_USERS_PATH}
-              noun="admin"
-              query={query}
-              page={result.page}
-              pageSize={result.pageSize}
-              total={result.total}
-              totalPages={result.totalPages}
-            />
-          </>
-        ) : (
-          <LoadError title="Data admin tidak bisa dimuat." retryHref={retryHref} />
-        )}
-      </Panel>
-    </AppShell>
+        <Panel>
+          <AdminUserFilters />
+          {result ? (
+            <>
+              <AdminUserTable
+                users={result.items}
+                total={result.total}
+                filtered={filters.q !== ""}
+              />
+              <Pagination
+                basePath={ADMIN_USERS_PATH}
+                noun="admin"
+                query={query}
+                page={result.page}
+                pageSize={result.pageSize}
+                total={result.total}
+                totalPages={result.totalPages}
+              />
+            </>
+          ) : (
+            <LoadError title="Data admin tidak bisa dimuat." retryHref={retryHref} />
+          )}
+        </Panel>
+      </AppShell>
+    </AdminConfirmationProvider>
   );
 }
