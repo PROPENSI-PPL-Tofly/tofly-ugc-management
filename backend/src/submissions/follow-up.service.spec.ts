@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import { FollowUpService, type FollowUpClient } from './follow-up.service.js';
 
 const SUBMISSION = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
@@ -32,6 +33,7 @@ function fakeClient(
     email: ADMIN_EMAIL,
   },
   held: { id: string; content_type: string }[] = [],
+  notifier?: Pick<CreatorNotifier, 'followUpAdded'>,
 ) {
   const inTransaction: string[] = [];
   const followUpCreate = vi.fn((args: { data: Record<string, unknown> }) => {
@@ -58,7 +60,7 @@ function fakeClient(
     ),
   };
   return {
-    service: new FollowUpService(client as unknown as FollowUpClient),
+    service: new FollowUpService(client as unknown as FollowUpClient, notifier),
     client,
     usersFind,
     followUpCreate,
@@ -310,5 +312,43 @@ describe('FollowUpService.add', () => {
         { data: expect.not.objectContaining({ event_data: expect.objectContaining({ images: expect.anything() }) }) },
       ]);
     });
+  });
+});
+
+// PBI-11 (11.2, AC 1): a follow-up note emails the creator, once it is saved.
+describe('FollowUpService.add, the creator email', () => {
+  const ROUND: RoundRow = {
+    id: SUBMISSION,
+    content_id: CONTENT,
+    revision_notes: 'Perbaiki pembuka.',
+    contents: { status: 'draft_revision', submissions: [{ id: SUBMISSION }] },
+  };
+
+  it('tells the creator after the follow-up is saved', async () => {
+    const notifier = { followUpAdded: vi.fn<CreatorNotifier['followUpAdded']>().mockResolvedValue() };
+    const { service, inTransaction } = fakeClient(ROUND, undefined, [], notifier);
+    notifier.followUpAdded.mockImplementation(async () => {
+      expect(inTransaction).toContain('content_events');
+    });
+
+    await service.add(SUBMISSION, 'Tambahkan logo.', ADMIN);
+
+    expect(notifier.followUpAdded).toHaveBeenCalledExactlyOnceWith({
+      contentId: CONTENT,
+      followUpId: 'fu-1',
+    });
+  });
+
+  it('tells nobody when the round is closed', async () => {
+    const notifier = { followUpAdded: vi.fn<CreatorNotifier['followUpAdded']>().mockResolvedValue() };
+    const { service } = fakeClient(
+      { ...ROUND, contents: { status: 'draft_review', submissions: [{ id: SUBMISSION }] } },
+      undefined,
+      [],
+      notifier,
+    );
+
+    await expect(service.add(SUBMISSION, 'Tambahkan logo.', ADMIN)).rejects.toThrow();
+    expect(notifier.followUpAdded).not.toHaveBeenCalled();
   });
 });

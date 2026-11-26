@@ -16,6 +16,7 @@ import { SuperAdminModule } from './auth/super-admin/super-admin.module.js';
 import { EmailRequestModule } from './auth/email/email-request.module.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
+import { DailyEmailRunModule } from './email/daily-email-run.module.js';
 import { EmailModule } from './email/email.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
@@ -72,6 +73,7 @@ export function validate(
     SocialModule,
     PerformanceModule,
     EmailModule,
+    DailyEmailRunModule,
     EmailRequestModule,
   ],
   controllers: [AppController, HealthController],

@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   Logger,
@@ -34,7 +35,7 @@ const NOT_AWAITING_PROOF = {
     'Bukti pembayaran hanya bisa diunggah setelah creator meng-acknowledge invoice',
 };
 
-function stubs() {
+function stubs(notifier?: Pick<CreatorNotifier, 'paymentProofUploaded'>) {
   const prisma = {
     contracts: { findUnique: vi.fn() },
     invoices: { updateMany: vi.fn() },
@@ -83,6 +84,8 @@ function stubs() {
     prisma as unknown as PaymentProofClient,
     store,
     () => OBJECT,
+    undefined,
+    notifier,
   );
   return { prisma, store, service };
 }
@@ -442,5 +445,35 @@ describe('PaymentProofService', () => {
       );
       expect(prisma.invoice_payment_proofs.findMany).not.toHaveBeenCalled();
     });
+  });
+});
+
+// PBI-11 (11.2, AC 1): an uploaded payment proof emails the creator, once it is recorded.
+describe('PaymentProofService.upload, the creator email', () => {
+  function emails() {
+    return {
+      paymentProofUploaded: vi.fn<CreatorNotifier['paymentProofUploaded']>().mockResolvedValue(),
+    };
+  }
+
+  it('tells the creator after the proof is recorded', async () => {
+    const notifier = emails();
+    const { prisma, service } = stubs(notifier);
+    notifier.paymentProofUploaded.mockImplementation(async () => {
+      expect(prisma.invoice_payment_proofs.create).toHaveBeenCalled();
+    });
+
+    await service.upload(CONTRACT, PROOF, ADMIN);
+
+    expect(notifier.paymentProofUploaded).toHaveBeenCalledExactlyOnceWith({ contractId: CONTRACT });
+  });
+
+  it('tells nobody when the invoice no longer waits for a proof', async () => {
+    const notifier = emails();
+    const { prisma, service } = stubs(notifier);
+    prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(service.upload(CONTRACT, PROOF, ADMIN)).rejects.toThrow();
+    expect(notifier.paymentProofUploaded).not.toHaveBeenCalled();
   });
 });

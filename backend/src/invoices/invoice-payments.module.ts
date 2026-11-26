@@ -1,3 +1,6 @@
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { StorageModule } from '../storage/storage.module.js';
@@ -10,9 +13,14 @@ import { PaymentProofService } from './payment-proof.service.js';
  * exported for the creator's routes and for any listing that embeds a proof or a thread.
  */
 @Module({
-  imports: [PrismaModule, StorageModule],
+  // An uploaded payment proof emails the creator (PBI-11).
+  imports: [PrismaModule, StorageModule, EmailModule],
   controllers: [InvoicePaymentsController],
-  providers: [PaymentProofService, InvoiceCommentsService],
+  providers: [
+    PaymentProofService,
+    InvoiceCommentsService,
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
+  ],
   exports: [PaymentProofService, InvoiceCommentsService],
 })
 export class InvoicePaymentsModule {}

@@ -6,14 +6,18 @@ import { SubmissionsController } from '../submissions/submissions.controller.js'
 import { ContentsController } from './contents.controller.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { ProposalReviewController } from './proposal-review.controller.js';
-import { ProposalReviewService } from './proposal-review.service.js';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { EmailModule } from '../email/email.module.js';
+import { PROPOSAL_NOTIFIER, ProposalReviewService } from './proposal-review.service.js';
 import { ProposalSchedulingMiddleware } from './proposal-scheduling.middleware.js';
 import { VideoSubmissionController } from './video-submission.controller.js';
 
 /** A creator's proposals: the admin's decision on one, and their H-1 scheduling. */
 @Module({
+  // A rejected proposal emails its creator (PBI-11).
+  imports: [EmailModule],
   controllers: [ProposalReviewController],
-  providers: [ProposalReviewService],
+  providers: [ProposalReviewService, { provide: PROPOSAL_NOTIFIER, useExisting: CreatorEmails }],
   exports: [ProposalReviewService],
 })
 export class ProposalsModule implements NestModule {

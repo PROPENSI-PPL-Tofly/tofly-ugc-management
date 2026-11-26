@@ -1,4 +1,14 @@
 import {
+  ADMIN_NOTIFIER,
+  noAdminEmail,
+  type AdminNotifier,
+} from '../email/admin-notifier.js';
+import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   ConflictException,
   ForbiddenException,
   Inject,
@@ -86,6 +96,12 @@ export class InvoiceConfirmationService {
     @Optional()
     @Inject(AuditLogger)
     private readonly audit: AuditLogger = new AuditLogger(),
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'invoicePaid'> = noCreatorEmail,
+    @Optional()
+    @Inject(ADMIN_NOTIFIER)
+    private readonly admins: Pick<AdminNotifier, 'invoiceAcknowledged'> = noAdminEmail,
   ) {}
 
   /** The creator accepts the frozen amount: Finalized → Acknowledged. */
@@ -95,6 +111,8 @@ export class InvoiceConfirmationService {
     now = new Date(),
   ): Promise<AcknowledgedInvoiceDto> {
     await this.move(ACKNOWLEDGE, contractId, creatorId, now);
+    // PBI-11 (AC 5, AC 9): every Admin hears the proof can be uploaded; never failing the move.
+    await this.admins.invoiceAcknowledged({ contractId });
     return {
       invoiceStatus: 'creator_acked',
       acknowledgedAt: now.toISOString(),
@@ -108,6 +126,8 @@ export class InvoiceConfirmationService {
     now = new Date(),
   ): Promise<PaidInvoiceDto> {
     await this.move(CONFIRM_RECEIPT, contractId, creatorId, now);
+    // PBI-11 (AC 1, AC 3, AC 9): once Paid is saved; the email never fails the confirmation.
+    await this.notifier.invoicePaid({ creatorId, contractId, paidAt: now });
     return { invoiceStatus: 'paid', paidAt: now.toISOString() };
   }
 

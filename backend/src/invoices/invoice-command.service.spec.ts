@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   NotFoundException,
@@ -339,6 +340,44 @@ describe('InvoiceCommandService', () => {
         adjustmentRow('adj-2', '-0.50'),
       ]);
       prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    // PBI-11 (11.2, AC 1): a finalized invoice emails the creator to check it, once it is saved.
+    it('tells the creator the invoice waits for their check, once it is saved', async () => {
+      const notifier = {
+        invoiceFinalized: vi.fn<CreatorNotifier['invoiceFinalized']>().mockResolvedValue(),
+      };
+      notifier.invoiceFinalized.mockImplementation(async () => {
+        expect(prisma.invoices.updateMany).toHaveBeenCalled();
+      });
+
+      await new InvoiceCommandService(
+        prisma as unknown as ConstructorParameters<typeof InvoiceCommandService>[0],
+        formulas,
+        lastSync,
+        undefined,
+        notifier,
+      ).finalize('contract-1', 'admin-9', TODAY);
+
+      expect(notifier.invoiceFinalized).toHaveBeenCalledExactlyOnceWith({ contractId: 'contract-1' });
+    });
+
+    it('tells nobody when another Admin finalized it first', async () => {
+      const notifier = {
+        invoiceFinalized: vi.fn<CreatorNotifier['invoiceFinalized']>().mockResolvedValue(),
+      };
+      prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        new InvoiceCommandService(
+          prisma as unknown as ConstructorParameters<typeof InvoiceCommandService>[0],
+          formulas,
+          lastSync,
+          undefined,
+          notifier,
+        ).finalize('contract-1', 'admin-9', TODAY),
+      ).rejects.toThrow();
+      expect(notifier.invoiceFinalized).not.toHaveBeenCalled();
     });
 
     // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot is the calculator's

@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import {
   CONTRACT_END_AUDIT,
   PendingContractEndAudit,
@@ -19,6 +22,8 @@ import { CreatorsController } from './creators.controller.js';
 import { CreatorsService } from './creators.service.js';
 
 @Module({
+  // A new account, a new period and an early end email the creator (PBI-11).
+  imports: [EmailModule],
   controllers: [CreatorsController, ContractPeriodsController, ContractEndController],
   providers: [
     CreatorsService,
@@ -32,6 +37,7 @@ import { CreatorsService } from './creators.service.js';
     { provide: CREATOR_EDIT_AUDIT, useClass: PendingCreatorEditAudit },
     // PBI-11, 11.2: becomes useExisting: CreatorEmails when it answers these two events.
     { provide: CREATOR_EDIT_NOTIFIER, useValue: silentCreatorEditNotifier },
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
   ],
 })
 export class CreatorsModule {}

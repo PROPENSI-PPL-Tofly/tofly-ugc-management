@@ -8,7 +8,12 @@ import { ContentListController } from './content-list.controller.js';
 import { ContentListService } from './content-list.service.js';
 import { ContentsController } from './contents.controller.js';
 import { ContentsModule } from './contents.module.js';
-import { ContentCreationService } from './contents.service.js';
+import { CONTENT_NOTIFIER, ContentCreationService } from './contents.service.js';
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
 import { CLEARED_PERFORMANCE } from '../performance/link-performance.js';
@@ -30,6 +35,19 @@ describe('ContentsModule', () => {
 
     expect(imports).toContain(PerformanceSyncModule);
     expect(providers.some((provider) => provider.provide === LINKS_SAVED)).toBe(true);
+  });
+
+  // PBI-11 (11.1): Add Content reaches its creator by email, not the old mock.
+  it('tells the creator of new content through the creator emails', () => {
+    const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, ContentsModule) as unknown[];
+    const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, ContentsModule) as unknown[];
+
+    expect(imports).toContain(EmailModule);
+    expect(providers).toContainEqual({ provide: CONTENT_NOTIFIER, useExisting: CreatorEmails });
+    // PBI-11 (11.2): Ubah Deadline and Hapus email the creator too.
+    expect(providers).toContainEqual({ provide: CREATOR_NOTIFIER, useExisting: CreatorEmails });
+    // PBI-11 (11.2, AC 5): a handed-in draft emails every Admin.
+    expect(providers).toContainEqual({ provide: ADMIN_NOTIFIER, useExisting: AdminEmails });
   });
 
   it('registers the edit and delete controller and service (PBI-25)', () => {

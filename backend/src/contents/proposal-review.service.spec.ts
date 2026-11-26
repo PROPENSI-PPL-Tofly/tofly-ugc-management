@@ -68,7 +68,9 @@ function stubClient(stored: Stored | null, due?: string[]) {
 
 function notifier() {
   return {
-    proposalRejected: vi.fn<ProposalNotifier['proposalRejected']>(),
+    proposalRejected: vi.fn<ProposalNotifier['proposalRejected']>().mockResolvedValue(),
+    proposalApproved: vi.fn<ProposalNotifier['proposalApproved']>().mockResolvedValue(),
+    proposalScheduled: vi.fn<ProposalNotifier['proposalScheduled']>().mockResolvedValue(),
   } satisfies ProposalNotifier;
 }
 
@@ -251,9 +253,31 @@ describe('ProposalReviewService.reject', () => {
     expect(current()).toBeNull();
     expect(notify.proposalRejected).toHaveBeenCalledWith({
       creatorId: CREATOR,
+      contentId: ID,
       contentName: 'Ide konten dari Intan',
       reason: 'Kurang relevan.',
     });
+  });
+
+  // PBI-11 (11.1, AC 9): the email is tried before the answer, after the removal is saved; the
+  // helper never throws, so the answer waits at most its 10 seconds.
+  it('answers only once the creator email has been tried', async () => {
+    const { client } = stubClient(pending);
+    const notify = notifier();
+    let release!: () => void;
+    notify.proposalRejected.mockReturnValue(new Promise<void>((resolve) => (release = resolve)));
+    let answered = false;
+
+    const answering = new ProposalReviewService(client, notify)
+      .reject(ID, { reason: null })
+      .then(() => (answered = true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(client.contents.deleteMany).toHaveBeenCalled();
+    expect(answered).toBe(false);
+    release();
+    await answering;
+    expect(answered).toBe(true);
   });
 
   it('removes it without a reason too, since the reason is optional', async () => {
@@ -368,18 +392,44 @@ describe('ProposalReviewService.scheduleDue', () => {
   });
 });
 
-describe('ProposalReviewService without a notifier', () => {
-  it('falls back to the mock email, as Add Content does, until notifications exist', async () => {
-    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
-    const { client } = stubClient(pending);
-
-    await new ProposalReviewService(client).reject(ID, { reason: 'Kurang relevan.' });
-
-    expect(info).toHaveBeenCalledWith('[MOCK EMAIL] Creator proposal rejected', {
-      creatorId: CREATOR,
-      contentName: 'Ide konten dari Intan',
-      reason: 'Kurang relevan.',
+// PBI-11 (11.2, AC 1): an approved proposal, or one the system scheduled at H-1, emails its creator.
+describe('ProposalReviewService, the creator email', () => {
+  it('tells the creator once the approval is saved', async () => {
+    const { client, current } = stubClient(pending);
+    const notify = notifier();
+    notify.proposalApproved.mockImplementation(async () => {
+      expect(current()?.status).toBe('scheduled');
     });
-    info.mockRestore();
+
+    await new ProposalReviewService(client, notify).approve(ID);
+
+    expect(notify.proposalApproved).toHaveBeenCalledExactlyOnceWith({ contentId: ID });
+  });
+
+  it('tells nobody when the proposal was already decided', async () => {
+    const { client } = stubClient({ ...pending, status: 'scheduled' });
+    const notify = notifier();
+
+    await expect(new ProposalReviewService(client, notify).approve(ID)).rejects.toThrow();
+    expect(notify.proposalApproved).not.toHaveBeenCalled();
+  });
+
+  it('tells each creator whose proposal the system scheduled at H-1, after it is saved', async () => {
+    const OTHER = '44444444-4444-4444-8444-444444444444';
+    const { client } = stubClient(pending, [ID, OTHER]);
+    const notify = notifier();
+
+    await new ProposalReviewService(client, notify).scheduleDue(new Date('2026-10-10T05:00:00.000Z'));
+
+    expect(notify.proposalScheduled.mock.calls).toEqual([[{ contentId: ID }], [{ contentId: OTHER }]]);
+  });
+
+  it('tells nobody when nothing was due', async () => {
+    const { client } = stubClient(pending);
+    const notify = notifier();
+
+    await new ProposalReviewService(client, notify).scheduleDue(new Date('2026-10-10T05:00:00.000Z'));
+
+    expect(notify.proposalScheduled).not.toHaveBeenCalled();
   });
 });

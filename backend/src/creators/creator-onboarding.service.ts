@@ -1,4 +1,9 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   Inject,
   Injectable,
   Optional,
@@ -185,6 +190,9 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
       bufferDays: async () => DEFAULT_BUFFER_DAYS,
     },
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'accountReady'> = noCreatorEmail,
   ) {}
 
   /**
@@ -228,6 +236,8 @@ export class CreatorOnboardingService implements CreatorOnboarder {
           : error;
       });
 
+    // PBI-11 (AC 1, AC 9): once the account is saved; the email never fails it.
+    await this.notifier.accountReady({ creatorId: row.id });
     return this.toOnboarded(row);
   }
 

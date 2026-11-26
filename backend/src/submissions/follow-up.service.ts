@@ -1,3 +1,4 @@
+import { noCreatorEmail, type CreatorNotifier } from '../email/creator-notifier.js';
 import { ConflictException } from '@nestjs/common';
 import { unauthenticated } from '../auth/creator-request.js';
 import {
@@ -126,7 +127,10 @@ function isOpen(round: RoundRow): boolean {
 }
 
 export class FollowUpService {
-  constructor(private readonly prisma: FollowUpClient) {}
+  constructor(
+    private readonly prisma: FollowUpClient,
+    private readonly notifier: Pick<CreatorNotifier, 'followUpAdded'> = noCreatorEmail,
+  ) {}
 
   async add(
     submissionId: string,
@@ -156,7 +160,7 @@ export class FollowUpService {
     if (!round) throw submissionNotFound();
     if (!isOpen(round)) throw roundClosed();
 
-    return this.prisma.$transaction(async (transaction) => {
+    const followUp = await this.prisma.$transaction(async (transaction) => {
       const admin = await transaction.users.findUnique({
         where: { id: adminUserId },
         select: FOLLOW_UP_ADMIN_SELECT,
@@ -219,5 +223,8 @@ export class FollowUpService {
         actor: { name: adminName(admin) },
       };
     });
+    // PBI-11 (AC 1, AC 9): once the note is saved; the email never fails the follow-up.
+    await this.notifier.followUpAdded({ contentId: round.content_id, followUpId: followUp.id });
+    return followUp;
   }
 }
