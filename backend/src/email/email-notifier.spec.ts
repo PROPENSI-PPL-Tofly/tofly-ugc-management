@@ -19,6 +19,9 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     markSent: vi.fn<EmailLogStore['markSent']>().mockResolvedValue(),
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
     markNotReady: vi.fn<EmailLogStore['markNotReady']>().mockResolvedValue(),
+    failedToRetry: vi.fn<EmailLogStore['failedToRetry']>().mockResolvedValue([]),
+    claimRetry: vi.fn<EmailLogStore['claimRetry']>().mockResolvedValue(true),
+    abandon: vi.fn<EmailLogStore['abandon']>().mockResolvedValue(),
   };
   const sender = {
     send: vi.fn<EmailSender['send']>(overrides.send ?? (() => Promise.resolve())),
@@ -95,7 +98,7 @@ describe('EmailNotifier', () => {
       send: () => Promise.reject(Object.setPrototypeOf(refusal, SmtpError.prototype)),
     });
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
 
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'SmtpError', NOW);
     expect(store.markSent).not.toHaveBeenCalled();
@@ -144,7 +147,7 @@ describe('EmailNotifier', () => {
     const { store, log, notifier } = setup();
     store[step].mockRejectedValue(new TypeError('connection lost'));
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (TypeError)');
   });
 
@@ -154,7 +157,7 @@ describe('EmailNotifier', () => {
       throw new RangeError('unknown template');
     });
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(sender.send).not.toHaveBeenCalled();
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RangeError', NOW);
   });
@@ -180,7 +183,7 @@ describe('EmailNotifier', () => {
     const { store, notifier } = setup({ send: () => Promise.reject(new Error('down')) });
     store.markFailed.mockRejectedValue(new Error('connection lost'));
 
-    await expect(notifier.notify(EVENT)).resolves.toBeUndefined();
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
   });
 
   it('stamps a sent email with the current time when no clock is given', async () => {
@@ -190,6 +193,101 @@ describe('EmailNotifier', () => {
     await new EmailNotifier(store, sender, templates, log).notify(EVENT);
 
     expect(store.markSent).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+});
+
+// PBI-11 (11.3, AC 9): the 08:00 run sends a failed email again from what its row kept.
+describe('EmailNotifier.retry', () => {
+  const FAILED: LoggedEmail = {
+    eventKey: EVENT.eventKey,
+    template: 'content_scheduled',
+    recipient: 'salsa@example.com',
+    payload: { contentName: 'Evg_1', recipientName: 'Salsa Amelia' },
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders the kept data again and sends it to the same recipient, never claiming a new row', async () => {
+    const { store, sender, templates, notifier } = setup();
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(true);
+
+    expect(store.claim).not.toHaveBeenCalled();
+    expect(templates.render).toHaveBeenCalledWith('content_scheduled', FAILED.payload);
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'salsa@example.com', senderName: 'Tofly' }),
+    );
+    expect(store.markSent).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+
+  it('marks it failed again with the error kind, and never throws', async () => {
+    const { store, log, notifier } = setup({ send: () => Promise.reject(new TypeError('down')) });
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+
+    expect(store.markFailed).toHaveBeenCalledWith(
+      EVENT.eventKey,
+      'salsa@example.com',
+      'TypeError',
+      NOW,
+    );
+    expect(log.warn).toHaveBeenCalledWith('Email content_scheduled failed (TypeError)');
+  });
+
+  it('still waits 10 seconds at most', async () => {
+    vi.useFakeTimers();
+    const { store, notifier } = setup({ send: () => new Promise(() => {}) });
+
+    const retrying = notifier.retry(FAILED);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+
+    await expect(retrying).resolves.toBe(false);
+    expect(store.markFailed).toHaveBeenCalledWith(
+      EVENT.eventKey,
+      'salsa@example.com',
+      'EmailTimeout',
+      NOW,
+    );
+  });
+
+  // Review on #253 (Davin): sent but never marked is not reported as sent; it is not marked
+  // failed either, so its pending row is picked up again after 30 minutes (Gunta).
+  it('reports a send it could not mark as not sent, without marking it failed', async () => {
+    const { store, notifier } = setup();
+    store.markSent.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+    expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Review on #253 (Davin, Gunta): the row is claimed before sending, as a first send is.
+  it('claims the row before sending', async () => {
+    const { store, sender, notifier } = setup();
+
+    await notifier.retry(FAILED);
+
+    expect(store.claimRetry).toHaveBeenCalledWith(FAILED, NOW);
+    expect(store.claimRetry.mock.invocationCallOrder[0]).toBeLessThan(
+      sender.send.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('sends nothing when another run claimed the row first', async () => {
+    const { store, sender, notifier } = setup();
+    store.claimRetry.mockResolvedValue(false);
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+
+  it('never throws when the claim itself fails', async () => {
+    const { store, sender, notifier } = setup();
+    store.claimRetry.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.retry(FAILED)).resolves.toBe(false);
+    expect(sender.send).not.toHaveBeenCalled();
   });
 });
 
@@ -270,5 +368,29 @@ describe('EmailNotifier, review follow-ups', () => {
     await vi.waitFor(() => expect(sender.send).toHaveBeenCalledTimes(2));
     release();
     await sending;
+  });
+});
+
+// Review on #253 (Davin): notify answers whether the email went out, so the run's report is honest.
+describe('EmailNotifier.notify, its answer', () => {
+  it('answers true once the email is sent and marked', async () => {
+    await expect(setup().notifier.notify(EVENT)).resolves.toBe(true);
+  });
+
+  it('answers false for an event this recipient already has', async () => {
+    await expect(setup({ claim: false }).notifier.notify(EVENT)).resolves.toBe(false);
+  });
+
+  it('answers false when the send fails', async () => {
+    const { notifier } = setup({ send: () => Promise.reject(new Error('down')) });
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
+  });
+
+  it('answers false when the email cannot be logged', async () => {
+    const { store, notifier } = setup();
+    store.claim.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
   });
 });

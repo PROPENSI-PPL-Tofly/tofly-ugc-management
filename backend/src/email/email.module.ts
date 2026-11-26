@@ -48,6 +48,6 @@ export { EMAIL_LOG };
     },
     { provide: CreatorEmails, useClass: CreatorEmails },
   ],
-  exports: [EMAIL_SENDER, EmailNotifier, CreatorEmails],
+  exports: [EMAIL_SENDER, EMAIL_LOG_STORE, EmailNotifier, CreatorEmails],
 })
 export class EmailModule {}
