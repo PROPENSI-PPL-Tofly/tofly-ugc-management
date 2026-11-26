@@ -9,6 +9,7 @@
 
 import type { content_status, contract_end_reason, Prisma } from '@prisma/client';
 import { contentTags } from '../contents/content-tags.js';
+import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
 import {
   computePerformance,
   computeProgress,
@@ -58,6 +59,8 @@ export interface DetailContractRow {
   end_reason: contract_end_reason | null;
   end_note: string | null;
   ended_at: Date | null;
+  /** Null before the invoice's first row: it is running. */
+  invoice: { status: InvoiceLifecycleStatus } | null;
   /** Deadline first. */
   contents: DetailContentRow[];
 }
@@ -73,6 +76,7 @@ function toMetricsContent(row: DetailContentRow): MetricsContent {
     videoSubmittedAt: row.video_submitted_at,
     // A pending proposal is not a commitment until an admin accepts it.
     isProposal: row.status === 'pending',
+    type: row.type,
     submissionCount: row._count.submissions,
   };
 }
@@ -87,12 +91,8 @@ function toMetricsContract(row: DetailContractRow): MetricsContract {
 }
 
 /** The same count Tambah Konten checks a new Evergreen slot against (evergreen-slot.ts). */
-function remainingEvergreenQuota(row: DetailContractRow): number {
-  const evergreen = row.contents.filter(
-    (content) => content.type === 'evergreen',
-  ).length;
-
-  return Math.max(0, row.content_quota - evergreen);
+function countEvergreen(row: DetailContractRow): number {
+  return row.contents.filter((content) => content.type === 'evergreen').length;
 }
 
 /** How the period was ended early (PBI-37), or null when it runs as agreed. */
@@ -117,7 +117,8 @@ export function toContractPeriods(
 
   return rows.map((row, index): ContractPeriod => {
     const metrics = contracts[index];
-    const progress = computeProgress(metrics.contents);
+    const progress = computeProgress(metrics.contents, row.content_quota);
+    const evergreenCount = countEvergreen(row);
 
     return {
       id: row.id,
@@ -128,7 +129,9 @@ export function toContractPeriods(
       contentQuota: row.content_quota,
       // numeric(14, 2) holds at most 14 significant digits, within what a JS number keeps exact.
       fixedRate: row.fixed_rate.toNumber(),
-      remainingEvergreenQuota: remainingEvergreenQuota(row),
+      evergreenCount,
+      remainingEvergreenQuota: Math.max(0, row.content_quota - evergreenCount),
+      invoiceStatus: row.invoice?.status ?? 'running',
       type: row.contract_type,
       // A contract is never 'none'; that status only describes a creator without one.
       status: contractStatus(metrics, today) as ContractPeriod['status'],

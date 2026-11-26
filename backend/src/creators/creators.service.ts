@@ -1,8 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { content_status, Prisma } from '@prisma/client';
+import type { content_status, Prisma, social_platform } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
 import { accessClosedSince } from '../auth/google/creator-access.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { usernameLock } from './creator-edit-policy.js';
 import { jakartaDay } from './evergreen.js';
 import {
   computePerformance,
@@ -32,6 +33,7 @@ import {
   withLastSync,
 } from '../social/social-connection.js';
 import type { Filters } from './filters.js';
+import { submittedPlatforms } from './submitted-platforms.js';
 import type { Paging } from './paging.js';
 
 // Only what the summary needs. Selecting columns (rather than whole rows) keeps
@@ -58,6 +60,7 @@ const CREATOR_SELECT = {
       invoice: { select: { status: true, paid_at: true } },
       contents: {
         select: {
+          type: true,
           deadline: true,
           video_submitted_at: true,
           status: true,
@@ -200,6 +203,7 @@ function toMetricsContract(
       deadline: content.deadline,
       videoSubmittedAt: content.video_submitted_at,
       isProposal: isProposal(content.status),
+      type: content.type,
       submissionCount: content._count.submissions,
     })),
   };
@@ -216,7 +220,7 @@ function earlyEndSummary(
 }
 
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
-export type CreatorsClient = Pick<PrismaService, 'creators' | '$queryRaw'>;
+export type CreatorsClient = Pick<PrismaService, 'creators' | 'content_links' | '$queryRaw'>;
 
 // contractStatus and productivity are derived from dates and nested content/submission
 // counts, not stored columns — there is no WHERE clause for them. Search could be pushed to
@@ -313,9 +317,15 @@ export class CreatorsService implements CreatorLister {
       });
     }
 
-    const [summary] = await this.withLatestSyncs([
-      this.toSummary(row, today),
+    const [[summary], submitted] = await Promise.all([
+      this.withLatestSyncs([this.toSummary(row, today)]),
+      submittedPlatforms(this.prisma, id),
     ]);
+    const lockOf = (platform: social_platform) =>
+      usernameLock(
+        row.social_accounts.find((account) => account.platform === platform),
+        submitted.has(platform),
+      );
 
     const periods = toContractPeriods(row.contracts, today);
     // Both lists keep the database order, so a period's index is its row's index.
@@ -325,6 +335,7 @@ export class CreatorsService implements CreatorLister {
     return {
       ...summary,
       phoneNumber: row.phone_number,
+      usernameLocks: { instagram: lockOf('instagram'), tiktok: lockOf('tiktok') },
       contractHistory: periods,
       contents: currentRow ? toContentEntries(currentRow, today) : [],
       drafts: currentRow ? toDraftEntries(currentRow) : [],
@@ -442,7 +453,7 @@ export class CreatorsService implements CreatorLister {
           }
         : NO_CONTRACT,
 
-      progress: computeProgress(current ? current.contents : []),
+      progress: computeProgress(current?.contents ?? [], current?.contentQuota ?? 0),
 
       performance: computePerformance(current, today),
     };

@@ -17,6 +17,10 @@ import {
   PaymentProofService,
   type PaymentProofReader,
 } from '../invoices/payment-proof.service.js';
+import {
+  forCreator as rateChangeForCreator,
+  type CreatorRateChangeDto,
+} from '../invoices/rate-change.js';
 
 // The creator's Pembayaran page (PBI-13): GET /me/invoices answers every invoice of the signed-in
 // creator with its status, the breakdown or its frozen snapshot (PBI-12), the proof link once
@@ -30,9 +34,10 @@ export type CreatorSnapshotDto = Omit<InvoiceSnapshotDto, 'adjustments'> & {
 };
 
 /** One of the creator's invoices, under the names the admin's detail uses. */
-export type CreatorInvoiceDto = Omit<InvoiceView, 'adjustments' | 'snapshot'> &
+export type CreatorInvoiceDto = Omit<InvoiceView, 'adjustments' | 'rateChanges' | 'snapshot'> &
   InvoicePaymentFields & {
     adjustments: CreatorAdjustmentDto[];
+    rateChanges: CreatorRateChangeDto[];
     snapshot: CreatorSnapshotDto | null;
     /** Oldest first. */
     comments: InvoiceCommentDto[];
@@ -80,6 +85,7 @@ export class MyInvoicesService {
       items: views.map((view) => ({
         ...view,
         adjustments: view.adjustments.map(forCreator),
+        rateChanges: view.rateChanges.map(rateChangeForCreator),
         snapshot: view.snapshot && {
           ...view.snapshot,
           adjustments: view.snapshot.adjustments.map(forCreator),

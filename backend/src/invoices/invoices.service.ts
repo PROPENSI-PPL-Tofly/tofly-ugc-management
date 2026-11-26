@@ -45,6 +45,7 @@ import {
   PaymentProofService,
   type PaymentProofReader,
 } from './payment-proof.service.js';
+import { RATE_CHANGES, rateChangeDto, type RateChangeDto } from './rate-change.js';
 import { RATE_FORMULA_SOURCE, type RateFormulaSource } from './rate-formula.js';
 
 /**
@@ -104,6 +105,7 @@ interface SavedListing {
 /** A saved invoice with its adjustments, snapshot and the creator's moves, for one invoice view. */
 interface SavedLifecycle extends SavedInvoice {
   confirmations: InvoiceConfirmationFields;
+  rateChanges: RateChangeDto[];
 }
 
 /** Where an invoice has nothing left to do: paid, or cancelled by an early end (PBI-37). */
@@ -314,6 +316,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         ),
         invoiceStatus: statuses.get(contract.id)!,
         periodNumber: periodNumber(row, contract),
+        rateChanges: lifecycle?.rateChanges ?? [],
         // A finalized invoice keeps the rules its saved totals were worked out with.
         formula: lifecycle?.snapshot
           ? (lifecycle.snapshot.formula ?? null)
@@ -421,6 +424,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
           select: INVOICE_ADJUSTMENT_SELECT,
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         },
+        rate_changes: RATE_CHANGES,
       },
     });
 
@@ -431,6 +435,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         adjustments: invoice.adjustments.map(adjustmentDto),
         snapshot: savedSnapshot(invoice.snapshot),
         confirmations: confirmationsOf(invoice),
+        rateChanges: invoice.rate_changes.map(rateChangeDto),
       });
     }
 

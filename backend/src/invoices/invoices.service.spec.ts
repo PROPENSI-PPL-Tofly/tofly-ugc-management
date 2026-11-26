@@ -191,6 +191,7 @@ describe('InvoicesService', () => {
           byContract(args).map((invoice) => ({
             acknowledged_at: null,
             paid_at: null,
+            rate_changes: [],
             ...invoice,
             status: invoice.snapshot ? 'finalized' : 'running',
           })),
@@ -1411,6 +1412,60 @@ describe('InvoicesService', () => {
       });
     });
 
+    // PBI-16 AC 9: the invoice's "Aktivitas" tells every change of the fixed rate.
+    it('answers the fixed rate changes of each saved invoice, oldest first', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      prisma.invoices.findMany.mockResolvedValue([
+        {
+          contract_id: 'contract-1',
+          snapshot: null,
+          acknowledged_at: null,
+          paid_at: null,
+          adjustments: [],
+          rate_changes: [
+            {
+              id: 'change-1',
+              old_rate: new Prisma.Decimal(4_000_000),
+              new_rate: new Prisma.Decimal(4_500_000),
+              created_at: new Date('2026-11-25T03:00:00.000Z'),
+              users: { email: 'rina@example.com' },
+            },
+          ],
+        },
+      ]);
+
+      const [invoice] = await service.forCreator('creator-1', TODAY);
+
+      expect(invoice.rateChanges).toEqual([
+        {
+          id: 'change-1',
+          oldRate: 4_000_000,
+          newRate: 4_500_000,
+          actorName: 'rina@example.com',
+          createdAt: '2026-11-25T03:00:00.000Z',
+        },
+      ]);
+      expect(prisma.invoices.findMany.mock.calls[0][0].select.rate_changes).toEqual({
+        select: {
+          id: true,
+          old_rate: true,
+          new_rate: true,
+          created_at: true,
+          users: { select: { email: true } },
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      });
+    });
+
+    it('answers no rate changes for an invoice without a saved row', async () => {
+      prisma.creators.findUnique.mockResolvedValue(row());
+      prisma.invoices.findMany.mockResolvedValue([]);
+
+      const [invoice] = await service.forCreator('creator-1', TODAY);
+
+      expect(invoice.rateChanges).toEqual([]);
+    });
+
     it('calculates a contract with no content from no content at all', async () => {
       prisma.creators.findUnique.mockResolvedValue(
         row({ contracts: [contractFor('contract-1', -60, -1)] }),
@@ -1479,6 +1534,7 @@ describe('InvoicesService', () => {
     const saved = (status: 'running' | 'finalized') => [
       {
         contract_id: 'contract-1',
+        rate_changes: [],
         status,
         snapshot: null,
         adjustments: [],
