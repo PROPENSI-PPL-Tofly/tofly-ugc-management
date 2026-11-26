@@ -162,6 +162,8 @@ describe('Admin names in history (e2e)', () => {
         finalized_by: adminId,
         acknowledged_at: new Date(),
         acknowledged_by: user.id,
+        // An acknowledged invoice is issued, so it carries its number (PBI-31); unique per run.
+        invoice_number: `TOF-INV-199901-${Date.now()}`,
       },
     });
 
