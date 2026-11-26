@@ -66,6 +66,9 @@ export class PrismaExecutiveDashboardRepository implements ExecutiveDashboardRep
         submitted_at: true,
         platform: true,
         views: true,
+        likes: true,
+        comments: true,
+        shares: true,
         data_state: true,
         contents: { select: { contracts: { select: { creator_id: true } } } },
       },
@@ -76,6 +79,9 @@ export class PrismaExecutiveDashboardRepository implements ExecutiveDashboardRep
       submittedAt: isoDay(row.submitted_at),
       platform: row.platform,
       views: row.views,
+      likes: row.likes,
+      comments: row.comments,
+      shares: row.shares,
       dataState: row.data_state,
     }));
   }

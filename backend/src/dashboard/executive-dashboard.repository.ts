@@ -28,6 +28,9 @@ export interface DashboardLinkRow {
   submittedAt: string;
   platform: 'instagram' | 'tiktok' | null;
   views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
   dataState: string;
 }
 
