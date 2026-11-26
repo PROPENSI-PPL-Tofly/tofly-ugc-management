@@ -1,6 +1,5 @@
 // The "Log Aktivitas" entries an early end writes (PBI-37 → PBI-23, 23.5). The port has the shape of
-// AuditLogger.recordBy, so once PBI-23's AuditModule reaches this branch the provider becomes
-// `{ provide: CONTRACT_END_AUDIT, useExisting: AuditLogger }` and nothing else changes (DIP).
+// AuditLogger.recordBy, and CreatorsModule binds it with `useExisting: AuditLogger` (DIP).
 
 /** The actions an early end records, as PBI-23's AUDIT_ACTIONS names them. */
 export type ContractEndAuditAction = 'contract_ended_early' | 'invoice_cancelled';
@@ -25,11 +24,3 @@ export interface ContractEndAudit {
 
 /** Nest injection token for ContractEndAudit, since an interface does not exist at runtime. */
 export const CONTRACT_END_AUDIT = Symbol('CONTRACT_END_AUDIT');
-
-/**
- * Stands in until the audit log table (PBI-23, 23.5) is merged: the entry has nowhere to go yet,
- * and an early end must not fail for it. Replaced by AuditLogger, never kept beside it.
- */
-export class PendingContractEndAudit implements ContractEndAudit {
-  readonly recordBy: ContractEndAudit['recordBy'] = () => Promise.resolve();
-}

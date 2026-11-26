@@ -1,6 +1,6 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PendingCreatorEditAudit, silentCreatorEditNotifier } from './creator-edit-ports.js';
+import { silentCreatorEditNotifier } from './creator-edit-ports.js';
 import { CreatorEditService, type CreatorEditClient } from './creator-edit.service.js';
 import type { CreatorEdit } from './creator-edit.js';
 
@@ -704,14 +704,8 @@ describe('CreatorEditService.edit', () => {
   });
 });
 
-describe('the stand-ins until the audit log and the emails are merged', () => {
-  it('record and send nothing', async () => {
-    await expect(
-      new PendingCreatorEditAudit().recordBy({}, null, {
-        action: 'creator_changed',
-        target: { label: 'x' },
-      }),
-    ).resolves.toBeUndefined();
+describe('the stand-in until the edit emails are merged', () => {
+  it('sends nothing', async () => {
     await expect(
       silentCreatorEditNotifier.contractEndChanged({ creatorId: 'a', contractId: 'b', endDate: 'c' }),
     ).resolves.toBeUndefined();
