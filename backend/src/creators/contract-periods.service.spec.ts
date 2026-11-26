@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   NotFoundException,
@@ -9,6 +10,7 @@ import {
   type PeriodsClient,
 } from './contract-periods.service.js';
 import type { ContractTerms } from './new-creator.js';
+import type { ContentScheduling } from '../deadline-buffer/deadline-scheduling.js';
 
 // 10:00 WIB on 18 November 2026.
 const NOW = new Date('2026-11-18T03:00:00Z');
@@ -45,6 +47,10 @@ const NEXT = {
   id: NEXT_ID,
   start_date: day('2026-12-01'),
   end_date: day('2027-01-31'),
+  contract_type: 'probation',
+  days_between: 7,
+  content_quota: 3,
+  fixed_rate: 1_000_000,
   contents: [] as { name: string; deadline: Date }[],
 };
 
@@ -101,7 +107,10 @@ const SCHEDULE = [
   expect.objectContaining({ name: 'Evg_2_Rangga Pratama_20122026', deadline: day('2026-12-20') }),
 ];
 
-function setup(contracts: unknown[] | null) {
+function setup(
+  contracts: unknown[] | null,
+  notifier?: Pick<CreatorNotifier, 'periodAdded'>,
+) {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([]),
     creators: {
@@ -117,11 +126,24 @@ function setup(contracts: unknown[] | null) {
       delete: vi.fn().mockResolvedValue({}),
     },
     contents: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
+    users: {
+      findUnique: vi.fn().mockResolvedValue({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'admin',
+      }),
+    },
+    audit_logs: { create: vi.fn().mockResolvedValue({}) },
   };
   const prisma = {
     $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
   };
-  const service = new ContractPeriodsService(prisma as unknown as PeriodsClient);
+  const service = new ContractPeriodsService(
+    prisma as unknown as PeriodsClient,
+    undefined,
+    undefined,
+    notifier,
+  );
   return { tx, prisma, service };
 }
 
@@ -341,6 +363,30 @@ describe('ContractPeriodsService.update', () => {
     expect(tx.contents.deleteMany).not.toHaveBeenCalled();
   });
 
+  // PBI-23 AC 22 (SCRUM-298): Specific content must fit the window the stored buffer draws.
+  it('keeps Specific content inside the window the stored buffer draws', async () => {
+    const { tx, prisma } = setup([
+      CURRENT,
+      { ...NEXT, contents: [{ name: 'Launch', deadline: day('2027-01-25') }] },
+    ]);
+    const scheduling: ContentScheduling = { today: () => NOW, bufferDays: async () => 9 };
+    const service = new ContractPeriodsService(
+      prisma as unknown as PeriodsClient,
+      undefined,
+      scheduling,
+    );
+
+    const { body } = await rejection(service.update(CREATOR_ID, NEXT_ID, TERMS, NOW, ADMIN_ID));
+
+    expect(body).toMatchObject({
+      errors: {
+        contents:
+          'Konten "Launch" (deadline 25 Jan 2027) di luar periode baru (10 Des 2026 – 22 Jan 2027); pindahkan atau hapus dulu',
+      },
+    });
+    expect(tx.contents.deleteMany).not.toHaveBeenCalled();
+  });
+
   it('asks only for Specific content of the periods it reads', async () => {
     const { tx, service } = setup([CURRENT, NEXT]);
 
@@ -357,6 +403,10 @@ describe('ContractPeriodsService.update', () => {
             id: true,
             start_date: true,
             end_date: true,
+            contract_type: true,
+            days_between: true,
+            content_quota: true,
+            fixed_rate: true,
             contents: {
               where: { type: 'specific' },
               select: { name: true, deadline: true },
@@ -420,5 +470,133 @@ describe('ContractPeriodsService.remove', () => {
       message: 'Periode satu-satunya creator tidak bisa dihapus',
     });
     expect(tx.contracts.delete).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-23 (SCRUM-295): "Creator & Kontrak" in Log Aktivitas (OWASP A09:2025).
+describe('ContractPeriodsService in Log Aktivitas', () => {
+  const NEW_VALUES = {
+    startDate: '2026-12-01',
+    endDate: '2027-01-31',
+    contractType: 'regular',
+    interval: 14,
+    quota: 2,
+    fixedRate: 1_500_000,
+  };
+  const OLD_VALUES = {
+    startDate: '2026-12-01',
+    endDate: '2027-01-31',
+    contractType: 'probation',
+    interval: 7,
+    quota: 3,
+    fixedRate: 1_000_000,
+  };
+  const ENTRY = {
+    actor_user_id: ADMIN_ID,
+    actor_name: 'Rani',
+    actor_role: 'admin',
+    category: 'creator_kontrak',
+    target_type: 'contract',
+    target_id: NEXT_ID,
+    target_label: 'Rangga Pratama',
+    creator_id: CREATOR_ID,
+    note: null,
+  };
+
+  it('records a new period with its terms', async () => {
+    const { tx, service } = setup([CURRENT]);
+
+    await service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        ...ENTRY,
+        action: 'contract_extended',
+        old_values: undefined,
+        new_values: NEW_VALUES,
+      },
+    });
+  });
+
+  it('records a changed period with its old and new terms', async () => {
+    const { tx, service } = setup([CURRENT, NEXT]);
+
+    await service.update(CREATOR_ID, NEXT_ID, TERMS, NOW, ADMIN_ID);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        ...ENTRY,
+        action: 'period_changed',
+        old_values: OLD_VALUES,
+        new_values: NEW_VALUES,
+      },
+    });
+  });
+
+  it('records a deleted period with the terms it had, by the admin who deleted it', async () => {
+    const { tx, service } = setup([CURRENT, NEXT]);
+
+    await service.remove(CREATOR_ID, NEXT_ID, NOW, ADMIN_ID);
+
+    expect(tx.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        ...ENTRY,
+        action: 'period_deleted',
+        old_values: OLD_VALUES,
+        new_values: undefined,
+      },
+    });
+  });
+
+  it('records nothing for a refused delete', async () => {
+    const { tx, service } = setup([NEXT]);
+
+    await rejection(service.remove(CREATOR_ID, NEXT_ID, NOW, ADMIN_ID));
+
+    expect(tx.audit_logs.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['create', (service: ContractPeriodsService) => service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID)],
+    ['update', (service: ContractPeriodsService) => service.update(CREATOR_ID, NEXT_ID, TERMS, NOW, ADMIN_ID)],
+    ['remove', (service: ContractPeriodsService) => service.remove(CREATOR_ID, NEXT_ID, NOW, ADMIN_ID)],
+  ])('fails the %s when its entry cannot be written, so it rolls back', async (name, act) => {
+    const { tx, service } = setup(name === 'create' ? [CURRENT] : [CURRENT, NEXT]);
+    const failure = new Error('log failed');
+    tx.audit_logs.create.mockRejectedValue(failure);
+
+    await expect(act(service)).rejects.toBe(failure);
+  });
+});
+
+// PBI-11 (11.2, AC 1): a new contract period emails the creator, once it is saved.
+describe('ContractPeriodsService.create, the creator email', () => {
+  function emails() {
+    return { periodAdded: vi.fn<CreatorNotifier['periodAdded']>().mockResolvedValue() };
+  }
+
+  it('tells the creator about the new period after it is saved', async () => {
+    const notifier = emails();
+    const { tx, service } = setup([CURRENT], notifier);
+    notifier.periodAdded.mockImplementation(async () => {
+      expect(tx.contracts.create).toHaveBeenCalled();
+    });
+
+    await service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID);
+
+    expect(notifier.periodAdded).toHaveBeenCalledExactlyOnceWith({
+      creatorId: CREATOR_ID,
+      contractId: RESULT.contractId,
+      startDate: RESULT.startDate,
+      endDate: RESULT.endDate,
+    });
+  });
+
+  it('tells nobody when the creator does not exist', async () => {
+    const notifier = emails();
+    const { service } = setup(null, notifier);
+
+    await expect(service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID)).rejects.toThrow();
+    expect(notifier.periodAdded).not.toHaveBeenCalled();
   });
 });

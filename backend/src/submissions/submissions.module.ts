@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { CreatorOrAdminGuard } from '../auth/creator-or-admin.guard.js';
 import { DevCreatorGuard } from '../auth/dev-creator.guard.js';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER, type CreatorNotifier } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageModule } from '../storage/storage.module.js';
@@ -21,7 +24,8 @@ import {
 import { RevisionNoteImagesService } from './revision-note-images.service.js';
 
 @Module({
-  imports: [PrismaModule, StorageModule],
+  // Revision, follow-up and approval email the creator (PBI-11).
+  imports: [PrismaModule, StorageModule, EmailModule],
 
   controllers: [
     SubmissionsController,
@@ -47,11 +51,13 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
       inject: [PrismaService],
     },
 
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
+
     {
       provide: SubmissionRevisionService,
-      useFactory: (repository: SubmissionRevisionRepository) =>
-        new SubmissionRevisionService(repository),
-      inject: [SubmissionRevisionRepository],
+      useFactory: (repository: SubmissionRevisionRepository, notifier: CreatorNotifier) =>
+        new SubmissionRevisionService(repository, notifier),
+      inject: [SubmissionRevisionRepository, CREATOR_NOTIFIER],
     },
 
     {
@@ -61,8 +67,9 @@ import { RevisionNoteImagesService } from './revision-note-images.service.js';
 
     {
       provide: FollowUpService,
-      useFactory: (prisma: PrismaService) => new FollowUpService(prisma),
-      inject: [PrismaService],
+      useFactory: (prisma: PrismaService, notifier: CreatorNotifier) =>
+        new FollowUpService(prisma, notifier),
+      inject: [PrismaService, CREATOR_NOTIFIER],
     },
 
     {

@@ -87,6 +87,13 @@ function repository(): SessionRepository & {
 
       return updated;
     }),
+    updateMany: vi.fn(
+      async (args: Parameters<SessionRepository['updateMany']>[0]) => {
+        const current = records.get(args.where.idHash);
+        if (current) records.set(args.where.idHash, { ...current, ...args.data });
+        return { count: current ? 1 : 0 };
+      },
+    ),
     deleteMany: vi.fn(
       async (args: Parameters<SessionRepository['deleteMany']>[0]) => ({
         count: Number(records.delete(args.where.idHash)),
@@ -399,5 +406,52 @@ describe('AppSessionService', () => {
     expect(value).not.toContain('google-access-token');
     expect(value).not.toContain('google-refresh-token');
     expect(value).not.toContain(CREATOR.userId);
+  });
+
+  // PBI-23 (SCRUM-246): one email-code confirmation covers a role change or a deactivation for 15
+  // minutes, on this session only, so a second browser of the same Admin still has to confirm.
+  describe('confirmation', () => {
+    const UNTIL = new Date(NOW.getTime() + 15 * 60 * 1000);
+
+    it('keeps a confirmation on the session until the given time', async () => {
+      const { id } = await sessions.start(response(), CREATOR);
+
+      await expect(sessions.confirm(id, UNTIL)).resolves.toBe(true);
+      await expect(sessions.isConfirmed(id)).resolves.toBe(true);
+
+      currentTime = new Date(UNTIL);
+      await expect(sessions.isConfirmed(id)).resolves.toBe(false);
+    });
+
+    it('reads a session nobody confirmed as unconfirmed', async () => {
+      const { id } = await sessions.start(response(), CREATOR);
+
+      await expect(sessions.isConfirmed(id)).resolves.toBe(false);
+    });
+
+    it('confirms only the session the id names', async () => {
+      const first = await sessions.start(response(), CREATOR);
+      const second = await sessions.start(response(), CREATOR);
+
+      await sessions.confirm(first.id, UNTIL);
+
+      await expect(sessions.isConfirmed(second.id)).resolves.toBe(false);
+    });
+
+    it.each([
+      ['a malformed id', 'not-a-session'],
+      ['no id', undefined],
+    ])('neither confirms nor reads %s', async (_label, id) => {
+      await expect(sessions.confirm(id, UNTIL)).resolves.toBe(false);
+      await expect(sessions.isConfirmed(id)).resolves.toBe(false);
+      expect(store.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('answers false for a well-formed id with no session behind it', async () => {
+      const id = 'A'.repeat(42) + 'A';
+
+      await expect(sessions.confirm(id, UNTIL)).resolves.toBe(false);
+      await expect(sessions.isConfirmed(id)).resolves.toBe(false);
+    });
   });
 });

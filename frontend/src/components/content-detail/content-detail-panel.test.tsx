@@ -1025,7 +1025,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         }),
       );
 
-      expect(await screen.findByText("Link Instagram diganti")).toBeInTheDocument();
+      expect(await screen.findByText("Link Instagram diganti oleh kreator")).toBeInTheDocument();
     });
   });
 

@@ -18,7 +18,7 @@ export interface ScheduleBounds {
   quota: number;
   /** The first day after the buffer; nothing earlier is accepted. */
   firstAllowed: string;
-  /** The last day a deadline may land on: the H-5 line, not the contract's own end. */
+  /** The last day a deadline may land on: the H-n line, not the contract's own end. */
   contractEnd: string;
 }
 

@@ -243,10 +243,19 @@ model users {
   id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                  String                   @unique @db.Citext
   is_admin               Boolean                  @default(false)
+  /// PBI-23: null for a creator; every Admin has one (users_admin_role_matches_is_admin).
+  admin_role             admin_role?
+  /// PBI-23: at most 100 characters (users_name_length); shown instead of the email when set.
+  name                   String?
+  /// PBI-23: a deactivated Admin cannot sign in and every session of theirs is refused.
+  is_active              Boolean                  @default(true)
+  /// PBI-23: when a session last started for this user (Google or email code); null if never.
+  last_signed_in_at      DateTime?                @db.Timestamptz(6)
   created_at             DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
   creators               creators?
   app_sessions           app_sessions[]
+  admin_confirmation_codes admin_confirmation_codes[]
   revision_note_images   revision_note_images[]
   content_events         content_events[]
   content_links          content_links[]
@@ -254,13 +263,44 @@ model users {
   invoice_adjustments    invoice_adjustments[]
   invoice_comments       invoice_comments[]
   invoice_payment_proofs invoice_payment_proofs[]
+  invoice_rate_changes   invoice_rate_changes[]
   invoices_finalized     invoices[]               @relation("invoices_finalized_by")
   invoices_acknowledged  invoices[]               @relation("invoices_acknowledged_by")
   invoices_paid          invoices[]               @relation("invoices_paid_by")
   invoices_cancelled     invoices[]               @relation("invoices_cancelled_by")
   contracts_ended        contracts[]              @relation("contracts_ended_by")
+  deadline_buffer        deadline_buffer[]
   rate_formula           rate_formula[]
   revision_followups     revision_followups[]
+}
+
+// PBI-23 "Log Aktivitas": append-only (a database trigger refuses UPDATE, DELETE and TRUNCATE).
+// Every value is a copy from that moment, so the model has no relations.
+model audit_logs {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  occurred_at   DateTime @default(now()) @db.Timestamptz(6)
+  actor_user_id String?  @db.Uuid
+  actor_name    String
+  actor_role    String
+  category      String
+  action        String
+  target_type   String
+  target_id     String?
+  target_label  String
+  creator_id    String?  @db.Uuid
+  old_values    Json?    @db.JsonB
+  new_values    Json?    @db.JsonB
+  note          String?
+
+  @@index([occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_occurred_id_idx")
+  @@index([category, action, occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_category_action_occurred_idx")
+  @@index([actor_user_id, occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_actor_occurred_idx")
+  @@index([creator_id, occurred_at(sort: Desc), id(sort: Desc)], map: "audit_logs_creator_occurred_idx")
+}
+
+enum admin_role {
+  admin
+  super_admin
 }
 
 enum invoice_status {
@@ -302,6 +342,7 @@ model invoices {
   payee           users?                  @relation("invoices_paid_by", fields: [paid_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   canceller       users?                  @relation("invoices_cancelled_by", fields: [cancelled_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   adjustments     invoice_adjustments[]
+  rate_changes    invoice_rate_changes[]
   comments        invoice_comments[]
   payment_proof   invoice_payment_proofs?
 
@@ -369,8 +410,36 @@ model invoice_adjustments {
   @@index([actor_user_id], map: "invoice_adjustments_actor_user_idx")
 }
 
+/// Every change of the contract's fixed rate while its invoice ran (PBI-16), for "Aktivitas".
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model invoice_rate_changes {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id    String   @db.Uuid
+  old_rate      Decimal  @db.Decimal(12, 2)
+  new_rate      Decimal  @db.Decimal(12, 2)
+  /// The admin who changed it; null behind the local development stand-in.
+  actor_user_id String?  @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  invoices      invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users?   @relation(fields: [actor_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([invoice_id, created_at, id], map: "invoice_rate_changes_invoice_created_idx")
+  @@index([actor_user_id], map: "invoice_rate_changes_actor_user_idx")
+}
+
 /// The one Atur Formula Rate row (PBI-8); its id can only be true.
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// The deadline buffer (PBI-23 AC 20-22, SCRUM-298): one row, whole days from 1 to 14, drawing both
+/// the earliest and the latest deadline line. Changed by a Super Admin only.
+model deadline_buffer {
+  id          Boolean  @id @default(true)
+  buffer_days Int      @default(5)
+  /// The Super Admin who saved it last; the API never answers it.
+  updated_by  String?  @db.Uuid
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  users       users?   @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
 model rate_formula {
   id                   Boolean  @id @default(true)
   specific_bonus       Decimal  @db.Decimal
@@ -413,6 +482,8 @@ model app_sessions {
   idleExpiresAt       DateTime @map("idle_expires_at") @db.Timestamptz(6)
   absoluteExpiresAt   DateTime @map("absolute_expires_at") @db.Timestamptz(6)
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// PBI-23: until when this session's email-code confirmation lets a role change or deactivation through.
+  confirmedUntil      DateTime? @map("confirmed_until") @db.Timestamptz(6)
   users               users     @relation(fields: [userId], references: [id], onDelete: Cascade)
   creators            creators? @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
@@ -435,6 +506,20 @@ model login_codes {
   @@index([email, created_at(sort: Desc)], map: "login_codes_email_created_at_idx")
 }
 
+/// PBI-23: an email code a Super Admin asks for before a role change or a deactivation; HMAC only.
+model admin_confirmation_codes {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  code_hash  String    @db.Char(64)
+  expires_at DateTime  @db.Timestamptz(6)
+  attempts   Int       @default(0)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at(sort: Desc)], map: "admin_confirmation_codes_user_created_idx")
+}
+
 /// Every code request let through by the hourly limit (PBI-39 AC 5), sent or not; about an hour of rows.
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model login_code_requests {
@@ -444,6 +529,30 @@ model login_code_requests {
 
   @@index([email, requested_at(sort: Desc)], map: "login_code_requests_email_requested_at_idx")
   @@index([requested_at], map: "login_code_requests_requested_at_idx")
+}
+
+/// One email an event sends to one recipient (PBI-11): the unique key stops a retried event from sending twice, and payload keeps what the 08:00 run needs to send a failed one again.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_log {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_key  String
+  template   String
+  recipient  String
+  payload    Json         @default("{}")
+  status     email_status @default(pending)
+  attempts   Int          @default(0)
+  last_error String?
+  sent_at    DateTime?    @db.Timestamptz(6)
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at DateTime     @default(now()) @db.Timestamptz(6)
+
+  @@unique([event_key, recipient], map: "email_log_event_key_recipient_key")
+}
+
+enum email_status {
+  pending
+  sent
+  failed
 }
 
 enum content_status {

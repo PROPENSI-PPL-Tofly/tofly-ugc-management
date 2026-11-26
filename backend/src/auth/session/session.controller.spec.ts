@@ -147,20 +147,40 @@ describe('GET /auth/session', () => {
     return { app, sessions, access };
   }
 
+  // PBI-23 AC 3: the frontend hides the Super Admin menus and button from everyone else, so it
+  // needs the Admin role too. It is read from the whitelist on this request, never the session.
   it.each([
-    ['an admin', ADMIN, 'admin'],
-    ['a creator', CREATOR, 'creator'],
+    [
+      'a Super Admin',
+      ADMIN,
+      { ...ADMIN, adminRole: 'super_admin' } as Principal,
+      { role: 'admin', adminRole: 'super_admin' },
+    ],
+    [
+      'an Admin',
+      ADMIN,
+      { ...ADMIN, adminRole: 'admin' } as Principal,
+      { role: 'admin', adminRole: 'admin' },
+    ],
+    // Fails closed: an Admin the whitelist gives no role reads as a plain Admin.
+    [
+      'an Admin with no role read',
+      ADMIN,
+      ADMIN,
+      { role: 'admin', adminRole: 'admin' },
+    ],
+    ['a creator', CREATOR, CREATOR, { role: 'creator' }],
   ])(
     'answers the role of %s the whitelist still admits',
-    async (_label, principal, role) => {
-      const { app, sessions, access } = await setup(principal, principal);
+    async (_label, principal, current, body) => {
+      const { app, sessions, access } = await setup(principal, current);
       try {
         const response = await request(app.getHttpServer())
           .get('/auth/session')
           .set('Cookie', '__session=opaque-id');
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual({ role });
+        expect(response.body).toEqual(body);
         expect(response.headers['cache-control']).toBe('no-store');
         expect(sessions.authenticate).toHaveBeenCalledWith(
           'opaque-id',

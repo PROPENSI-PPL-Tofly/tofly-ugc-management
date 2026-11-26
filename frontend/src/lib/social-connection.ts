@@ -62,8 +62,7 @@ export function readConnections(raw: unknown): SocialConnections {
 }
 
 // PRD 3.1, AC 10: once connected, the username comes from the platform and Admin may not
-// change it (the PBI-16 rule). Nothing calls this yet: the admin form that edits a username
-// is PBI-16's, and it reads this to make the field read-only. Not dead code; keep it.
+// change it (the PBI-16 rule). Ubah Data falls back on it when the server names no lock.
 export function isUsernameLocked(connection: SocialConnection): boolean {
   return connection.connected;
 }

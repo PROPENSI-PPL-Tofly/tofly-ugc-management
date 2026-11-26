@@ -1,5 +1,10 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { InvoiceCommandService } from './invoice-command.service.js';
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoicesModule } from './invoices.module.js';
 import { InvoicePdfController } from './invoice-pdf.controller.js';
@@ -102,5 +107,16 @@ describe('InvoicesModule', () => {
       .compile();
 
     expect(module.get(LAST_SYNC)).toBeInstanceOf(PerformanceLastSync);
+  });
+
+  // PBI-11 (11.2): Finalize emails the creator.
+  it('hands Finalize the creator emails', () => {
+    const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, InvoicesModule) as unknown[];
+    const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, InvoicesModule) as unknown[];
+
+    expect(imports).toContain(EmailModule);
+    expect(providers).toContainEqual({ provide: CREATOR_NOTIFIER, useExisting: CreatorEmails });
+    // PBI-11 (11.2, AC 5): an acknowledged invoice emails every Admin.
+    expect(providers).toContainEqual({ provide: ADMIN_NOTIFIER, useExisting: AdminEmails });
   });
 });

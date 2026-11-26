@@ -43,4 +43,5 @@ const NAVY: Omit<FrameTheme, "label"> = {
 export const FRAME_THEMES: Record<Role, FrameTheme> = {
   creator: { label: "Creator", ...NAVY },
   admin: { label: "Admin", ...NAVY },
+  super_admin: { label: "Super Admin", ...NAVY },
 };

@@ -12,6 +12,7 @@ import { SessionActivity } from "./session-activity";
 // wordmark cannot disagree.
 const MENUS: Record<Role, ReactNode> = {
   admin: <AdminNav />,
+  super_admin: <AdminNav />,
   creator: <CreatorNav />,
 };
 

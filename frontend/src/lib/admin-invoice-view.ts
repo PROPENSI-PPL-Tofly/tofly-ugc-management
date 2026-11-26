@@ -7,7 +7,7 @@
 // against CreatorInvoice. Translating the admin's InvoiceRow into it here keeps those components
 // role-blind instead of teaching each one a second input.
 
-import type { CreatorInvoice, ReachedAt } from "./creator-invoice";
+import { ADMIN_STEP_TEXT, type ActivityText, type CreatorInvoice } from "./creator-invoice";
 import { formatDate } from "./format";
 import type { InvoiceRow, InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
@@ -40,9 +40,17 @@ export function adminInvoiceView(row: InvoiceRow, breakdown: InvoiceBreakdown): 
       paid: row.payment?.receivedAt ?? null,
     },
     // The adapter already dropped a link the page may not offer; null names the file without one.
-    proof: proof ? { url: proof.href, fileName: proof.fileName, uploadedAt: proof.uploadedAt } : null,
+    proof: proof
+      ? {
+          url: proof.href,
+          fileName: proof.fileName,
+          uploadedAt: proof.uploadedAt,
+          ...(proof.uploadedBy && { uploadedBy: proof.uploadedBy }),
+        }
+      : null,
     // The admin's thread reads its own comments (InvoiceComments); none ride on the row.
     comments: [],
+    rateChanges: breakdown.rateChanges,
   };
 }
 
@@ -88,9 +96,8 @@ export function adminInvoiceHint(
 }
 
 /** Each step past Berjalan as the admin reads it in the activity. */
-export const ADMIN_EVENT_TEXT: Record<keyof ReachedAt, string> = {
-  finalized: "Invoice difinalisasi",
+export const ADMIN_EVENT_TEXT = {
+  ...ADMIN_STEP_TEXT,
   creator_acked: "Creator meng-acknowledge invoice",
-  payment_uploaded: "Bukti bayar dikirim ke creator",
   paid: "Creator mengonfirmasi pembayaran diterima",
-};
+} satisfies ActivityText;

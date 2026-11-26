@@ -1,6 +1,8 @@
+import { CREATOR_NOTIFIER, type CreatorNotifier } from '../email/creator-notifier.js';
 import { UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
+import { CONTENT_SCHEDULING } from '../deadline-buffer/deadline-scheduling.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
 import type { NewCreator } from './dto/new-creator.dto.js';
@@ -81,18 +83,62 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('CreatorOnboardingService', () => {
-  const prisma = { creators: { create: vi.fn() } };
+  const prisma = {
+    creators: { create: vi.fn() },
+    users: {
+      findUnique: vi.fn().mockResolvedValue({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'admin',
+      }),
+    },
+    audit_logs: { create: vi.fn().mockResolvedValue({}) },
+    $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) =>
+      work(prisma),
+    ),
+  };
   let service: CreatorOnboardingService;
+  // The stored deadline buffer (SCRUM-298), as DeadlineBufferModule provides it.
+  const scheduling = { today: () => NOW, bufferDays: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    scheduling.bufferDays.mockResolvedValue(5);
     const module = await Test.createTestingModule({
       providers: [
         CreatorOnboardingService,
         { provide: PrismaService, useValue: prisma },
+        { provide: CONTENT_SCHEDULING, useValue: scheduling },
       ],
     }).compile();
     service = module.get(CreatorOnboardingService);
+  });
+
+  // PBI-23 AC 22 (SCRUM-298): the re-check before saving uses the stored buffer too.
+  it('re-checks the schedule against the stored buffer before saving', async () => {
+    scheduling.bufferDays.mockResolvedValue(9);
+
+    await expect(
+      service.onboard({ ...INPUT, deadlines: ['2026-10-10', '2026-11-04'] }, NOW),
+    ).rejects.toMatchObject({
+      response: {
+        errors: { deadlines: 'Deadline paling lambat 3 Nov 2026 (H-9 akhir kontrak)' },
+      },
+    });
+    expect(prisma.creators.create).not.toHaveBeenCalled();
+  });
+
+  // Built outside Nest (no DeadlineBufferModule), it keeps the AC 20 default of 5 days.
+  it('re-checks with 5 days when no stored buffer is wired in', async () => {
+    const standalone = new CreatorOnboardingService(prisma as never);
+
+    await expect(
+      standalone.onboard({ ...INPUT, deadlines: ['2026-10-10', '2026-11-08'] }, NOW),
+    ).rejects.toMatchObject({
+      response: {
+        errors: { deadlines: 'Deadline paling lambat 7 Nov 2026 (H-5 akhir kontrak)' },
+      },
+    });
   });
 
   it('whitelists the email with the creator, contract and Evergreen contents in one write', async () => {
@@ -272,5 +318,104 @@ describe('CreatorOnboardingService', () => {
     prisma.creators.create.mockRejectedValue(failure);
 
     await expect(service.onboard(INPUT, NOW)).rejects.toBe(failure);
+  });
+
+  // PBI-23 (SCRUM-295): "Creator & Kontrak" in Log Aktivitas (OWASP A09:2025).
+  describe('Log Aktivitas', () => {
+    it('records the new creator and first contract, by the admin, in one transaction', async () => {
+      prisma.creators.create.mockResolvedValue(CREATED);
+
+      await service.onboard(INPUT, NOW, ADMIN_USER_ID);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+        data: {
+          actor_user_id: ADMIN_USER_ID,
+          actor_name: 'Rani',
+          actor_role: 'admin',
+          category: 'creator_kontrak',
+          action: 'creator_added',
+          target_type: 'creator',
+          target_id: 'creator-1',
+          target_label: 'Rangga Pratama',
+          creator_id: 'creator-1',
+          old_values: undefined,
+          new_values: {
+            name: 'Rangga Pratama',
+            email: 'rangga@example.com',
+            socialAccounts: INPUT.socialAccounts,
+            contract: {
+              contractId: 'contract-1',
+              startDate: '2026-09-12',
+              endDate: '2026-11-12',
+              contractType: 'probation',
+              interval: 14,
+              quota: 2,
+              fixedRate: 1500000,
+            },
+          },
+          note: null,
+        },
+      });
+    });
+
+    it('records nothing for an email already registered', async () => {
+      prisma.creators.create.mockRejectedValue(uniqueViolation());
+
+      await rejection(service.onboard(INPUT, NOW, ADMIN_USER_ID));
+
+      expect(prisma.audit_logs.create).not.toHaveBeenCalled();
+    });
+
+    it('fails the onboarding when its entry cannot be written, so nothing is kept', async () => {
+      prisma.creators.create.mockResolvedValue(CREATED);
+      const failure = new Error('log failed');
+      prisma.audit_logs.create.mockRejectedValueOnce(failure);
+
+      await expect(service.onboard(INPUT, NOW, ADMIN_USER_ID)).rejects.toBe(
+        failure,
+      );
+    });
+  });
+});
+
+// PBI-11 (11.2, AC 1): the creator gets an email when their account is ready.
+describe('CreatorOnboardingService, the creator email', () => {
+  async function built(create: ReturnType<typeof vi.fn>) {
+    const notifier = { accountReady: vi.fn<CreatorNotifier['accountReady']>().mockResolvedValue() };
+    // The account and its Log Aktivitas entry are saved in one transaction (PBI-23).
+    const prisma = {
+      creators: { create },
+      users: { findUnique: vi.fn().mockResolvedValue({ name: 'Rani', email: 'rani@example.com', admin_role: 'admin' }) },
+      audit_logs: { create: vi.fn().mockResolvedValue({}) },
+      $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) => work(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        CreatorOnboardingService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: CREATOR_NOTIFIER, useValue: notifier },
+      ],
+    }).compile();
+    return { notifier, service: module.get(CreatorOnboardingService) };
+  }
+
+  it('tells the creator their account is ready once it is saved', async () => {
+    const create = vi.fn().mockResolvedValue(CREATED);
+    const { notifier, service } = await built(create);
+    notifier.accountReady.mockImplementation(async () => {
+      expect(create).toHaveBeenCalled();
+    });
+
+    await service.onboard(INPUT, NOW, ADMIN_USER_ID);
+
+    expect(notifier.accountReady).toHaveBeenCalledExactlyOnceWith({ creatorId: 'creator-1' });
+  });
+
+  it('tells nobody when the email is already registered', async () => {
+    const { notifier, service } = await built(vi.fn().mockRejectedValue(uniqueViolation()));
+
+    await expect(service.onboard(INPUT, NOW, ADMIN_USER_ID)).rejects.toThrow();
+    expect(notifier.accountReady).not.toHaveBeenCalled();
   });
 });

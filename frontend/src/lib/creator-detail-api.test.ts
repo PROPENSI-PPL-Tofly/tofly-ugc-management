@@ -640,3 +640,29 @@ describe("toCreatorDetailView connections", () => {
     });
   });
 });
+
+// PBI-16: what Ubah Data reads of the creator and their periods.
+describe("toCreatorDetailView for Ubah Data", () => {
+  const view = (raw: Partial<RawCreatorDetail>) =>
+    toCreatorDetailView({ ...RAW, ...raw }, null, DEFAULT_CREATOR_DETAIL_PARAMS);
+
+  it("carries each period's invoice status and true Evergreen count", () => {
+    const [period_] = view({
+      contractHistory: [period(NEWEST, { evergreenCount: 9, invoiceStatus: "finalized" })],
+    }).periods;
+
+    // The count may pass the quota; evergreenCount stays within it for Tambah Konten.
+    expect(period_).toMatchObject({ evergreenPlanned: 9, invoiceStatus: "finalized", evergreenCount: 2 });
+  });
+
+  it("carries the server's username locks, or the connection's on an older answer", () => {
+    expect(view({ usernameLocks: { instagram: "link_submitted", tiktok: null } }).usernameLocks).toEqual({
+      instagram: "link_submitted",
+      tiktok: null,
+    });
+    expect(view({ socialConnections: { tiktok: { connected: true } } }).usernameLocks).toEqual({
+      instagram: null,
+      tiktok: "connected",
+    });
+  });
+});

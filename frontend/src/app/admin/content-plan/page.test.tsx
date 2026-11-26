@@ -13,6 +13,10 @@ vi.mock("@/lib/content-plan.server", async (importOriginal) => ({
   fetchContentPlanCreatorOptions: () => fetchCreators(),
 }));
 
+// Only a Super Admin sees "Atur Buffer Deadline"; an Admin unless a test says otherwise.
+const { superAdmin } = vi.hoisted(() => ({ superAdmin: vi.fn(async () => false) }));
+vi.mock("@/lib/session.server", () => ({ isSuperAdmin: () => superAdmin() }));
+
 let searchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
@@ -66,6 +70,21 @@ describe("Content Plan page", () => {
     window.history.replaceState({}, "", "/admin/content-plan");
     fetchPlan.mockResolvedValue(planOf());
     fetchCreators.mockResolvedValue([{ id: "id-1", name: "Salsa Wijaya" }]);
+  });
+
+  // PBI-23 AC: the buffer setting is the Super Admin's alone.
+  it("offers Atur Buffer Deadline to a Super Admin", async () => {
+    superAdmin.mockResolvedValueOnce(true);
+
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: /^Atur Buffer Deadline/ })).toBeInTheDocument();
+  });
+
+  it("offers no buffer setting to an Admin", async () => {
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: /Atur Buffer Deadline/ })).not.toBeInTheDocument();
   });
 
   it("titles the page and offers the four tabs with the counts the endpoint measured", async () => {

@@ -1,4 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
 import { adminActor, type AdminActor } from '../contents/content-event-actors.js';
 import { unauthenticated } from '../auth/creator-request.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -77,6 +82,9 @@ export class SubmissionReviewService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: SubmissionReviewClient,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'draftApproved'> = noCreatorEmail,
   ) {}
 
   async approve(id: string, adminUserId?: string): Promise<ApprovedSubmission> {
@@ -164,6 +172,8 @@ export class SubmissionReviewService {
       throw new Error('Approval event recording requires a transaction client');
     }
 
+    // PBI-11 (AC 1, AC 9): once the approval is saved; the email never fails it.
+    await this.notifier.draftApproved({ contentId: submission.content_id, submissionId: id });
     return {
       id: submission.id,
       contentId: submission.content_id,

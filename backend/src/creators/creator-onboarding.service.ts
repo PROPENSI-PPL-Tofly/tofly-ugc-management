@@ -1,9 +1,20 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   Inject,
   Injectable,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  AuditLogger,
+  type AuditActorReader,
+  type AuditWriter,
+} from '../audit/audit-logger.js';
 import { adminActor } from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { NewCreator, OnboardedCreator } from './dto/new-creator.dto.js';
@@ -14,6 +25,11 @@ import {
   splitName,
   type ScheduleErrors,
 } from './evergreen.js';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 const ONBOARDED_SELECT = {
   id: true,
@@ -126,8 +142,35 @@ function onboardingData(
   };
 }
 
+// What Log Aktivitas keeps of a new creator: who they are and their first contract.
+function onboardingForLog(
+  input: NewCreator,
+  row: OnboardedRow,
+): Record<string, unknown> {
+  return {
+    name: input.name.trim(),
+    email: row.users.email,
+    socialAccounts: input.socialAccounts,
+    contract: {
+      contractId: row.contracts[0].id,
+      startDate: input.contractStart,
+      endDate: input.contractEnd,
+      contractType: input.contractType,
+      interval: input.interval,
+      quota: input.quota,
+      fixedRate: input.fixedRate,
+    },
+  };
+}
+
+type OnboardingTransaction = Pick<Prisma.TransactionClient, 'creators'> &
+  AuditWriter &
+  AuditActorReader;
+
 /** The slice of the database client onboarding touches; tests hand in a stub of just that. */
-export type OnboardingClient = Pick<PrismaService, 'creators'>;
+export interface OnboardingClient {
+  $transaction<T>(work: (tx: OnboardingTransaction) => Promise<T>): Promise<T>;
+}
 
 /** What the Add Creator endpoint needs, so it can inject or stub onboarding by contract. */
 export interface CreatorOnboarder {
@@ -138,29 +181,54 @@ export interface CreatorOnboarder {
 export class CreatorOnboardingService implements CreatorOnboarder {
   constructor(
     @Inject(PrismaService) private readonly prisma: OnboardingClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
+    // The stored buffer from DeadlineBufferModule, as Tambah Konten takes it (SCRUM-298).
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'accountReady'> = noCreatorEmail,
   ) {}
 
   /**
    * Whitelists the email and creates the creator, their contract and one Evergreen content
-   * per deadline as a single nested write. Prisma runs a nested write in one transaction, so
-   * a login never exists without its contract and schedule, or the other way round.
+   * per deadline, with its "Log Aktivitas" entry, in one transaction, so a login never exists
+   * without its contract, schedule and entry, or the other way round.
    */
   async onboard(
     input: NewCreator,
     now = new Date(),
     adminUserId?: string,
   ): Promise<OnboardedCreator> {
-    const errors = checkSchedule(input, jakartaDay(now));
+    const errors = checkSchedule(
+      input,
+      jakartaDay(now),
+      await this.scheduling.bufferDays(),
+    );
     if (Object.keys(errors).length > 0) {
       throw invalid(errors);
     }
 
     // No lookup before the insert: the citext unique index on users.email is the check, so
     // two admins saving the same address at once cannot both succeed.
-    const row = await this.prisma.creators
-      .create({
-        data: onboardingData(input, now, adminUserId ?? null),
-        select: ONBOARDED_SELECT,
+    const row = await this.prisma
+      .$transaction(async (tx) => {
+        const created = await tx.creators.create({
+          data: onboardingData(input, now, adminUserId ?? null),
+          select: ONBOARDED_SELECT,
+        });
+        await this.audit.recordBy(tx, adminUserId, {
+          action: 'creator_added',
+          target: { id: created.id, label: input.name.trim() },
+          creatorId: created.id,
+          newValues: onboardingForLog(input, created),
+        });
+        return created;
       })
       .catch((error: unknown) => {
         throw isEmailTaken(error)
@@ -168,6 +236,8 @@ export class CreatorOnboardingService implements CreatorOnboarder {
           : error;
       });
 
+    // PBI-11 (AC 1, AC 9): once the account is saved; the email never fails it.
+    await this.notifier.accountReady({ creatorId: row.id });
     return this.toOnboarded(row);
   }
 

@@ -21,6 +21,8 @@ export interface MetricsContent {
   videoSubmittedAt: Date | null;
   /** Creator-proposed content is not a commitment until an admin accepts it. */
   isProposal: boolean;
+  /** An Evergreen fills a slot of the quota; a Specific comes on top of it. */
+  type: 'evergreen' | 'specific';
   /** Draft hand-ins; the first is the original, so revisions are this minus one. */
   submissionCount: number;
 }
@@ -151,17 +153,22 @@ function committed(contents: MetricsContent[]): MetricsContent[] {
   return contents.filter((content) => !content.isProposal);
 }
 
-export function computeProgress(contents: MetricsContent[]): Progress {
+/**
+ * What was handed in against what the contract owes (PBI-16): its Evergreen quota, scheduled or
+ * not, and every Specific content on top. A quota below the Evergreen already there owes those.
+ */
+export function computeProgress(contents: MetricsContent[], quota: number): Progress {
   const owed = committed(contents);
+  const evergreen = owed.filter((content) => content.type === 'evergreen').length;
+  const total = Math.max(quota, evergreen) + (owed.length - evergreen);
   const submitted = owed.filter(
     (content) => content.videoSubmittedAt !== null,
   ).length;
 
   return {
     submitted,
-    total: owed.length,
-    percent:
-      owed.length === 0 ? 0 : Math.round((submitted / owed.length) * 100),
+    total,
+    percent: total === 0 ? 0 : Math.round((submitted / total) * 100),
   };
 }
 

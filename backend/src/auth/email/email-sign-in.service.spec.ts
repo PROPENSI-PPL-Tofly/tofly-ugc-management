@@ -339,6 +339,7 @@ describe('EmailSignInService', () => {
           create,
           findUnique: vi.fn(),
           update: vi.fn(),
+          updateMany: vi.fn(),
           deleteMany: vi.fn(),
         },
         CONFIG,

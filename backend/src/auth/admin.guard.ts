@@ -21,11 +21,10 @@ export interface AdminRequest {
   principal?: Principal;
 }
 
-function forbidden(): ForbiddenException {
-  return new ForbiddenException({
-    code: 'FORBIDDEN',
-    message: 'Halaman ini hanya untuk Admin',
-  });
+export function forbidden(
+  message = 'Halaman ini hanya untuk Admin',
+): ForbiddenException {
+  return new ForbiddenException({ code: 'FORBIDDEN', message });
 }
 
 /**
@@ -37,6 +36,9 @@ function forbidden(): ForbiddenException {
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
+  /** What a signed-in user who is not allowed here reads; a stricter guard names its own pages. */
+  protected readonly forbiddenMessage: string = 'Halaman ini hanya untuk Admin';
+
   constructor(
     @Optional()
     @Inject(AppSessionService)
@@ -69,13 +71,14 @@ export class AdminGuard implements CanActivate {
       throw unauthenticated();
     }
     if (principal.role !== 'admin') {
-      throw forbidden();
+      throw forbidden(this.forbiddenMessage);
     }
     const current = await this.access?.resolveUser(principal.userId);
     if (current?.role !== 'admin') {
       throw unauthenticated();
     }
-    request.principal = principal;
+    // The whitelist's answer, so the route sees the Admin role as it is now (PBI-23).
+    request.principal = current;
     return true;
   }
 }

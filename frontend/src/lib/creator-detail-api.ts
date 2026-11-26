@@ -16,6 +16,7 @@ import type {
   CreatorPeriod,
   CreatorProfile,
 } from "./creator-detail";
+import { readUsernameLocks } from "./creator-edit";
 import { EARLY_END_REASONS, type ContractPeriod, type EarlyEndReason } from "./creators";
 import { readEarlyEnd } from "./early-end-display";
 import type { RawInvoiceDetail } from "./invoice-api";
@@ -43,6 +44,8 @@ export type RawCreatorPeriod = Pick<
   | "earlyEndReason"
   | "earlyEnd"
   | "remainingEvergreenQuota"
+  | "evergreenCount"
+  | "invoiceStatus"
   | "progress"
   | "performance"
 > &
@@ -58,6 +61,8 @@ export interface RawCreatorDetail {
   socials: Partial<Record<"instagram" | "tiktok", string>>;
   // Sent by 19.3; read only through readConnections.
   socialConnections?: unknown;
+  // Sent by 16.1; read only through readUsernameLocks.
+  usernameLocks?: unknown;
   accessRevokeDate?: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
@@ -170,6 +175,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     // What Tambah Konten checks against the quota: full exactly when no room is left.
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
+    evergreenPlanned: period.evergreenCount,
+    invoiceStatus: period.invoiceStatus,
     daysBetween: period.daysBetween,
     fixedRate: period.fixedRate,
     // Only a reason the app knows reaches the renewal's warning; anything else reads as none.
@@ -218,6 +225,7 @@ export function toCreatorDetailView(
   const open = openContractId(raw, state);
   // An empty table is still one page: the pagination stays on show and needs a page to name.
   const totalPages = Math.max(1, contents?.totalPages ?? 1);
+  const connections = readConnections(raw.socialConnections);
 
   return {
     creator: toProfile(raw),
@@ -240,6 +248,7 @@ export function toCreatorDetailView(
     earnings: invoice
       ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus }
       : null,
-    connections: readConnections(raw.socialConnections),
+    connections,
+    usernameLocks: readUsernameLocks(raw.usernameLocks, connections),
   };
 }

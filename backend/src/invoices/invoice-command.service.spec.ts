@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   NotFoundException,
@@ -46,6 +47,8 @@ describe('InvoiceCommandService', () => {
       create: vi.fn(),
       findMany: vi.fn(),
     },
+    users: { findUnique: vi.fn() },
+    audit_logs: { create: vi.fn() },
     $queryRaw: vi.fn(),
     // The transaction client is the same stub, so each test reads what ran inside it.
     $transaction: vi.fn(),
@@ -60,6 +63,12 @@ describe('InvoiceCommandService', () => {
     lastSync.beforeFinalize.mockResolvedValue(DONE);
     prisma.invoice_adjustments.findMany.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
+    prisma.users.findUnique.mockResolvedValue({
+      name: 'Rani',
+      email: 'rani@example.com',
+      admin_role: 'admin',
+    });
+    prisma.audit_logs.create.mockResolvedValue({});
     prisma.$transaction.mockImplementation(
       (work: (tx: typeof prisma) => Promise<unknown>) => work(prisma),
     );
@@ -211,6 +220,27 @@ describe('InvoiceCommandService', () => {
         expect(update.data.snapshot).toMatchObject({ total: 0, floored: true });
       });
 
+      // PBI-23 AC 25: the Finalize line of the activity keeps the total it was frozen at.
+      it('moves the total but never the total kept from Finalize', async () => {
+        prisma.invoices.upsert.mockResolvedValue({
+          ...frozen,
+          snapshot: { ...frozen.snapshot, finalizedTotal: 2_500 },
+        });
+        prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
+
+        const saved = await service.addAdjustment(
+          'contract-1',
+          input,
+          'admin-1',
+        );
+
+        const [update] = prisma.invoices.updateMany.mock.calls[0];
+        expect(update.data.snapshot).toMatchObject({
+          total: 2_500 + saved.amount,
+          finalizedTotal: 2_500,
+        });
+      });
+
       it('refuses when the invoice moved on before the snapshot was written', async () => {
         prisma.invoices.upsert.mockResolvedValue(frozen);
         prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
@@ -288,6 +318,12 @@ describe('InvoiceCommandService', () => {
         end_date: day(-1),
         content_quota: 1,
         fixed_rate: new Prisma.Decimal('1000000'),
+        creators: {
+          id: 'creator-1',
+          first_name: 'Rangga',
+          middle_name: null,
+          last_name: 'Pratama',
+        },
         contents: [measured],
         ...overrides,
       };
@@ -304,6 +340,44 @@ describe('InvoiceCommandService', () => {
         adjustmentRow('adj-2', '-0.50'),
       ]);
       prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    // PBI-11 (11.2, AC 1): a finalized invoice emails the creator to check it, once it is saved.
+    it('tells the creator the invoice waits for their check, once it is saved', async () => {
+      const notifier = {
+        invoiceFinalized: vi.fn<CreatorNotifier['invoiceFinalized']>().mockResolvedValue(),
+      };
+      notifier.invoiceFinalized.mockImplementation(async () => {
+        expect(prisma.invoices.updateMany).toHaveBeenCalled();
+      });
+
+      await new InvoiceCommandService(
+        prisma as unknown as ConstructorParameters<typeof InvoiceCommandService>[0],
+        formulas,
+        lastSync,
+        undefined,
+        notifier,
+      ).finalize('contract-1', 'admin-9', TODAY);
+
+      expect(notifier.invoiceFinalized).toHaveBeenCalledExactlyOnceWith({ contractId: 'contract-1' });
+    });
+
+    it('tells nobody when another Admin finalized it first', async () => {
+      const notifier = {
+        invoiceFinalized: vi.fn<CreatorNotifier['invoiceFinalized']>().mockResolvedValue(),
+      };
+      prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        new InvoiceCommandService(
+          prisma as unknown as ConstructorParameters<typeof InvoiceCommandService>[0],
+          formulas,
+          lastSync,
+          undefined,
+          notifier,
+        ).finalize('contract-1', 'admin-9', TODAY),
+      ).rejects.toThrow();
+      expect(notifier.invoiceFinalized).not.toHaveBeenCalled();
     });
 
     // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the snapshot is the calculator's
@@ -324,6 +398,7 @@ describe('InvoiceCommandService', () => {
           penalty: { amount: 0, status: 'calculated' },
           rawTotal: 1_024_999.5,
           total: 1_024_999.5,
+          finalizedTotal: 1_024_999.5,
           floored: false,
           finalizedAt: expect.any(String),
         },
@@ -344,6 +419,39 @@ describe('InvoiceCommandService', () => {
           // Who finalized, from the session (13.1: every move keeps its actor).
           finalized_by: 'admin-9',
         },
+      });
+    });
+
+    // PBI-23 AC 25: finalizedAt is taken before the last sync (up to 20 s), the adjustments are read
+    // after the lock, so only the frozen total itself can say what Finalize froze.
+    it('keeps an adjustment saved during the last sync in the total kept from Finalize', async () => {
+      prisma.invoice_adjustments.findMany.mockResolvedValue([
+        adjustmentRow('before', '10000'),
+        {
+          ...adjustmentRow('during-sync', '50000'),
+          created_at: new Date(TODAY.getTime() + 5_000),
+        },
+      ]);
+
+      const { snapshot } = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(snapshot).toMatchObject({
+        total: 1_060_000,
+        finalizedTotal: 1_060_000,
+      });
+    });
+
+    it('keeps zero as the total from Finalize when the adjustments take it below zero', async () => {
+      prisma.invoice_adjustments.findMany.mockResolvedValue([
+        adjustmentRow('large-cut', '-2000000'),
+      ]);
+
+      const { snapshot } = await service.finalize('contract-1', 'admin-9', TODAY);
+
+      expect(snapshot).toMatchObject({
+        total: 0,
+        floored: true,
+        finalizedTotal: 0,
       });
     });
 
@@ -837,6 +945,54 @@ describe('InvoiceCommandService', () => {
 
       expect(error).toBeInstanceOf(ConflictException);
       expect(error).toMatchObject({ response: { code: 'INVOICE_FINALIZED' } });
+    });
+
+    // PBI-23 (SCRUM-295): "Invoice & Pembayaran" in Log Aktivitas (OWASP A09:2025).
+    describe('Log Aktivitas', () => {
+      it('records the status change and the frozen total, by the admin, after the invoice moved', async () => {
+        await service.finalize('contract-1', 'admin-9', TODAY);
+
+        expect(prisma.users.findUnique).toHaveBeenCalledWith({
+          where: { id: 'admin-9' },
+          select: { name: true, email: true, admin_role: true },
+        });
+        expect(prisma.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+          data: {
+            actor_user_id: 'admin-9',
+            actor_name: 'Rani',
+            actor_role: 'admin',
+            category: 'invoice_pembayaran',
+            action: 'invoice_finalized',
+            target_type: 'invoice',
+            target_id: 'invoice-1',
+            target_label: 'Invoice Rangga Pratama',
+            creator_id: 'creator-1',
+            old_values: { status: 'running' },
+            new_values: { status: 'finalized', total: 1_024_999.5 },
+            note: null,
+          },
+        });
+        expect(
+          prisma.audit_logs.create.mock.invocationCallOrder[0],
+        ).toBeGreaterThan(prisma.invoices.updateMany.mock.invocationCallOrder[0]);
+      });
+
+      it('records nothing when another request finalized it first', async () => {
+        prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+        await rejection(service.finalize('contract-1', 'admin-9', TODAY));
+
+        expect(prisma.audit_logs.create).not.toHaveBeenCalled();
+      });
+
+      it('fails the finalize when its entry cannot be written, so the invoice rolls back', async () => {
+        const failure = new Error('log failed');
+        prisma.audit_logs.create.mockRejectedValue(failure);
+
+        await expect(
+          service.finalize('contract-1', 'admin-9', TODAY),
+        ).rejects.toBe(failure);
+      });
     });
   });
 });

@@ -31,6 +31,8 @@ export interface InvoiceState {
   assertCanChangeSchedule(): void;
   /** An early end cancels the invoice instead of paying it (PBI-37). */
   assertCanCancel(): void;
+  /** An admin changes the contract's fixed rate (PBI-16 AC 8). */
+  assertCanChangeRate(): void;
 }
 
 /** Why a proof is refused: the invoice is not waiting for one. */
@@ -69,6 +71,13 @@ function cancelled(): ConflictException {
   return refused('INVOICE_CANCELLED', 'Invoice sudah dibatalkan');
 }
 
+function rateLocked(): ConflictException {
+  return refused(
+    'FIXED_RATE_LOCKED',
+    'Fixed rate hanya bisa diubah selama invoice masih berjalan',
+  );
+}
+
 function alreadyPaid(): ConflictException {
   return refused('INVOICE_ALREADY_PAID', 'Invoice sudah dibayar');
 }
@@ -97,6 +106,8 @@ export class RunningInvoiceState implements InvoiceState {
   assertCanChangeSchedule(): void {}
 
   assertCanCancel(): void {}
+
+  assertCanChangeRate(): void {}
 }
 
 /**
@@ -146,6 +157,11 @@ abstract class FrozenInvoiceState implements InvoiceState {
   /** A frozen amount is settled by paying it; only a running invoice can still be cancelled. */
   assertCanCancel(): never {
     throw this.finalized();
+  }
+
+  /** The frozen total was worked out with this rate. */
+  assertCanChangeRate(): never {
+    throw rateLocked();
   }
 
   private finalized(): ConflictException {
@@ -230,6 +246,10 @@ export class CancelledInvoiceState implements InvoiceState {
 
   assertCanCancel(): never {
     throw cancelled();
+  }
+
+  assertCanChangeRate(): never {
+    throw rateLocked();
   }
 }
 
