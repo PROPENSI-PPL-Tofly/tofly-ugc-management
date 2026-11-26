@@ -1,6 +1,7 @@
+import { StrictMode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { requestConfirmation, verifyConfirmation } from "@/lib/admin-users-api";
-import { useAdminConfirmation } from "./use-admin-confirmation";
+import { AdminConfirmationProvider, useAdminConfirmation } from "./use-admin-confirmation";
 
 vi.mock("@/lib/admin-users-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/admin-users-api")>();
@@ -8,12 +9,12 @@ vi.mock("@/lib/admin-users-api", async (importOriginal) => {
 });
 
 /** A page's one row action, with the hook standing between it and the backend. */
-function Harness({ run }: { run: () => void }) {
+function Harness({ run, label = "Ubah peran" }: { run: () => void; label?: string }) {
   const { withConfirmation, prompt } = useAdminConfirmation();
 
   return (
     <>
-      <button onClick={() => withConfirmation("role_change", run)}>Ubah peran</button>
+      <button onClick={() => withConfirmation("role_change", run)}>{label}</button>
       {prompt}
     </>
   );
@@ -160,5 +161,50 @@ describe("the confirmation's incomplete answer", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Masukkan 6 digit kode.");
     expect(verifyConfirmation).not.toHaveBeenCalled();
+  });
+});
+
+describe("one confirmation for the whole page", () => {
+  beforeEach(() => {
+    vi.mocked(requestConfirmation).mockReset();
+    vi.mocked(verifyConfirmation).mockReset();
+    codeIsSent();
+  });
+
+  // Tambah Admin and the table's rows each hold the hook; the backend confirms the session once
+  // for both, so the page asks once too.
+  it("lets another part of the page through on a code entered in one part", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    render(
+      <AdminConfirmationProvider>
+        <Harness run={first} label="Tambah Super Admin" />
+        <Harness run={second} label="Nonaktifkan" />
+      </AdminConfirmationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tambah Super Admin" }));
+    await typeCode("123456");
+    await confirm();
+    await waitFor(() => expect(first).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
+
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  // StrictMode runs an effect twice in development; two emails would leave the first code dead.
+  it("emails one code per opening, even when React runs the opening twice", async () => {
+    render(
+      <StrictMode>
+        <Harness run={vi.fn()} />
+      </StrictMode>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByLabelText("Digit 1 dari 6");
+
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
   });
 });

@@ -23,6 +23,15 @@ describe("Ubah Admin", () => {
     expect(screen.queryByLabelText(/Email/)).toBeNull();
   });
 
+  // An Admin from before PBI-23 has no name; the email is already the dialog's heading line, and
+  // putting it in the field would save it as their name on a role-only change.
+  it("starts with an empty name for an admin who was never named", () => {
+    renderModal({ user: adminUser({ name: "" }) });
+
+    expect(screen.getByLabelText(/Nama/)).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
+  });
+
   it("sends the name and the role it was left with", () => {
     const { onSubmit } = renderModal();
 
