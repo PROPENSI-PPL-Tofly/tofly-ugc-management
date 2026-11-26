@@ -145,6 +145,41 @@ describe('ContentDetailService', () => {
     });
   });
 
+  // SCRUM-298: the window an admin may move a deadline in is drawn by the stored buffer.
+  it('draws the edit window with the stored buffer (PBI-23 AC 22)', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+    const scheduling = {
+      today: () => NOW,
+      bufferDays: vi.fn(async () => 9),
+    };
+
+    const detail = await new ContentDetailService(
+      prisma as unknown as ContentDetailClient,
+      scheduling,
+    ).getDetail('11111111-1111-1111-1111-111111111111', NOW);
+
+    expect(detail.edit).toEqual({
+      earliestDeadline: '2026-09-29',
+      latestDeadline: '2026-11-21',
+    });
+  });
+
+  it('reads no buffer for a creator, who has no edit window', async () => {
+    const prisma = prismaStub();
+    prisma.contents.findFirst.mockResolvedValue(row());
+    const scheduling = { today: () => NOW, bufferDays: vi.fn() };
+
+    await new ContentDetailService(
+      prisma as unknown as ContentDetailClient,
+      scheduling,
+    ).getDetail('11111111-1111-1111-1111-111111111111', NOW, {
+      creatorId: 'creator-1',
+    });
+
+    expect(scheduling.bufferDays).not.toHaveBeenCalled();
+  });
+
   it('gives a creator read no edit window', async () => {
     const prisma = prismaStub();
     prisma.contents.findFirst.mockResolvedValue(row());

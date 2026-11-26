@@ -263,6 +263,13 @@ describe('editWindow', () => {
     });
   });
 
+  it('closes the buffer before the contract end, with the same buffer (SCRUM-298, AC 22)', () => {
+    expect(editWindow(facts(), { ...RULES, bufferDays: 9 })).toEqual({
+      earliestDeadline: '2026-11-14',
+      latestDeadline: '2026-12-22',
+    });
+  });
+
   it('counts the buffer from the contract start when the contract has not started yet', () => {
     expect(
       editWindow(facts({ contractStart: '2026-11-20' }), RULES),
@@ -410,6 +417,40 @@ describe('planContentEdit', () => {
         },
       },
     });
+  });
+
+  // PBI-23 AC 22 (SCRUM-298): the stored buffer draws the latest line too, so H-5 is H-N.
+  it('closes the window the buffer before the contract end, naming H-N', () => {
+    const rules = { ...RULES, bufferDays: 9 };
+
+    expect(
+      planContentEdit(content(), { deadline: '2026-12-22' }, rules).data,
+    ).toEqual({ deadline: new Date('2026-12-22T00:00:00Z') });
+    expect(
+      refusalOf(() =>
+        planContentEdit(content(), { deadline: '2026-12-23' }, rules),
+      ),
+    ).toMatchObject({
+      body: {
+        errors: {
+          deadline: 'Deadline paling lambat 22 Des 2026 (H-9 akhir kontrak)',
+        },
+      },
+    });
+  });
+
+  // SCRUM-298: a larger buffer never recalculates or blocks what is already scheduled; only a
+  // deadline being moved is judged by it.
+  it('still edits a content whose stored deadline a larger buffer now puts past the latest line', () => {
+    const late = content({ deadline: new Date('2026-12-26T00:00:00Z') });
+
+    expect(
+      planContentEdit(
+        late,
+        { deadline: '2026-12-26', brief: 'x' },
+        { ...RULES, bufferDays: 14 },
+      ).changes,
+    ).toEqual({ brief: { from: 'Tunjukkan fitur kirim kilat.', to: 'x' } });
   });
 
   it('refuses an empty brief for a Specific item, which needs one', () => {

@@ -3,8 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AdminUsersModule } from './admin-users/admin-users.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
+import { DeadlineBufferModule } from './deadline-buffer/deadline-buffer.module.js';
 import { EmailVerifyModule } from './auth/email/email-verify.module.js';
 import { requireLoginCodeSecretInProduction } from './auth/email/login-code-config.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
@@ -54,6 +56,7 @@ export function validate(
     PrismaModule,
     AuditModule,
     AuditLogsModule,
+    DeadlineBufferModule,
     CreatorsModule,
     InvoicesModule,
     ContentsModule,
@@ -63,6 +66,7 @@ export function validate(
     MeModule,
     SessionModule,
     SuperAdminModule,
+    AdminUsersModule,
     GoogleAuthModule,
     EmailVerifyModule,
     SocialModule,

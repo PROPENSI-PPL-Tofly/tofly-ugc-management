@@ -1,4 +1,14 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CONNECTION_SELECT,
@@ -6,7 +16,6 @@ import {
 } from '../performance/performance-links.js';
 import { ADMIN_ACCOUNT_SELECT } from './content-event-actors.js';
 import { LINKS_AS_HANDED_IN } from './content-links.js';
-import { DEFAULT_BUFFER_DAYS } from '../creators/new-creator.js';
 import {
   toContentDetail,
   type ContentDetail,
@@ -107,9 +116,15 @@ export interface ContentDetailReader {
 
 @Injectable()
 export class ContentDetailService implements ContentDetailReader {
+  // The stored buffer from DeadlineBufferModule, as Tambah Konten and content edit take it.
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ContentDetailClient,
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
   ) {}
 
   /**
@@ -139,11 +154,13 @@ export class ContentDetailService implements ContentDetailReader {
       });
     }
 
-    // Only an admin edits, so only an admin's read carries the edit window.
+    // Only an admin edits, so only an admin's read carries the edit window and reads the buffer.
     return toContentDetail(
       row,
       now,
-      options?.creatorId ? undefined : { bufferDays: DEFAULT_BUFFER_DAYS },
+      options?.creatorId
+        ? undefined
+        : { bufferDays: await this.scheduling.bufferDays() },
     );
   }
 }

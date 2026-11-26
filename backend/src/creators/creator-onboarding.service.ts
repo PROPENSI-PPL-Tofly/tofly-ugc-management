@@ -20,6 +20,11 @@ import {
   splitName,
   type ScheduleErrors,
 } from './evergreen.js';
+import {
+  CONTENT_SCHEDULING,
+  type ContentScheduling,
+} from '../deadline-buffer/deadline-scheduling.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 const ONBOARDED_SELECT = {
   id: true,
@@ -174,6 +179,12 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     @Optional()
     @Inject(AuditLogger)
     private readonly audit: AuditLogger = new AuditLogger(),
+    // The stored buffer from DeadlineBufferModule, as Tambah Konten takes it (SCRUM-298).
+    @Optional()
+    @Inject(CONTENT_SCHEDULING)
+    private readonly scheduling: Pick<ContentScheduling, 'bufferDays'> = {
+      bufferDays: async () => DEFAULT_BUFFER_DAYS,
+    },
   ) {}
 
   /**
@@ -186,7 +197,11 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     now = new Date(),
     adminUserId?: string,
   ): Promise<OnboardedCreator> {
-    const errors = checkSchedule(input, jakartaDay(now));
+    const errors = checkSchedule(
+      input,
+      jakartaDay(now),
+      await this.scheduling.bufferDays(),
+    );
     if (Object.keys(errors).length > 0) {
       throw invalid(errors);
     }

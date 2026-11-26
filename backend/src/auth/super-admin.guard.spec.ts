@@ -106,12 +106,17 @@ describe('SuperAdminGuard', () => {
     ).resolves.toBeInstanceOf(ForbiddenException);
   });
 
-  it('answers 403 to a creator', async () => {
+  // The page a creator opened is a Super Admin page, so the message says so (review on #225).
+  it('answers 403 to a creator, with the message for Super Admin pages', async () => {
     const { guard } = setup(CREATOR, CREATOR);
 
-    await expect(
-      refusal(guard.canActivate(context(signedIn()))),
-    ).resolves.toBeInstanceOf(ForbiddenException);
+    const error = await refusal(guard.canActivate(context(signedIn())));
+
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect((error as ForbiddenException).getResponse()).toEqual({
+      code: 'FORBIDDEN',
+      message: 'Halaman ini hanya untuk Super Admin',
+    });
   });
 
   it('answers 401 when the Admin was deactivated since sign-in', async () => {

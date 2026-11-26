@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { AdminGuard } from '../auth/admin.guard.js';
+import { DeadlineBufferService } from '../deadline-buffer/deadline-buffer.service.js';
 import { ContractPeriodsController } from './contract-periods.controller.js';
 import { ContractPeriodsService } from './contract-periods.service.js';
 
@@ -63,6 +64,8 @@ describe('ContractPeriodsController', () => {
     update: vi.fn(),
     remove: vi.fn(),
   };
+  // The stored deadline buffer (SCRUM-298).
+  const buffer = { current: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -71,10 +74,14 @@ describe('ContractPeriodsController', () => {
     periods.create.mockResolvedValue({ contractId: CONTRACT_ID });
     periods.update.mockResolvedValue({ contractId: CONTRACT_ID });
     periods.remove.mockResolvedValue(undefined);
+    buffer.current.mockResolvedValue(5);
 
     const module = await Test.createTestingModule({
       controllers: [ContractPeriodsController],
-      providers: [{ provide: ContractPeriodsService, useValue: periods }],
+      providers: [
+        { provide: ContractPeriodsService, useValue: periods },
+        { provide: DeadlineBufferService, useValue: buffer },
+      ],
     }).compile();
     controller = module.get(ContractPeriodsController);
   });
@@ -136,6 +143,23 @@ describe('ContractPeriodsController', () => {
     await expect(
       controller.update(CREATOR_ID, CONTRACT_ID, { ...body, contractStart: '2026-11-17' }, signedIn),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(periods.create).not.toHaveBeenCalled();
+    expect(periods.update).not.toHaveBeenCalled();
+  });
+
+  // PBI-23 AC 22 (SCRUM-298): Perpanjang Kontrak and its edit are judged by the stored buffer,
+  // read once for each request.
+  it('judges a new or edited period by the stored buffer', async () => {
+    buffer.current.mockResolvedValue(9);
+    const tooEarly = {
+      response: { errors: { deadlines: 'Deadline paling cepat 10 Des 2026' } },
+    };
+
+    await expect(controller.create(CREATOR_ID, body, signedIn)).rejects.toMatchObject(tooEarly);
+    await expect(
+      controller.update(CREATOR_ID, CONTRACT_ID, body, signedIn),
+    ).rejects.toMatchObject(tooEarly);
+    expect(buffer.current).toHaveBeenCalledTimes(2);
     expect(periods.create).not.toHaveBeenCalled();
     expect(periods.update).not.toHaveBeenCalled();
   });

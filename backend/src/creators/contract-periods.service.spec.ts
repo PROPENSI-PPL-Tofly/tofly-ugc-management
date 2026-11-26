@@ -9,6 +9,7 @@ import {
   type PeriodsClient,
 } from './contract-periods.service.js';
 import type { ContractTerms } from './new-creator.js';
+import type { ContentScheduling } from '../deadline-buffer/deadline-scheduling.js';
 
 // 10:00 WIB on 18 November 2026.
 const NOW = new Date('2026-11-18T03:00:00Z');
@@ -348,6 +349,30 @@ describe('ContractPeriodsService.update', () => {
       errors: {
         contents:
           'Konten "Launch" (deadline 20 Jan 2027) di luar periode baru (6 Des 2026 – 15 Jan 2027); pindahkan atau hapus dulu',
+      },
+    });
+    expect(tx.contents.deleteMany).not.toHaveBeenCalled();
+  });
+
+  // PBI-23 AC 22 (SCRUM-298): Specific content must fit the window the stored buffer draws.
+  it('keeps Specific content inside the window the stored buffer draws', async () => {
+    const { tx, prisma } = setup([
+      CURRENT,
+      { ...NEXT, contents: [{ name: 'Launch', deadline: day('2027-01-25') }] },
+    ]);
+    const scheduling: ContentScheduling = { today: () => NOW, bufferDays: async () => 9 };
+    const service = new ContractPeriodsService(
+      prisma as unknown as PeriodsClient,
+      undefined,
+      scheduling,
+    );
+
+    const { body } = await rejection(service.update(CREATOR_ID, NEXT_ID, TERMS, NOW, ADMIN_ID));
+
+    expect(body).toMatchObject({
+      errors: {
+        contents:
+          'Konten "Launch" (deadline 25 Jan 2027) di luar periode baru (10 Des 2026 – 22 Jan 2027); pindahkan atau hapus dulu',
       },
     });
     expect(tx.contents.deleteMany).not.toHaveBeenCalled();

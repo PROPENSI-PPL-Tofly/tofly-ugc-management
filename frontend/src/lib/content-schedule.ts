@@ -48,14 +48,14 @@ export function validateEvergreenSlot(input: EvergreenSlotInput): EvergreenSlotE
   }
 
   // Same buffer rule generateDeadlineSchedule uses at onboarding (PRD 3.6): on/after
-  // max(contract start, today) + buffer, and on/before the H-5 line.
+  // max(contract start, today) + buffer, and on/before the H-n line of the same buffer.
   const { firstAllowedDate } = getBufferWindow(input);
-  const latest = latestDeadline(input.contractEnd);
+  const latest = latestDeadline(input.contractEnd, input.bufferDays);
 
   if (deadline < firstAllowedDate) {
     errors.deadline = `Deadline paling cepat ${formatDate(firstAllowedDate.toISOString().slice(0, 10))}`;
   } else if (deadline > new Date(`${latest}T00:00:00Z`)) {
-    errors.deadline = `Deadline paling lambat ${formatDate(latest)} (H-5 akhir kontrak)`;
+    errors.deadline = `Deadline paling lambat ${formatDate(latest)} (H-${input.bufferDays} akhir kontrak)`;
   }
 
   return errors;

@@ -31,22 +31,16 @@ export interface ContentLink {
   performance?: LinkPerformance | null;
 }
 
-/**
- * How far before the contract end a deadline may fall: the H-5 buffer. A deadline later than
- * this is refused by the API ("Deadline paling lambat <tanggal> (H-5 akhir kontrak)"), so the
- * picker holds the same line and never offers a date the API would refuse.
- */
-export const H5_BUFFER_DAYS = 5;
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * The last day a deadline may fall on: the contract's last day minus the H-5 buffer. Plain
- * calendar-day arithmetic in UTC, the way deadline-period counts, so a month end or a leap
- * year cannot move the day.
+ * The last day a deadline may fall on: the contract's last day minus the deadline buffer, the
+ * one a Super Admin sets (PBI-23; H-5 by default). The API refuses a later deadline ("Deadline
+ * paling lambat <tanggal> (H-n akhir kontrak)"), so the pickers hold the same line. Plain calendar-day arithmetic in UTC, the way
+ * deadline-period counts, so a month end or a leap year cannot move the day.
  */
-export function latestDeadline(contractEnd: string): string {
-  return new Date(Date.parse(`${contractEnd}T00:00:00Z`) - H5_BUFFER_DAYS * MS_PER_DAY)
+export function latestDeadline(contractEnd: string, bufferDays: number): string {
+  return new Date(Date.parse(`${contractEnd}T00:00:00Z`) - bufferDays * MS_PER_DAY)
     .toISOString()
     .slice(0, 10);
 }

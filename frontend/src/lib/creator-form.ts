@@ -2,10 +2,8 @@
 // rule is testable without rendering anything, one RED/GREEN cycle at a time.
 
 import { getBufferWindow, getDeadlinePreview, type DeadlinePreview } from "./deadline-schedule";
+import { DEFAULT_BUFFER_DAYS } from "./deadline-buffer";
 import { formatDate } from "./format";
-
-/** Days between max(today, contract start) and the first deadline; the API's default buffer. */
-export const BUFFER_DAYS = 5;
 
 // The same limits the API enforces (backend new-creator.ts), so the form never lets through
 // what the server would refuse, and says so while the admin is still typing.
@@ -83,18 +81,22 @@ type ContractPeriod = Pick<CreatorFormInput, "contractStart" | "contractEnd">;
  * The first day a contract may end on: the buffer after max(today, start), which is also the
  * first day a deadline may fall on. Ending earlier leaves a contract no content can fit in.
  */
-export function earliestContractEnd(contractStart: string, today: string): string {
-  return getBufferWindow({ contractStart: contractStart || today, today, bufferDays: BUFFER_DAYS })
+export function earliestContractEnd(contractStart: string, today: string, bufferDays: number): string {
+  return getBufferWindow({ contractStart: contractStart || today, today, bufferDays })
     .firstAllowedDate.toISOString()
     .slice(0, 10);
 }
 
 /** The `min`/`max` of the date pickers, so an impossible contract cannot even be picked. */
-export function contractDateLimits({ contractStart, contractEnd }: ContractPeriod, today: string) {
+export function contractDateLimits(
+  { contractStart, contractEnd }: ContractPeriod,
+  today: string,
+  bufferDays: number,
+) {
   return {
     startMin: today,
     startMax: contractEnd || undefined,
-    endMin: earliestContractEnd(contractStart, today),
+    endMin: earliestContractEnd(contractStart, today, bufferDays),
   };
 }
 
@@ -102,6 +104,7 @@ export function contractDateLimits({ contractStart, contractEnd }: ContractPerio
 export function scheduleDeadlines(
   input: ContractPeriod & Pick<CreatorFormInput, "interval" | "quota">,
   today: string,
+  bufferDays: number,
 ): DeadlinePreview | null {
   const { contractStart, contractEnd, interval, quota } = input;
   if (!contractStart || !contractEnd || contractStart > contractEnd || interval <= 0 || quota <= 0) {
@@ -112,7 +115,7 @@ export function scheduleDeadlines(
     contractStart,
     contractEnd,
     today,
-    bufferDays: BUFFER_DAYS,
+    bufferDays,
     intervalDays: interval,
     quota,
   });
@@ -129,6 +132,7 @@ function textProblem(value: string, max: number, empty: string, label: string): 
 function checkContractDates(
   { contractStart, contractEnd }: ContractPeriod,
   todayDay: string,
+  bufferDays: number,
   errors: CreatorFormErrors,
 ) {
   if (contractStart === "") {
@@ -150,9 +154,9 @@ function checkContractDates(
     return;
   }
 
-  const earliestEnd = earliestContractEnd(contractStart, todayDay);
+  const earliestEnd = earliestContractEnd(contractStart, todayDay, bufferDays);
   if (contractEnd < earliestEnd) {
-    errors.contractEnd = `Akhir kontrak paling cepat ${formatDate(earliestEnd)} (masa buffer ${BUFFER_DAYS} hari)`;
+    errors.contractEnd = `Akhir kontrak paling cepat ${formatDate(earliestEnd)} (masa buffer ${bufferDays} hari)`;
   }
 }
 
@@ -180,10 +184,12 @@ export function scheduleReady(errors: CreatorFormErrors): boolean {
   return !errors.contractStart && !errors.contractEnd && !errors.interval && !errors.quota;
 }
 
+/** `bufferDays` is the one a Super Admin set; the forms pass it from the admin area's context. */
 export function validateCreatorForm(
   input: CreatorFormInput,
   today: Date = new Date(),
   existingEmails: string[] = [],
+  bufferDays: number = DEFAULT_BUFFER_DAYS,
 ): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
 
@@ -198,7 +204,7 @@ export function validateCreatorForm(
     errors.email = "Email sudah terdaftar";
   }
 
-  Object.assign(errors, validateContractTerms(input, today));
+  Object.assign(errors, validateContractTerms(input, today, bufferDays));
 
   // Both usernames are optional; only one longer than the API stores is a problem.
   for (const field of ["instagramUsername", "tiktokUsername"] as const) {
@@ -223,11 +229,12 @@ export type ContractTermsInput = Pick<
 export function validateContractTerms(
   input: ContractTermsInput,
   today: Date = new Date(),
+  bufferDays: number = DEFAULT_BUFFER_DAYS,
 ): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
   const todayDay = localCalendarDay(today);
 
-  checkContractDates(input, todayDay, errors);
+  checkContractDates(input, todayDay, bufferDays, errors);
 
   if (input.interval <= 0) {
     errors.interval = "Jarak antar-deadline minimal 1 hari";

@@ -2,6 +2,10 @@
 // deadlines the server accepts. Nothing here touches Nest or Prisma, so every rule is tested
 // without a database and the persistence code only has to wire the results together.
 
+// DeadlineWindow formats with readableDay from here; both only call each other inside functions,
+// so the import cycle resolves before either is used.
+import { DeadlineWindow } from '../deadline-buffer/deadline-window.js';
+
 /**
  * `Evg_<sequence>_<Creator Name>_DDMMYYYY`, the product's naming rule for Evergreen content:
  * the sequence counts from 1 in deadline order and stays fixed once saved. `day` is an ISO
@@ -71,40 +75,8 @@ export function isCalendarDay(value: string): boolean {
   );
 }
 
-/**
- * The earliest a new deadline may fall (PRD 3.6): max(contract start, today) + the global
- * buffer. Shared by onboarding (new-creator.ts, a whole batch of deadlines at once) and adding
- * a single content later (evergreen-slot.ts), so the formula lives in one place. ISO days
- * compare correctly as strings — same fact this file's own deadlineProblem already relies on.
- */
-export function earliestDeadline(
-  contractStart: string,
-  today: string,
-  bufferDays: number,
-): string {
-  const from = contractStart > today ? contractStart : today;
-  const date = new Date(`${from}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + bufferDays);
-  return date.toISOString().slice(0, 10);
-}
-
-/** How many days before the contract end the last deadline falls (PBI-38 AC 14). */
-export const H5_BUFFER_DAYS = 5;
-
-/**
- * The last day a deadline may fall on: the contract end minus the H-5 buffer. The frontend's
- * date picker holds the same line (platform-links.ts), so it never offers a day refused here.
- */
-export function latestDeadline(contractEnd: string): string {
-  const date = new Date(`${contractEnd}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - H5_BUFFER_DAYS);
-  return date.toISOString().slice(0, 10);
-}
-
-/** The one refusal of a day past the H-5 line, so every entry point reads the same. */
-export function pastLatestDeadline(contractEnd: string): string {
-  return `Deadline paling lambat ${readableDay(latestDeadline(contractEnd))} (H-5 akhir kontrak)`;
-}
+// The earliest and latest deadline lines live in DeadlineWindow (src/deadline-buffer), both drawn
+// by the one stored buffer (PBI-23 AC 22); PBI-38's fixed H-5 line is now H-N.
 
 /** Today's calendar day where the admins work (WIB), so "not before today" holds after midnight. */
 export function jakartaDay(now: Date): string {
@@ -133,7 +105,11 @@ export function jakartaMidnight(now: Date): Date {
   return new Date(`${jakartaDay(now)}T00:00:00Z`);
 }
 
-function deadlineProblem(schedule: Schedule): string | undefined {
+function deadlineProblem(
+  schedule: Schedule,
+  today: string,
+  bufferDays: number,
+): string | undefined {
   const { contractStart, contractEnd, quota, deadlines } = schedule;
   if (!deadlines.every(isCalendarDay)) {
     return 'Format tanggal deadline tidak valid';
@@ -142,8 +118,10 @@ function deadlineProblem(schedule: Schedule): string | undefined {
   if (deadlines.some((day) => day < contractStart || day > contractEnd)) {
     return 'Deadline harus di dalam periode kontrak';
   }
-  if (deadlines.some((day) => day > latestDeadline(contractEnd))) {
-    return pastLatestDeadline(contractEnd);
+  // PBI-23 AC 22: the stored buffer draws the latest line (PBI-38's H-5 is now H-N).
+  const window = DeadlineWindow.of({ ...schedule, today, bufferDays });
+  if (deadlines.some((day) => day > window.latest)) {
+    return window.tooLate();
   }
   if (deadlines.length !== quota) {
     return `Jumlah deadline harus sama dengan jumlah konten (${quota})`;
@@ -159,6 +137,7 @@ function deadlineProblem(schedule: Schedule): string | undefined {
 export function checkSchedule(
   schedule: Schedule,
   today: string,
+  bufferDays: number,
 ): ScheduleErrors {
   const { contractStart, contractEnd, quota } = schedule;
   const errors: ScheduleErrors = {};
@@ -186,6 +165,6 @@ export function checkSchedule(
     return errors;
   }
 
-  const deadlines = deadlineProblem(schedule);
+  const deadlines = deadlineProblem(schedule, today, bufferDays);
   return deadlines === undefined ? {} : { deadlines };
 }
