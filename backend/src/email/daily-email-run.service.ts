@@ -5,10 +5,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { EMAIL_LOG_STORE, type EmailLogStore, type LoggedEmail } from './email-log-store.js';
 import { EmailNotifier, type EmailEvent } from './email-notifier.js';
 
-// The daily 08:00 WIB email run of PBI-11 (11.3), started by Cloud Scheduler: it first tries the
-// failed emails again (AC 9, up to 3 attempts in total), then reminds each creator of content due
-// tomorrow that has no link yet (AC 2). Both go through the helper, so the unique event key keeps
-// a second run that day from sending anything twice (AC 8).
+// The daily 08:00 WIB email run of PBI-11 (11.3), started by Cloud Scheduler: it first reminds
+// each creator of content due tomorrow that has no link yet (AC 2), then tries the failed emails
+// again (AC 9, up to 3 attempts in total). Both go through the helper, so the unique event key
+// keeps a second run that day from sending anything twice (AC 8).
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -99,7 +99,11 @@ export class DailyEmailRun {
     for (const email of await this.store.stuckSending(now)) {
       await this.store.abandon(email.eventKey, email.recipient, 'UnknownOutcome', now);
     }
+    // Read before reminding, so a reminder that fails this morning waits for tomorrow's run.
     const failed = await this.store.failedToRetry(now);
+    // Review on #253 (Kak Satria, AC 2): reminders first, since a slow mail server can use up the
+    // run's time, and a reminder cannot wait for tomorrow while a retry can.
+    const reminded = await this.remind(now);
     let retried = 0;
     let resent = 0;
     for (const email of failed) {
@@ -113,7 +117,7 @@ export class DailyEmailRun {
       if (await this.notifier.retry(email)) resent += 1;
     }
 
-    return { retried, resent, reminded: await this.remind(now) };
+    return { retried, resent, reminded };
   }
 
   private async stillSomeones(email: string): Promise<boolean> {
