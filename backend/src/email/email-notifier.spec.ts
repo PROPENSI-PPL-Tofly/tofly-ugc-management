@@ -1,7 +1,7 @@
 import { PortNotReady } from '../auth/google/unready-ports.js';
 import type { EmailMessage, EmailSender } from './email-sender.js';
 import type { EmailLogStore, LoggedEmail } from './email-log-store.js';
-import type { EmailTemplates } from './email-templates.js';
+import type { EmailTemplates, RenderedEmail } from './email-templates.js';
 import { EMAIL_TIMEOUT_MS, EmailNotifier, type EmailEvent } from './email-notifier.js';
 
 const NOW = new Date('2026-11-25T01:00:00.000Z');
@@ -128,6 +128,65 @@ describe('EmailNotifier', () => {
 
     expect(EMAIL_TIMEOUT_MS).toBe(10_000);
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'EmailTimeout', NOW);
+  });
+
+  // 11.4: the Paid email reads its invoice PDF while rendering, so a template may answer later.
+  it('waits for a template that answers later, then sends what it rendered', async () => {
+    const { sender, templates, notifier } = setup();
+    templates.render.mockResolvedValue({ subject: 'Pembayaran selesai', text: 'Halo', html: '<p>Halo</p>' });
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(true);
+
+    expect(sender.send).toHaveBeenCalledWith(expect.objectContaining({ subject: 'Pembayaran selesai' }));
+  });
+
+  // PBI-11 AC 3: the files a template attaches go out with the email.
+  it('sends the files a template attaches along with the email', async () => {
+    const { sender, templates, notifier } = setup();
+    const pdf = { filename: 'Invoice_Salsa_Periode1.pdf', content: Buffer.from('%PDF'), contentType: 'application/pdf' };
+    templates.render.mockResolvedValue({ subject: 'Pembayaran selesai', text: 'Halo', html: '<p>Halo</p>', attachments: [pdf] });
+
+    await notifier.notify(EVENT);
+
+    expect(sender.send).toHaveBeenCalledWith(expect.objectContaining({ attachments: [pdf] }));
+  });
+
+  // A slow PDF read holds the action no longer than a slow mail server does (11.1's 10 seconds).
+  it('counts a template that never answers against the same 10 seconds', async () => {
+    vi.useFakeTimers();
+    const { store, sender, templates, notifier } = setup();
+    templates.render.mockReturnValue(new Promise(() => {}));
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+
+    await expect(done).resolves.toBe(false);
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'EmailTimeout', NOW);
+  });
+
+  // AC 8: once the email is marked failed the 08:00 run sends it, so a late render sends nothing.
+  it('sends nothing when a template answers after the 10 seconds ran out', async () => {
+    vi.useFakeTimers();
+    const { sender, templates, notifier } = setup();
+    let answer: (email: RenderedEmail) => void = () => {};
+    templates.render.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+    await done;
+    answer({ subject: 'Terlambat', text: 'Halo', html: '<p>Halo</p>' });
+    await vi.runAllTimersAsync();
+
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+
+  it('marks a template that answers with a failure failed, never throwing', async () => {
+    const { store, templates, notifier } = setup();
+    templates.render.mockRejectedValue(new RangeError('no invoice'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RangeError', NOW);
   });
 
   it('clears its timer once the send is accepted', async () => {
