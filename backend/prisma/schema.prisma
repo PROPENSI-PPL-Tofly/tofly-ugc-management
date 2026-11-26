@@ -446,6 +446,30 @@ model login_code_requests {
   @@index([requested_at], map: "login_code_requests_requested_at_idx")
 }
 
+/// One email an event sends to one recipient (PBI-11): the unique key stops a retried event from sending twice, and payload keeps what the 08:00 run needs to send a failed one again.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_log {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_key  String
+  template   String
+  recipient  String
+  payload    Json         @default("{}")
+  status     email_status @default(pending)
+  attempts   Int          @default(0)
+  last_error String?
+  sent_at    DateTime?    @db.Timestamptz(6)
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at DateTime     @default(now()) @db.Timestamptz(6)
+
+  @@unique([event_key, recipient], map: "email_log_event_key_recipient_key")
+}
+
+enum email_status {
+  pending
+  sent
+  failed
+}
+
 enum content_status {
   pending
   scheduled

@@ -68,7 +68,7 @@ function stubClient(stored: Stored | null, due?: string[]) {
 
 function notifier() {
   return {
-    proposalRejected: vi.fn<ProposalNotifier['proposalRejected']>(),
+    proposalRejected: vi.fn<ProposalNotifier['proposalRejected']>().mockResolvedValue(),
   } satisfies ProposalNotifier;
 }
 
@@ -231,9 +231,31 @@ describe('ProposalReviewService.reject', () => {
     expect(current()).toBeNull();
     expect(notify.proposalRejected).toHaveBeenCalledWith({
       creatorId: CREATOR,
+      contentId: ID,
       contentName: 'Ide konten dari Intan',
       reason: 'Kurang relevan.',
     });
+  });
+
+  // PBI-11 (11.1, AC 9): the email is tried before the answer, after the removal is saved; the
+  // helper never throws, so the answer waits at most its 10 seconds.
+  it('answers only once the creator email has been tried', async () => {
+    const { client } = stubClient(pending);
+    const notify = notifier();
+    let release!: () => void;
+    notify.proposalRejected.mockReturnValue(new Promise<void>((resolve) => (release = resolve)));
+    let answered = false;
+
+    const answering = new ProposalReviewService(client, notify)
+      .reject(ID, { reason: null })
+      .then(() => (answered = true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(client.contents.deleteMany).toHaveBeenCalled();
+    expect(answered).toBe(false);
+    release();
+    await answering;
+    expect(answered).toBe(true);
   });
 
   it('removes it without a reason too, since the reason is optional', async () => {
@@ -345,21 +367,5 @@ describe('ProposalReviewService.scheduleDue', () => {
 
     expect(client.$transaction).toHaveBeenCalledTimes(1);
     expect(client.content_events.createMany).not.toHaveBeenCalled();
-  });
-});
-
-describe('ProposalReviewService without a notifier', () => {
-  it('falls back to the mock email, as Add Content does, until notifications exist', async () => {
-    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
-    const { client } = stubClient(pending);
-
-    await new ProposalReviewService(client).reject(ID, { reason: 'Kurang relevan.' });
-
-    expect(info).toHaveBeenCalledWith('[MOCK EMAIL] Creator proposal rejected', {
-      creatorId: CREATOR,
-      contentName: 'Ide konten dari Intan',
-      reason: 'Kurang relevan.',
-    });
-    info.mockRestore();
   });
 });
