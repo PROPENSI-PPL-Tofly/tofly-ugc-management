@@ -155,6 +155,28 @@ describe('Akhiri Kontrak Lebih Awal (e2e, PBI-37)', () => {
     expect((await dewi.creator.get('/me/invoices')).status).toBe(401);
   });
 
+  // PBI-23 (OWASP A09:2025): an early end and the invoice it cancels reach Log Aktivitas, by the
+  // admin who confirmed them, with the reason's note kept off the creator-facing record.
+  it('writes the early end and its cancelled invoice to Log Aktivitas', async () => {
+    const dewi = await creatorWithRunningPeriod('audit');
+
+    await admin
+      .post(`/creators/${dewi.id}/contracts/${dewi.running}/early-end`)
+      .send({ invoice: 'cancel', reason: 'fraud', note: NOTE, upcomingPeriods: 'delete' })
+      .expect(200);
+
+    const entries = await prisma.audit_logs.findMany({
+      where: { creator_id: dewi.id },
+      select: { action: true, category: true, actor_role: true },
+      // One transaction, so both share a timestamp; the action names them apart.
+      orderBy: { action: 'asc' },
+    });
+    expect(entries).toEqual([
+      { action: 'contract_ended_early', category: 'creator_kontrak', actor_role: 'admin' },
+      { action: 'invoice_cancelled', category: 'invoice_pembayaran', actor_role: 'admin' },
+    ]);
+  });
+
   // AC 15: "Pertahankan" keeps period 2 and, with it, the creator's access.
   it('keeps the waiting period when asked, so a cancelled invoice leaves the creator in', async () => {
     const dewi = await creatorWithRunningPeriod('keep');
