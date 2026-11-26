@@ -314,3 +314,27 @@ describe("invoiceActivity", () => {
     ]);
   });
 });
+
+// PBI-16 AC 9.
+describe("invoiceActivity with fixed rate changes", () => {
+  it("weaves each change in with the steps and the comments, by time", () => {
+    const change = (id: string, createdAt: string) => ({
+      id,
+      oldRate: 1_000_000,
+      newRate: 2_000_000,
+      actorName: null,
+      createdAt,
+    });
+    const entries = invoiceActivity(
+      aCreatorInvoice({
+        reachedAt: { finalized: "2026-11-20T03:00:00Z", creator_acked: null, payment_uploaded: null, paid: null },
+        rateChanges: [change("early", "2026-11-10T03:00:00Z"), change("mid", "2026-11-15T03:00:00Z")],
+        comments: [
+          { id: "c", authorName: "Salsa", authorRole: "creator", text: "Halo", createdAt: "2026-11-12T03:00:00Z" },
+        ],
+      }),
+    );
+
+    expect(entries.map((entry) => entry.id)).toEqual(["rate-early", "c", "rate-mid", "finalized"]);
+  });
+});

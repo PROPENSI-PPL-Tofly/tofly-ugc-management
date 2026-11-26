@@ -278,6 +278,21 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-30 AC 1: the renewal is offered on the Periode Kontrak panel, for this creator.
+  // PBI-16 AC 1.
+  it("offers Ubah Data in the creator's profile", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf());
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Data" })).toBeInTheDocument();
+  });
+
+  it("offers Ubah Data for a creator without a contract", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [], current: null, selected: null }));
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Data" })).toBeInTheDocument();
+  });
+
   it("offers Perpanjang Kontrak on the Periode Kontrak panel while the contract runs", async () => {
     await renderPage();
 
