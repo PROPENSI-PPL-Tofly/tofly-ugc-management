@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   NotFoundException,
@@ -101,7 +102,10 @@ const SCHEDULE = [
   expect.objectContaining({ name: 'Evg_2_Rangga Pratama_20122026', deadline: day('2026-12-20') }),
 ];
 
-function setup(contracts: unknown[] | null) {
+function setup(
+  contracts: unknown[] | null,
+  notifier?: Pick<CreatorNotifier, 'periodAdded'>,
+) {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([]),
     creators: {
@@ -121,7 +125,7 @@ function setup(contracts: unknown[] | null) {
   const prisma = {
     $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
   };
-  const service = new ContractPeriodsService(prisma as unknown as PeriodsClient);
+  const service = new ContractPeriodsService(prisma as unknown as PeriodsClient, notifier);
   return { tx, prisma, service };
 }
 
@@ -420,5 +424,37 @@ describe('ContractPeriodsService.remove', () => {
       message: 'Periode satu-satunya creator tidak bisa dihapus',
     });
     expect(tx.contracts.delete).not.toHaveBeenCalled();
+  });
+});
+
+// PBI-11 (11.2, AC 1): a new contract period emails the creator, once it is saved.
+describe('ContractPeriodsService.create, the creator email', () => {
+  function emails() {
+    return { periodAdded: vi.fn<CreatorNotifier['periodAdded']>().mockResolvedValue() };
+  }
+
+  it('tells the creator about the new period after it is saved', async () => {
+    const notifier = emails();
+    const { tx, service } = setup([CURRENT], notifier);
+    notifier.periodAdded.mockImplementation(async () => {
+      expect(tx.contracts.create).toHaveBeenCalled();
+    });
+
+    await service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID);
+
+    expect(notifier.periodAdded).toHaveBeenCalledExactlyOnceWith({
+      creatorId: CREATOR_ID,
+      contractId: RESULT.contractId,
+      startDate: RESULT.startDate,
+      endDate: RESULT.endDate,
+    });
+  });
+
+  it('tells nobody when the creator does not exist', async () => {
+    const notifier = emails();
+    const { service } = setup(null, notifier);
+
+    await expect(service.create(CREATOR_ID, TERMS, NOW, ADMIN_ID)).rejects.toThrow();
+    expect(notifier.periodAdded).not.toHaveBeenCalled();
   });
 });

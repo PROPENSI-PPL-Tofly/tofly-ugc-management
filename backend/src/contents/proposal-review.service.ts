@@ -3,7 +3,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { latestDeadline, pastLatestDeadline } from '../creators/evergreen.js';
@@ -74,23 +73,20 @@ export interface ProposalReviewClient {
   $transaction<T>(work: (transaction: ProposalReviewClient) => Promise<T>): Promise<T>;
 }
 
-/** Who hears that a proposal was turned down; the PRD sends it by email. */
+/** Who hears that a proposal was turned down (PBI-11 AC 1, by email); it never throws. */
 export interface ProposalNotifier {
   proposalRejected(input: {
     creatorId: string;
+    contentId: string;
     contentName: string;
     reason: string | null;
-  }): void;
+  }): Promise<void>;
+  proposalApproved(input: { contentId: string }): Promise<void>;
+  /** Scheduled by the system at H-1 (PBI-14 AC 7). */
+  proposalScheduled(input: { contentId: string }): Promise<void>;
 }
 
 export const PROPOSAL_NOTIFIER = Symbol('PROPOSAL_NOTIFIER');
-
-/** Stands in for the email until notifications are built, like Add Content's mock email. */
-const mockEmail: ProposalNotifier = {
-  proposalRejected(input) {
-    console.info('[MOCK EMAIL] Creator proposal rejected', input);
-  },
-};
 
 export interface ApprovedProposal {
   id: string;
@@ -140,9 +136,8 @@ export class ProposalReviewService {
   constructor(
     @Inject(PrismaService)
     private readonly prisma: ProposalReviewClient,
-    @Optional()
     @Inject(PROPOSAL_NOTIFIER)
-    private readonly notifier: ProposalNotifier = mockEmail,
+    private readonly notifier: ProposalNotifier,
   ) {}
 
   /**
@@ -150,7 +145,7 @@ export class ProposalReviewService {
    * records who approved it, in the same transaction so neither stands without the other.
    */
   async approve(id: string, adminUserId?: string): Promise<ApprovedProposal> {
-    return this.prisma.$transaction(async (transaction) => {
+    const approved = await this.prisma.$transaction(async (transaction) => {
       const row = await transaction.contents.findUnique({
         where: { id },
         select: PROPOSAL_SELECT,
@@ -181,8 +176,11 @@ export class ProposalReviewService {
           event_data: {},
         },
       });
-      return { id, status: 'scheduled' };
+      return { id, status: 'scheduled' } as const;
     });
+    // PBI-11 (AC 1, AC 9): once the approval is saved; the email never fails it.
+    await this.notifier.proposalApproved({ contentId: id });
+    return approved;
   }
 
   /** A rejected proposal is discarded entirely (PRD 3.10); its creator is told why, if given. */
@@ -201,8 +199,10 @@ export class ProposalReviewService {
       throw notPending();
     }
 
-    this.notifier.proposalRejected({
+    // PBI-11 (AC 9): after the removal is saved; the helper never throws.
+    await this.notifier.proposalRejected({
       creatorId: row.contracts.creator_id,
+      contentId: id,
       contentName: row.name,
       reason,
     });
@@ -221,7 +221,7 @@ export class ProposalReviewService {
     const due = { status: 'pending', deadline: { lte: schedulingCutoff(now) } } as const;
     if ((await this.prisma.contents.count({ where: due })) === 0) return 0;
 
-    return this.prisma.$transaction(async (transaction) => {
+    const promoted = await this.prisma.$transaction(async (transaction) => {
       // The status guard is in the UPDATE itself, so two requests promoting at once move (and
       // record) each proposal once: the second finds it no longer pending.
       const promoted = await transaction.contents.updateManyAndReturn({
@@ -242,7 +242,12 @@ export class ProposalReviewService {
           })),
         });
       }
-      return promoted.length;
+      return promoted;
     });
+    // PBI-11 (AC 1): each creator hears their proposal was scheduled, once it is saved.
+    for (const { id } of promoted) {
+      await this.notifier.proposalScheduled({ contentId: id });
+    }
+    return promoted.length;
   }
 }

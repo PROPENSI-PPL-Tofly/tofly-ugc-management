@@ -1,8 +1,14 @@
 import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
+import {
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { jakartaDay } from '../creators/evergreen.js';
@@ -107,6 +113,9 @@ export class InvoiceCommandService implements InvoiceCommands {
     @Inject(PrismaService) private readonly prisma: InvoiceCommandClient,
     @Inject(RATE_FORMULA_SOURCE) private readonly formulas: RateFormulaSource,
     @Inject(LAST_SYNC) private readonly lastSync: LastSync,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'invoiceFinalized'> = noCreatorEmail,
   ) {}
 
   async addAdjustment(
@@ -211,7 +220,7 @@ export class InvoiceCommandService implements InvoiceCommands {
     // never hold the contract lock every other command on this contract waits for (AC 7).
     const synced = await this.lastSync.beforeFinalize(contractId);
 
-    return this.prisma.$transaction(
+    const finalized = await this.prisma.$transaction(
       async (tx) => {
         await lockContractRow(tx, contractId);
         // Read after the lock, so a manual entry queued on it has committed; share-locked, so no
@@ -308,7 +317,7 @@ export class InvoiceCommandService implements InvoiceCommands {
         }
 
         return {
-          invoiceStatus: 'finalized',
+          invoiceStatus: 'finalized' as const,
           adjustments,
           snapshot,
           lastSync: lastSyncReport(synced, links),
@@ -317,6 +326,9 @@ export class InvoiceCommandService implements InvoiceCommands {
       },
       { isolationLevel: 'ReadCommitted' },
     );
+    // PBI-11 (AC 1, AC 9): once frozen; the email never fails the Finalize.
+    await this.notifier.invoiceFinalized({ contractId });
+    return finalized;
   }
 
   private async requireContract(
