@@ -4,49 +4,40 @@ import { useCallback, useState } from "react";
 import { CONFIRMATION_MINUTES, type SensitiveAction } from "@/lib/admin-users-api";
 import { AdminCodePrompt } from "./admin-code-prompt";
 
-interface LiveConfirmation {
-  id: string;
-  /** As epoch milliseconds, so a 15-minute rule is one comparison at the next action. */
-  expiresAt: number;
-}
-
 interface Asking {
   action: SensitiveAction;
-  run: (confirmationId: string) => void;
+  run: () => void;
 }
 
 /**
- * The one confirmation a Super Admin gives before a role change or a deactivation. The first
- * sensitive action opens the prompt; once it is accepted, later ones go straight through until
- * the 15 minutes are up, whichever of the two actions they are (AC 11).
+ * The one confirmation a Super Admin gives before a sensitive change. The first one opens the
+ * prompt; once the code is accepted the backend holds this session as confirmed, so later ones go
+ * straight through until the 15 minutes are up, whichever action they are (AC 11). The time kept
+ * here only spares a prompt the backend would not need; the backend still decides.
  */
 export function useAdminConfirmation() {
-  const [live, setLive] = useState<LiveConfirmation | null>(null);
+  /** Epoch milliseconds, so the 15-minute rule is one comparison at the next action. */
+  const [liveUntil, setLiveUntil] = useState<number | null>(null);
   const [asking, setAsking] = useState<Asking | null>(null);
 
   const withConfirmation = useCallback(
-    (action: SensitiveAction, run: (confirmationId: string) => void) => {
-      if (live && live.expiresAt > Date.now()) {
-        run(live.id);
+    (action: SensitiveAction, run: () => void) => {
+      if (liveUntil !== null && liveUntil > Date.now()) {
+        run();
         return;
       }
       setAsking({ action, run });
     },
-    [live],
+    [liveUntil],
   );
 
-  function confirmed(confirmationId: string, expiresAt: string) {
+  function confirmed(expiresAt: string) {
     const moment = Date.parse(expiresAt);
-    setLive({
-      id: confirmationId,
-      expiresAt: Number.isNaN(moment)
-        ? Date.now() + CONFIRMATION_MINUTES * 60_000
-        : moment,
-    });
+    setLiveUntil(Number.isNaN(moment) ? Date.now() + CONFIRMATION_MINUTES * 60_000 : moment);
 
     const ask = asking;
     setAsking(null);
-    ask?.run(confirmationId);
+    ask?.run();
   }
 
   const prompt = asking ? (

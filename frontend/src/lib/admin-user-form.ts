@@ -95,6 +95,7 @@ export function adminRefusal(code: unknown): AdminRefusal | null {
       };
 
     case "SELF_DEACTIVATE":
+    case "CANNOT_DEACTIVATE_SELF":
       return { message: SELF_DEACTIVATE_REASON, errors: {} };
 
     case "FORBIDDEN":

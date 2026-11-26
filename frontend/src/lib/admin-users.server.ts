@@ -39,7 +39,7 @@ export async function fetchAdminUsers(
 
   let response: Response;
   try {
-    response = await fetch(`${withoutTrailingSlash(backendUrl)}/admin/users?${query}`, {
+    response = await fetch(`${withoutTrailingSlash(backendUrl)}/admin-users?${query}`, {
       cache: "no-store",
       ...(cookie && { headers: { cookie } }),
     });

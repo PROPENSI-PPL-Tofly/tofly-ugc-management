@@ -1,6 +1,7 @@
 // The four calls that change an admin (PBI-23, 23.4), kept out of the screens: POST
-// /admin/users adds one, PATCH /admin/users/:id changes a name or role, and /deactivate and
-// /reactivate switch one off and on. Outcomes, never a status code or a body, so the forms and
+// /admin-users adds one, PATCH /admin-users/:id changes a name or role, and /deactivate and
+// /reactivate switch one off and on. The email code that covers the sensitive ones is held on the
+// signed-in session by the backend, so no request here carries it. Outcomes, never a status code or a body, so the forms and
 // the row actions read the same refusal words and cannot disagree with lib/admin-user-form.ts.
 
 import { apiFetch } from "./api-client";
@@ -18,6 +19,24 @@ const CHANGE_FAILED = "Admin gagal diubah. Coba lagi.";
 interface RefusalBody {
   code?: unknown;
   message?: unknown;
+  errors?: unknown;
+}
+
+const FORM_FIELDS = ["name", "email", "role"] as const;
+
+/** The fields a 422 named that the form has; a field it does not draw is left out. */
+function fieldErrors(raw: unknown): AdminFormErrors {
+  const errors: AdminFormErrors = {};
+  if (raw === null || typeof raw !== "object") {
+    return errors;
+  }
+  const named = raw as Record<string, unknown>;
+  for (const field of FORM_FIELDS) {
+    if (typeof named[field] === "string") {
+      errors[field] = named[field];
+    }
+  }
+  return errors;
 }
 
 async function send(path: string, method: string, body?: unknown): Promise<Response> {
@@ -47,11 +66,11 @@ async function settle(response: Response, failed: string): Promise<AdminSaveOutc
     return { ok: false, ...refusal };
   }
 
+  const refused = response.status < 500;
   return {
     ok: false,
-    message:
-      response.status < 500 && typeof body?.message === "string" ? body.message : failed,
-    errors: {},
+    message: refused && typeof body?.message === "string" ? body.message : failed,
+    errors: refused ? fieldErrors(body?.errors) : {},
   };
 }
 
@@ -61,7 +80,7 @@ export async function createAdmin(values: {
   role: AdminRole;
 }): Promise<AdminSaveOutcome> {
   return settle(
-    await send("/api/admin/users", "POST", {
+    await send("/api/admin-users", "POST", {
       name: values.name.trim(),
       email: values.email.trim(),
       role: values.role,
@@ -70,50 +89,43 @@ export async function createAdmin(values: {
   );
 }
 
-/** A changed role carries the confirmation that covered it; a name alone needs none. */
+function adminPath(id: string, action = ""): string {
+  return `/api/admin-users/${encodeURIComponent(id)}${action}`;
+}
+
+/** A name, and a role only when it changed; the backend checks the session's code for that. */
 export async function updateAdmin(
   id: string,
   patch: { name: string; role?: AdminRole },
-  confirmationId?: string,
 ): Promise<AdminSaveOutcome> {
   const body = patch.role
-    ? { name: patch.name.trim(), role: patch.role, confirmationId }
+    ? { name: patch.name.trim(), role: patch.role }
     : { name: patch.name.trim() };
 
-  return settle(
-    await send(`/api/admin/users/${encodeURIComponent(id)}`, "PATCH", body),
-    SAVE_FAILED,
-  );
+  return settle(await send(adminPath(id), "PATCH", body), SAVE_FAILED);
 }
 
-export async function deactivateAdmin(
-  id: string,
-  confirmationId: string,
-): Promise<AdminSaveOutcome> {
-  return settle(
-    await send(`/api/admin/users/${encodeURIComponent(id)}/deactivate`, "POST", {
-      confirmationId,
-    }),
-    CHANGE_FAILED,
-  );
+export async function deactivateAdmin(id: string): Promise<AdminSaveOutcome> {
+  return settle(await send(adminPath(id, "/deactivate"), "POST"), CHANGE_FAILED);
 }
 
-/** Reactivation asks for no code (AC 9): it restores access, it does not remove it. */
+/** Reactivating an Admin asks for no code (AC 9); bringing back a Super Admin does. */
 export async function reactivateAdmin(id: string): Promise<AdminSaveOutcome> {
-  return settle(
-    await send(`/api/admin/users/${encodeURIComponent(id)}/reactivate`, "POST"),
-    CHANGE_FAILED,
-  );
+  return settle(await send(adminPath(id, "/reactivate"), "POST"), CHANGE_FAILED);
 }
 
 /** One confirmation covers the role change and the deactivation for this long (AC 11). */
 export const CONFIRMATION_MINUTES = 15;
 
-/** The two changes the AC sends through an email code. */
-export type SensitiveAction = "role_change" | "deactivate";
+/** The changes the backend holds until the email code was entered. */
+export type SensitiveAction =
+  | "role_change"
+  | "deactivate"
+  | "add_super_admin"
+  | "reactivate_super_admin";
 
 export type ConfirmationRequest =
-  | { kind: "sent"; confirmationId: string; message: string }
+  | { kind: "sent"; message: string }
   | { kind: "limited"; message: string }
   | { kind: "failed"; message: string };
 
@@ -121,30 +133,23 @@ export type ConfirmationVerify =
   | { kind: "confirmed"; expiresAt: string }
   | { kind: "wrong"; attemptsLeft?: number }
   | { kind: "expired" }
-  | { kind: "limited"; message: string }
   | { kind: "failed" };
 
 interface ConfirmationBody {
-  confirmationId?: unknown;
-  expiresAt?: unknown;
+  validMinutes?: unknown;
+  confirmedUntil?: unknown;
   code?: unknown;
   attemptsLeft?: unknown;
   retryAfterMinutes?: unknown;
 }
 
-/** Sends the code and returns the id it will be verified under. */
-export async function requestConfirmation(
-  action: SensitiveAction,
-): Promise<ConfirmationRequest> {
-  const response = await send("/api/admin/users/confirmations", "POST", { action });
+/** Asks the backend to email a code to the signed-in Super Admin. */
+export async function requestConfirmation(): Promise<ConfirmationRequest> {
+  const response = await send("/api/admin-users/confirmation", "POST");
   const body = (await readBody(response)) as ConfirmationBody | null;
 
-  if (response.ok && typeof body?.confirmationId === "string" && body.confirmationId !== "") {
-    return {
-      kind: "sent",
-      confirmationId: body.confirmationId,
-      message: "Kode dikirim ke email kamu.",
-    };
+  if (response.ok) {
+    return { kind: "sent", message: "Kode dikirim ke email kamu." };
   }
 
   if (response.status === 429) {
@@ -161,34 +166,26 @@ export async function requestConfirmation(
   return { kind: "failed", message: "Kode gagal dikirim. Coba lagi." };
 }
 
-/** Checks the six digits and reports how long the confirmation then lasts. */
-export async function verifyConfirmation(
-  confirmationId: string,
-  code: string,
-): Promise<ConfirmationVerify> {
-  const response = await send(
-    `/api/admin/users/confirmations/${encodeURIComponent(confirmationId)}/verify`,
-    "POST",
-    { code },
-  );
+/**
+ * Checks the six digits. A right code confirms this session until the time the backend names; a
+ * used-up or old code comes back as expired, so the prompt asks for a new one.
+ */
+export async function verifyConfirmation(code: string): Promise<ConfirmationVerify> {
+  const response = await send("/api/admin-users/confirmation/verify", "POST", { code });
   const body = (await readBody(response)) as ConfirmationBody | null;
 
-  if (response.ok && typeof body?.expiresAt === "string") {
-    return { kind: "confirmed", expiresAt: body.expiresAt };
+  if (response.ok && typeof body?.confirmedUntil === "string") {
+    return { kind: "confirmed", expiresAt: body.confirmedUntil };
   }
 
-  if (response.status === 422 && body?.code === "CODE_WRONG") {
+  if (response.status === 422 && body?.code === "CONFIRMATION_WRONG") {
     return Number.isInteger(body.attemptsLeft)
       ? { kind: "wrong", attemptsLeft: Number(body.attemptsLeft) }
       : { kind: "wrong" };
   }
 
-  if (response.status === 410) {
+  if (response.status === 422 && body?.code === "CONFIRMATION_EXPIRED") {
     return { kind: "expired" };
-  }
-
-  if (response.status === 429) {
-    return { kind: "limited", message: "Terlalu banyak percobaan. Coba lagi nanti." };
   }
 
   return { kind: "failed" };

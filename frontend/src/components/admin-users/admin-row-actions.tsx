@@ -27,7 +27,8 @@ const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
 /**
  * The actions at the end of one admin's row (AC 6 to AC 11). A role change waits for the email
- * code; deactivation asks for the dialog first, then the code; reactivation is one press. The
+ * code; deactivation asks for the dialog first, then the code; reactivation is one press for an
+ * Admin and waits for the code for a Super Admin, as the backend asks. The
  * caller's own row has no deactivation at all, with the reason beside the shut control.
  */
 export function AdminRowActions({
@@ -36,7 +37,7 @@ export function AdminRowActions({
   onChanged,
 }: {
   user: AdminUser;
-  withConfirmation: (action: SensitiveAction, run: (confirmationId: string) => void) => void;
+  withConfirmation: (action: SensitiveAction, run: () => void) => void;
   onChanged: (message: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -63,8 +64,8 @@ export function AdminRowActions({
     const patch = changedRole
       ? { name: values.name, role: values.role }
       : { name: values.name };
-    const send = (confirmationId?: string) => {
-      void updateAdmin(user.id, patch, confirmationId).then((result) =>
+    const send = () => {
+      void updateAdmin(user.id, patch).then((result) =>
         apply(result, "Perubahan admin disimpan.", () => setEditing(false)),
       );
     };
@@ -72,7 +73,7 @@ export function AdminRowActions({
     if (changedRole) {
       withConfirmation("role_change", send);
     } else {
-      send(undefined);
+      send();
     }
   }
 
@@ -81,8 +82,8 @@ export function AdminRowActions({
     setSaving(true);
     setFailure(null);
 
-    withConfirmation("deactivate", (confirmationId) => {
-      void deactivateAdmin(user.id, confirmationId).then((result) =>
+    withConfirmation("deactivate", () => {
+      void deactivateAdmin(user.id).then((result) =>
         apply(result, "Admin dinonaktifkan.", () => setDeactivating(false)),
       );
     });
@@ -91,9 +92,17 @@ export function AdminRowActions({
   function reactivate() {
     setSaving(true);
     setFailure(null);
-    void reactivateAdmin(user.id).then((result) =>
-      apply(result, "Admin diaktifkan kembali.", () => setSaving(false)),
-    );
+    const send = () => {
+      void reactivateAdmin(user.id).then((result) =>
+        apply(result, "Admin diaktifkan kembali.", () => setSaving(false)),
+      );
+    };
+
+    if (user.role === "super_admin") {
+      withConfirmation("reactivate_super_admin", send);
+    } else {
+      send();
+    }
   }
 
   return (

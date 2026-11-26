@@ -38,12 +38,11 @@ export const ADMIN_USERS_PAGE_SIZE = 10;
 /** The list's one address, shared by the page, its empty states and the menu. */
 export const ADMIN_USERS_PATH = "/admin/users";
 
-/** The API's query: its own `search` name, the page, and the fixed page size. */
+/** The API's query: the search and the page; the backend fixes ten rows a page itself. */
 export function buildAdminUsersQuery(filters: AdminUserFilters, page: number): string {
   const query = new URLSearchParams();
-  if (filters.q) query.set("search", filters.q);
+  if (filters.q) query.set("q", filters.q);
   query.set("page", String(page));
-  query.set("pageSize", String(ADMIN_USERS_PAGE_SIZE));
   return query.toString();
 }
 
@@ -117,7 +116,7 @@ function readAdminUser(raw: unknown): AdminUser {
   }
 
   const row = raw as Record<string, unknown>;
-  const { id, email, role, isActive, lastSignInAt, createdAt } = row;
+  const { id, email, role, status, lastSignedInAt, createdAt } = row;
 
   if (typeof id !== "string" || id === "") {
     throw new Error("An admin row carried no id");
@@ -128,10 +127,10 @@ function readAdminUser(raw: unknown): AdminUser {
   if (!isAdminRole(role)) {
     throw new Error("An admin row carried an unknown role");
   }
-  if (typeof isActive !== "boolean") {
+  if (status !== "active" && status !== "inactive") {
     throw new Error("An admin row carried no status");
   }
-  if (lastSignInAt !== null && typeof lastSignInAt !== "string") {
+  if (lastSignedInAt !== null && typeof lastSignedInAt !== "string") {
     throw new Error("An admin row carried an unreadable sign-in");
   }
   if (typeof createdAt !== "string") {
@@ -143,8 +142,8 @@ function readAdminUser(raw: unknown): AdminUser {
     name: typeof row.name === "string" ? row.name : "",
     email,
     role,
-    isActive,
-    lastSignInAt,
+    isActive: status === "active",
+    lastSignInAt: lastSignedInAt,
     createdAt,
     ...(row.isSelf === true ? { isSelf: true } : {}),
   };

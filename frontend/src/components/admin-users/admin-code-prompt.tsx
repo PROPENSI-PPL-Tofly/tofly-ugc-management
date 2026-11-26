@@ -24,12 +24,14 @@ const CHECK_FAILED = "Kode tidak bisa diperiksa. Coba lagi.";
 const ACTION_NAME: Record<SensitiveAction, string> = {
   role_change: "Mengubah peran",
   deactivate: "Menonaktifkan admin",
+  add_super_admin: "Menambah Super Admin",
+  reactivate_super_admin: "Mengaktifkan kembali Super Admin",
 };
 
 /**
- * The email-code prompt in front of a role change or a deactivation (AC 11). It sends a code
- * when it opens, checks the six digits, and hands the confirmed id back; the action itself
- * waits until then, so the page never changes a role or an account on an unchecked code.
+ * The email-code prompt in front of a sensitive change (AC 11). It sends a code when it opens,
+ * checks the six digits, and says until when the session is confirmed; the action itself waits
+ * until then, so the page never sends the change on an unchecked code.
  */
 export function AdminCodePrompt({
   action,
@@ -37,7 +39,7 @@ export function AdminCodePrompt({
   onCancel,
 }: {
   action: SensitiveAction;
-  onConfirmed: (confirmationId: string, expiresAt: string) => void;
+  onConfirmed: (expiresAt: string) => void;
   onCancel: () => void;
 }) {
   const formId = useId();
@@ -53,7 +55,7 @@ export function AdminCodePrompt({
     setProblem(null);
 
     try {
-      const outcome = await requestConfirmation(action);
+      const outcome = await requestConfirmation();
       setRequest(outcome);
       if (outcome.kind === "limited" || outcome.kind === "failed") {
         setProblem(outcome.message);
@@ -61,7 +63,7 @@ export function AdminCodePrompt({
     } finally {
       setBusy(false);
     }
-  }, [action]);
+  }, []);
 
   // One code per opening; a later one is the resend button's work. The request is queued a tick
   // after mounting so the opening render settles before it flips the prompt's busy state.
@@ -73,8 +75,7 @@ export function AdminCodePrompt({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const confirmationId = request?.kind === "sent" ? request.confirmationId : null;
-    if (!confirmationId) {
+    if (request?.kind !== "sent") {
       return;
     }
     if (!new RegExp(`^\\d{${CODE_LENGTH}}$`).test(code)) {
@@ -86,10 +87,10 @@ export function AdminCodePrompt({
     setProblem(null);
 
     try {
-      const outcome = await verifyConfirmation(confirmationId, code);
+      const outcome = await verifyConfirmation(code);
 
       if (outcome.kind === "confirmed") {
-        onConfirmed(confirmationId, outcome.expiresAt);
+        onConfirmed(outcome.expiresAt);
         return;
       }
 
@@ -101,8 +102,6 @@ export function AdminCodePrompt({
         );
       } else if (outcome.kind === "expired") {
         setProblem(EXPIRED);
-      } else if (outcome.kind === "limited") {
-        setProblem(outcome.message);
       } else {
         setProblem(CHECK_FAILED);
       }
