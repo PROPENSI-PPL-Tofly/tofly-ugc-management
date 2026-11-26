@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import type { AuditLogList, AuditLogRow, AuditLogState } from "@/lib/audit-log";
 import { AuditLogPanel } from "./audit-log-panel";
 
@@ -69,7 +69,7 @@ describe("AuditLogPanel", () => {
     renderPanel(list());
 
     expect(screen.getByTestId("filters")).toHaveAttribute("data-actors", "0");
-    expect(screen.getByText("Rina Wijaya")).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Log aktivitas" })).getByText("Rina Wijaya")).toBeInTheDocument();
   });
 
   it("fills the filter bar once the choices arrive", async () => {
@@ -97,8 +97,8 @@ describe("AuditLogPanel", () => {
     renderPanel(list());
 
     expect(screen.getByTestId("filters")).toHaveTextContent("2026-11-22");
-    expect(screen.getByRole("table", { name: "Log aktivitas" })).toBeInTheDocument();
-    expect(screen.getByText("Rina Wijaya")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Log aktivitas" });
+    expect(within(table).getByText("Rina Wijaya")).toBeInTheDocument();
   });
 
   it("counts the rows even when they fit on one page", () => {

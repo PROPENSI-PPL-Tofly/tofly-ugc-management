@@ -20,8 +20,18 @@ function entry(overrides: Partial<AuditLogRow> = {}): AuditLogRow {
   };
 }
 
+const COLUMNS = ["Waktu", "Aktor", "Kategori", "Aksi", "Target", "Perubahan"];
+
 function cellsOf(row = 1) {
   return within(screen.getAllByRole("row")[row]).getAllByRole("cell");
+}
+
+function table() {
+  return within(screen.getByRole("table", { name: "Log aktivitas" }));
+}
+
+function cards() {
+  return within(screen.getByRole("list", { name: "Log aktivitas" })).getAllByRole("listitem");
 }
 
 describe("AuditLogTable", () => {
@@ -77,17 +87,37 @@ describe("AuditLogTable", () => {
     expect(cellsOf()[4]).toHaveTextContent("Buffer Deadline");
   });
 
-  it("labels each cell for the phone layout", () => {
+  // Sonar S6843 on #232: the table keeps its own semantics, with no role written over them.
+  it("writes no role over the table's own elements", () => {
     render(<AuditLogTable rows={[entry()]} />);
 
-    expect(cellsOf().map((cell) => cell.getAttribute("data-label"))).toEqual([
-      "Waktu",
-      "Aktor",
-      "Kategori",
-      "Aksi",
-      "Target",
-      "Perubahan",
-    ]);
+    const table = screen.getByRole("table", { name: "Log aktivitas" });
+    expect(table).not.toHaveAttribute("role");
+    expect(table.querySelectorAll("thead, tbody, tr, th, td")).not.toHaveLength(0);
+    expect(table.querySelectorAll("thead[role], tbody[role], tr[role], th[role], td[role]")).toHaveLength(0);
+  });
+
+  // Below lg each entry is a card naming every column, instead of a table restyled as one.
+  it("lists each entry as a card naming every column for the phone layout", () => {
+    render(<AuditLogTable rows={[entry({ id: "one" }), entry({ id: "two" })]} />);
+
+    expect(cards()).toHaveLength(2);
+    const card = within(cards()[0]);
+    expect(card.getAllByRole("term").map((term) => term.textContent)).toEqual(COLUMNS);
+    const [time, actor, category, action, target, change] = card.getAllByRole("definition");
+    expect(time).toHaveTextContent("15 Nov 2026, 09.12 WIB");
+    expect(actor).toHaveTextContent("Rina Wijaya");
+    expect(category).toHaveTextContent("Pengaturan");
+    expect(action).toHaveTextContent("Ubah Buffer Deadline");
+    expect(target).toHaveTextContent("Buffer Deadline");
+    expect(change).toHaveTextContent("days: 7 → 5");
+  });
+
+  it("shows the table from lg up and the cards below it", () => {
+    render(<AuditLogTable rows={[entry()]} />);
+
+    expect(screen.getByRole("table", { name: "Log aktivitas" }).closest(".max-lg\\:hidden")).not.toBeNull();
+    expect(screen.getByRole("list", { name: "Log aktivitas" })).toHaveClass("lg:hidden");
   });
 
   it("puts the actor's name over their role", () => {
@@ -142,7 +172,7 @@ describe("AuditLogTable", () => {
       />,
     );
 
-    const toggle = screen.getByRole("button", { name: "2 perubahan" });
+    const toggle = table().getByRole("button", { name: "2 perubahan" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText(/Lama/)).not.toBeInTheDocument();
 
@@ -162,7 +192,7 @@ describe("AuditLogTable", () => {
     const several = { oldValues: { a: 1, b: 2 }, newValues: { a: 3, b: 4 } };
     render(<AuditLogTable rows={[entry({ id: "one", ...several }), entry({ id: "two", ...several })]} />);
 
-    const [first, second] = screen.getAllByRole("button", { name: "2 perubahan" });
+    const [first, second] = table().getAllByRole("button", { name: "2 perubahan" });
     fireEvent.click(first);
 
     expect(first).toHaveAttribute("aria-expanded", "true");
