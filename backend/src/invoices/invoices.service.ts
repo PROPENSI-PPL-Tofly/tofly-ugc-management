@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Paging } from '../creators/paging.js';
+import {
+  ADMIN_ACCOUNT_SELECT,
+  adminLabel,
+} from '../contents/content-event-actors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { InvoiceConfirmationFields } from './dto/invoice-confirmation.dto.js';
 import type {
@@ -17,14 +21,14 @@ import {
   type InvoiceRosterRepository,
 } from './invoice-roster.repository.js';
 import {
-  adjustmentDto,
   creatorName,
-  INVOICE_ADJUSTMENT_SELECT,
+  INVOICE_ADJUSTMENT_READ_SELECT,
   INVOICE_SELECT,
   type InvoiceContractRow,
   invoiceContractStatus,
   type InvoiceCreatorRow,
   listedContracts,
+  namedAdjustmentDto,
   periodNumber,
   type SavedInvoice,
   savedSnapshot,
@@ -104,6 +108,7 @@ interface SavedListing {
 /** A saved invoice with its adjustments, snapshot and the creator's moves, for one invoice view. */
 interface SavedLifecycle extends SavedInvoice {
   confirmations: InvoiceConfirmationFields;
+  finalizedBy: string | null;
 }
 
 /** Where an invoice has nothing left to do: paid, or cancelled by an early end (PBI-37). */
@@ -318,6 +323,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         formula: lifecycle?.snapshot
           ? (lifecycle.snapshot.formula ?? null)
           : formula,
+        finalizedBy: lifecycle?.finalizedBy ?? null,
       };
     });
   }
@@ -417,8 +423,9 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
         snapshot: true,
         acknowledged_at: true,
         paid_at: true,
+        finalizer: { select: ADMIN_ACCOUNT_SELECT },
         adjustments: {
-          select: INVOICE_ADJUSTMENT_SELECT,
+          select: INVOICE_ADJUSTMENT_READ_SELECT,
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         },
       },
@@ -428,9 +435,10 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     for (const invoice of persisted) {
       result.set(invoice.contract_id, {
-        adjustments: invoice.adjustments.map(adjustmentDto),
+        adjustments: invoice.adjustments.map(namedAdjustmentDto),
         snapshot: savedSnapshot(invoice.snapshot),
         confirmations: confirmationsOf(invoice),
+        finalizedBy: adminLabel(invoice.finalizer),
       });
     }
 
@@ -491,7 +499,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     const rows = await this.prisma.invoice_adjustments.findMany({
       where: { invoice_id: { in: ids } },
-      select: { ...INVOICE_ADJUSTMENT_SELECT, invoice_id: true },
+      select: { ...INVOICE_ADJUSTMENT_READ_SELECT, invoice_id: true },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     });
 
@@ -499,7 +507,7 @@ export class InvoicesService implements InvoiceLister, InvoiceDetailReader {
 
     for (const row of rows) {
       const list = byInvoice.get(row.invoice_id) ?? [];
-      list.push(adjustmentDto(row));
+      list.push(namedAdjustmentDto(row));
       byInvoice.set(row.invoice_id, list);
     }
 

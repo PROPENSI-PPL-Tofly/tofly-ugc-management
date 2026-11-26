@@ -83,6 +83,20 @@ describe('generateDeadlineSchedule', () => {
     expect(deadlines.at(-1)).toBe('2026-10-05');
   });
 
+  // PBI-23 AC: the H-n line moves with the configured buffer.
+  it('stops at the H-n line of the configured buffer', () => {
+    const deadlines = generateDeadlineSchedule({
+      ...defaultInput,
+      contractEnd: '2026-10-20',
+      bufferDays: 3,
+      intervalDays: 1,
+      quota: 100,
+    });
+
+    expect(deadlines[0]).toBe('2026-09-23');
+    expect(deadlines.at(-1)).toBe('2026-10-17');
+  });
+
   it('returns no deadlines when the first deadline would be after the contract ends', () => { // Test case for when the first deadline is after the contract end
     const deadlines = generateDeadlineSchedule({
       ...defaultInput,

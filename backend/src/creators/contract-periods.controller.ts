@@ -18,6 +18,10 @@ import {
   type PeriodKeeper,
 } from './contract-periods.service.js';
 import type { SavedPeriod } from './dto/contract-period.dto.js';
+import {
+  DeadlineBufferService,
+  type DeadlineBufferReader,
+} from '../deadline-buffer/deadline-buffer.service.js';
 
 type SignedIn = Pick<AdminRequest, 'principal'>;
 
@@ -31,6 +35,7 @@ type SignedIn = Pick<AdminRequest, 'principal'>;
 export class ContractPeriodsController {
   constructor(
     @Inject(ContractPeriodsService) private readonly periods: PeriodKeeper,
+    @Inject(DeadlineBufferService) private readonly buffer: DeadlineBufferReader,
   ) {}
 
   /** "Perpanjang Kontrak": a new period with its own invoice and Evergreen schedule. */
@@ -42,7 +47,9 @@ export class ContractPeriodsController {
   ): Promise<SavedPeriod> {
     const now = new Date();
     // The admin the guard signed in; absent only behind the local development stand-in.
-    return this.periods.create(id, checkNewPeriod(body, now), now, request.principal?.userId);
+    // The stored buffer (PBI-23 AC 22), read once for the request.
+    const terms = checkNewPeriod(body, now, await this.buffer.current());
+    return this.periods.create(id, terms, now, request.principal?.userId);
   }
 
   /** Changes a period that has not started; its Evergreen schedule is generated again. */
@@ -57,7 +64,7 @@ export class ContractPeriodsController {
     return this.periods.update(
       id,
       contractId,
-      checkNewPeriod(body, now),
+      checkNewPeriod(body, now, await this.buffer.current()),
       now,
       request.principal?.userId,
     );
@@ -69,7 +76,8 @@ export class ContractPeriodsController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('contractId', ParseUUIDPipe) contractId: string,
+    @Req() request: SignedIn,
   ): Promise<void> {
-    await this.periods.remove(id, contractId, new Date());
+    await this.periods.remove(id, contractId, new Date(), request.principal?.userId);
   }
 }

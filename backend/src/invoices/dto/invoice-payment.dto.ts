@@ -10,6 +10,12 @@ export interface PaymentProofDto {
   uploadedAt: string;
 }
 
+/** A proof as an invoice's reads answer it, with who sent it for the activity (PBI-23, 23.10). */
+export interface SavedPaymentProofDto extends PaymentProofDto {
+  /** The admin by their account's name, else its email. */
+  uploadedBy: string;
+}
+
 /** What an upload answers: the proof, and the status it moved the invoice to. */
 export interface UploadedPaymentProofDto extends PaymentProofDto {
   invoiceStatus: 'payment_uploaded';
@@ -20,7 +26,7 @@ export type CommentAuthorRole = 'admin' | 'creator';
 /** One comment, oldest first in a thread. */
 export interface InvoiceCommentDto {
   id: string;
-  /** The admin by their account's email; the contract's creator by name. */
+  /** The admin by their account's name, else its email; the contract's creator by name. */
   authorName: string;
   authorRole: CommentAuthorRole;
   text: string;
@@ -31,5 +37,5 @@ export interface InvoiceCommentDto {
 /** The payment part of a Rate & Invoicing row and of the invoice detail. */
 export interface InvoicePaymentFields {
   /** The proof the admin uploaded, or null before one is. */
-  paymentProof: PaymentProofDto | null;
+  paymentProof: SavedPaymentProofDto | null;
 }

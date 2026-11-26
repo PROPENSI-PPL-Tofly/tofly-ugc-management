@@ -43,11 +43,25 @@ function stubs() {
       findFirst: vi.fn(),
       findMany: vi.fn(),
     },
+    users: {
+      findUnique: vi.fn().mockResolvedValue({
+        name: 'Rani',
+        email: 'rani@example.com',
+        admin_role: 'admin',
+      }),
+    },
+    audit_logs: { create: vi.fn().mockResolvedValue({}) },
     // The transaction client is the same stub, so each test reads what ran inside it.
     $transaction: vi.fn(),
   };
   prisma.contracts.findUnique.mockResolvedValue({
     id: CONTRACT,
+    creators: {
+      id: CREATOR,
+      first_name: 'Rangga',
+      middle_name: null,
+      last_name: 'Pratama',
+    },
     invoice: { id: INVOICE, status: 'creator_acked' },
   });
   prisma.invoices.updateMany.mockResolvedValue({ count: 1 });
@@ -231,6 +245,56 @@ describe('PaymentProofService', () => {
       });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
+
+    // PBI-23 (SCRUM-295): "Invoice & Pembayaran" in Log Aktivitas (OWASP A09:2025).
+    describe('Log Aktivitas', () => {
+      it('records the status change and the file name only, by the admin, after the proof is saved', async () => {
+        await service.upload(CONTRACT, PROOF, ADMIN);
+
+        expect(prisma.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+          data: {
+            actor_user_id: ADMIN,
+            actor_name: 'Rani',
+            actor_role: 'admin',
+            category: 'invoice_pembayaran',
+            action: 'payment_proof_uploaded',
+            target_type: 'invoice',
+            target_id: INVOICE,
+            target_label: 'Invoice Rangga Pratama',
+            creator_id: CREATOR,
+            old_values: { status: 'creator_acked' },
+            new_values: {
+              status: 'payment_uploaded',
+              fileName: 'transfer-agustus.pdf',
+            },
+            note: null,
+          },
+        });
+        expect(
+          prisma.audit_logs.create.mock.invocationCallOrder[0],
+        ).toBeGreaterThan(
+          prisma.invoice_payment_proofs.create.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('records nothing when another upload got there first', async () => {
+        prisma.invoices.updateMany.mockResolvedValue({ count: 0 });
+
+        await refusalOf(service.upload(CONTRACT, PROOF, ADMIN));
+
+        expect(prisma.audit_logs.create).not.toHaveBeenCalled();
+      });
+
+      it('fails the upload when its entry cannot be written, and removes the stored file', async () => {
+        const failure = new Error('log failed');
+        prisma.audit_logs.create.mockRejectedValue(failure);
+
+        await expect(service.upload(CONTRACT, PROOF, ADMIN)).rejects.toBe(
+          failure,
+        );
+        expect(store.remove).toHaveBeenCalledExactlyOnceWith(KEY);
+      });
+    });
   });
 
   describe('open', () => {
@@ -314,6 +378,7 @@ describe('PaymentProofService', () => {
           file_name: 'a.pdf',
           uploaded_at: UPLOADED_AT,
           invoices: { contract_id: CONTRACT },
+          users: { name: 'Sinta Dewi', email: 'sinta.admin@tofly.id' },
         },
       ]);
 
@@ -333,6 +398,8 @@ describe('PaymentProofService', () => {
             file_name: true,
             uploaded_at: true,
             invoices: { select: { contract_id: true } },
+            // Who sent it, for the invoice's activity (PBI-23, 23.10); never their id.
+            users: { select: { name: true, email: true } },
           },
         },
       );
@@ -344,6 +411,7 @@ describe('PaymentProofService', () => {
               fileName: 'a.pdf',
               url: `/api/me/invoices/${CONTRACT}/payment-proof`,
               uploadedAt: '2026-10-20T03:00:00.000Z',
+              uploadedBy: 'Sinta Dewi',
             },
           ],
         ]),
@@ -351,6 +419,21 @@ describe('PaymentProofService', () => {
       expect(forAdmin.get(CONTRACT)?.url).toBe(
         `/api/invoices/${CONTRACT}/payment-proof`,
       );
+    });
+
+    it('names the admin who sent a proof by email while the account has no name', async () => {
+      prisma.invoice_payment_proofs.findMany.mockResolvedValue([
+        {
+          file_name: 'a.pdf',
+          uploaded_at: UPLOADED_AT,
+          invoices: { contract_id: CONTRACT },
+          users: { name: null, email: 'sinta.admin@tofly.id' },
+        },
+      ]);
+
+      const proofs = await service.forContracts([CONTRACT], 'admin');
+
+      expect(proofs.get(CONTRACT)?.uploadedBy).toBe('sinta.admin@tofly.id');
     });
 
     it('asks nothing for an empty page', async () => {

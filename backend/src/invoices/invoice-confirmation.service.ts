@@ -4,7 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import type { AuditAction } from '../audit/audit-actions.js';
+import { AuditLogger } from '../audit/audit-logger.js';
+import { joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type {
   AcknowledgedInvoiceDto,
@@ -22,7 +26,7 @@ import { nextDocumentNumber, type DocumentKind } from './invoice-number.js';
 // InvoiceCommandService (PBI-12), the payment proof in PaymentProofService (13.2).
 
 /** The database operations this service uses. */
-type ConfirmationTransaction = Pick<PrismaService, 'invoices' | '$queryRaw'>;
+type ConfirmationTransaction = Pick<PrismaService, 'invoices' | 'audit_logs' | '$queryRaw'>;
 
 export type InvoiceConfirmationClient = Pick<PrismaService, 'contracts' | 'invoices'> & {
   $transaction<T>(work: (tx: ConfirmationTransaction) => Promise<T>): Promise<T>;
@@ -32,6 +36,8 @@ export type InvoiceConfirmationClient = Pick<PrismaService, 'contracts' | 'invoi
 interface CreatorMove {
   from: InvoiceLifecycleStatus;
   to: InvoiceLifecycleStatus;
+  // What "Log Aktivitas" calls this move (PBI-23).
+  auditAction: AuditAction;
   /** Whether the state the invoice is in allows the move; throws the reason when not. */
   allowedFrom(state: InvoiceState): void;
   /** The document the move issues, and the column its number goes in (PBI-31). */
@@ -51,6 +57,7 @@ interface CreatorMove {
 const ACKNOWLEDGE: CreatorMove = {
   from: 'finalized',
   to: 'creator_acked',
+  auditAction: 'invoice_acknowledged',
   allowedFrom: (state) => state.assertCanAcknowledge(),
   // The invoice is issued once acknowledged: no adjustment can change it after.
   issues: { kind: 'invoice', column: 'invoice_number' },
@@ -63,6 +70,7 @@ const ACKNOWLEDGE: CreatorMove = {
 const CONFIRM_RECEIPT: CreatorMove = {
   from: 'payment_uploaded',
   to: 'paid',
+  auditAction: 'payment_confirmed',
   allowedFrom: (state) => state.assertCanConfirmReceipt(),
   issues: { kind: 'receipt', column: 'receipt_number' },
   stamp: (actorUserId, at) => ({ paid_at: at, paid_by: actorUserId }),
@@ -75,6 +83,9 @@ const LOST_MOVE = Symbol('LOST_MOVE');
 export class InvoiceConfirmationService {
   constructor(
     @Inject(PrismaService) private readonly prisma: InvoiceConfirmationClient,
+    @Optional()
+    @Inject(AuditLogger)
+    private readonly audit: AuditLogger = new AuditLogger(),
   ) {}
 
   /** The creator accepts the frozen amount: Finalized → Acknowledged. */
@@ -116,8 +127,15 @@ export class InvoiceConfirmationService {
       where: { id: contractId },
       select: {
         creator_id: true,
-        creators: { select: { user_id: true } },
-        invoice: { select: { status: true } },
+        creators: {
+          select: {
+            user_id: true,
+            first_name: true,
+            middle_name: true,
+            last_name: true,
+          },
+        },
+        invoice: { select: { id: true, status: true } },
       },
     });
 
@@ -137,6 +155,12 @@ export class InvoiceConfirmationService {
     // A contract nobody has adjusted or finalized has no invoice row yet: it is still running.
     move.allowedFrom(invoiceState(contract.invoice?.status ?? 'running'));
 
+    // Both moves start from a status only a saved invoice row can have, so the row exists here.
+    const invoiceId = contract.invoice!.id;
+    const creatorName = joinName(contract.creators);
+
+    // The move, its document number and its "Log Aktivitas" entry land or fail together
+    // (PBI-31, PBI-23, OWASP A09:2025).
     const moved = await this.prisma
       .$transaction(async (tx) => {
         const number = await nextDocumentNumber(tx, move.issues.kind, now);
@@ -152,6 +176,18 @@ export class InvoiceConfirmationService {
           // Rolls the number back with the transaction; answered below as a lost move.
           throw LOST_MOVE;
         }
+        await this.audit.record(tx, {
+          actor: {
+            userId: contract.creators.user_id,
+            name: creatorName,
+            role: 'creator',
+          },
+          action: move.auditAction,
+          target: { id: invoiceId, label: `Invoice ${creatorName}` },
+          creatorId,
+          oldValues: { status: move.from },
+          newValues: { status: move.to },
+        });
         return true;
       })
       .catch((error: unknown) => {

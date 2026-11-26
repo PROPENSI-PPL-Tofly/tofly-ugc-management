@@ -22,7 +22,7 @@ import {
 // creator with its status, the breakdown or its frozen snapshot (PBI-12), the proof link once
 // uploaded and the comment thread (13.1). The creator reads the same numbers the admin froze.
 
-/** An adjustment as the creator reads it: what and why, not which admin recorded it. */
+/** An adjustment as the creator reads it: what, why and who by name, never the admin's id. */
 export type CreatorAdjustmentDto = Omit<InvoiceAdjustmentDto, 'actorId'>;
 
 export type CreatorSnapshotDto = Omit<InvoiceSnapshotDto, 'adjustments'> & {
@@ -47,9 +47,17 @@ function forCreator({
   id,
   amount,
   reason,
+  actorName,
   createdAt,
 }: InvoiceAdjustmentDto): CreatorAdjustmentDto {
-  return { id, amount, reason, createdAt };
+  // A snapshot's copy carries no name: names are read live, never frozen.
+  return {
+    id,
+    amount,
+    reason,
+    ...(actorName !== undefined && { actorName }),
+    createdAt,
+  };
 }
 
 @Injectable()

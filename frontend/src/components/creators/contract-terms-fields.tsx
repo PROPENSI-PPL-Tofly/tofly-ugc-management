@@ -5,8 +5,8 @@ import { AmountInput } from "@/components/ui/amount-input";
 import { InfoTip } from "@/components/ui/info-tip";
 import { NUMERIC_INPUT, digitsOnly } from "@/components/ui/form-classes";
 import DeadlinePreview from "./deadline-preview";
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import {
-  BUFFER_DAYS,
   CONTRACT_TYPE_LABELS,
   contractDateLimits,
   scheduleDeadlines,
@@ -102,9 +102,9 @@ export type TermField = keyof ContractTermsInput;
  * The Evergreen calendar's state for a contract being filled in: what the admin unpicked or
  * added by hand, re-applied to whatever the terms now allow. Null until the terms can draw one.
  */
-export function useDeadlineAllocation(terms: ContractTermsInput, today: string) {
+export function useDeadlineAllocation(terms: ContractTermsInput, today: string, bufferDays: number) {
   const [picks, setPicks] = useState<SlotPicks>(NO_PICKS);
-  const schedule = scheduleDeadlines(terms, today);
+  const schedule = scheduleDeadlines(terms, today, bufferDays);
   const allocation =
     schedule === null
       ? null
@@ -115,11 +115,11 @@ export function useDeadlineAllocation(terms: ContractTermsInput, today: string) 
             firstAllowed: getBufferWindow({
               contractStart: terms.contractStart,
               today,
-              bufferDays: BUFFER_DAYS,
+              bufferDays,
             })
               .firstAllowedDate.toISOString()
               .slice(0, 10),
-            contractEnd: latestDeadline(terms.contractEnd),
+            contractEnd: latestDeadline(terms.contractEnd, bufferDays),
           },
           picks,
         );
@@ -148,7 +148,7 @@ export function ContractTermsFields({
   /** What the fixed rate means in this form: a first period's rate, or a renewal's. */
   fixedRateHint: string;
 }) {
-  const limits = contractDateLimits(terms, today);
+  const limits = contractDateLimits(terms, today, useDeadlineBuffer());
 
   return (
     <div className="grid gap-3.5 sm:grid-cols-2">
@@ -254,6 +254,7 @@ export function DeadlineSchedule({
   error?: string;
 }) {
   const remaining = allocation?.remaining ?? 0;
+  const bufferDays = useDeadlineBuffer();
 
   return (
     <>
@@ -266,9 +267,9 @@ export function DeadlineSchedule({
           <DeadlinePreview
             contractStart={terms.contractStart}
             contractEnd={terms.contractEnd}
-            lastDeadline={latestDeadline(terms.contractEnd)}
+            lastDeadline={latestDeadline(terms.contractEnd, bufferDays)}
             today={today}
-            bufferDays={BUFFER_DAYS}
+            bufferDays={bufferDays}
             autoDeadlines={allocation.auto}
             manualDeadlines={allocation.manual}
             allocatedCount={allocation.deadlines.length}

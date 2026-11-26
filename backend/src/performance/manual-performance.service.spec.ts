@@ -17,6 +17,14 @@ const NOW = new Date('2026-11-02T03:00:00.000Z');
 
 const TYPED = { views: 12400, likes: 830, comments: null, shares: 7 };
 
+const CREATOR_ID = '1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d';
+const CREATOR = {
+  id: CREATOR_ID,
+  first_name: 'Rangga',
+  middle_name: null,
+  last_name: 'Pratama',
+};
+
 function row(overrides: Partial<ManualLinkRow> = {}): ManualLinkRow {
   return {
     id: LINK_ID,
@@ -30,7 +38,7 @@ function row(overrides: Partial<ManualLinkRow> = {}): ManualLinkRow {
     contents: {
       contracts: {
         invoice: { status: 'running' },
-        creators: { social_accounts: [] },
+        creators: { ...CREATOR, social_accounts: [] },
       },
     },
     ...overrides,
@@ -42,6 +50,7 @@ function connected(): ManualLinkRow['contents'] {
     contracts: {
       invoice: { status: 'running' },
       creators: {
+        ...CREATOR,
         social_accounts: [
           {
             platform: 'instagram',
@@ -76,6 +85,7 @@ describe('ManualPerformanceService', () => {
     content_links: { findFirst: vi.fn(), updateMany: vi.fn() },
     content_events: { create: vi.fn() },
     users: { findUnique: vi.fn() },
+    audit_logs: { create: vi.fn() },
   };
   const prisma = {
     $transaction: vi.fn((work: (tx: typeof transaction) => unknown) =>
@@ -88,7 +98,12 @@ describe('ManualPerformanceService', () => {
     vi.clearAllMocks();
     transaction.content_links.findFirst.mockResolvedValue(row());
     transaction.content_links.updateMany.mockResolvedValue({ count: 1 });
-    transaction.users.findUnique.mockResolvedValue({ email: ADMIN_EMAIL });
+    transaction.users.findUnique.mockResolvedValue({
+      name: 'Sinta',
+      email: ADMIN_EMAIL,
+      admin_role: 'admin',
+    });
+    transaction.audit_logs.create.mockResolvedValue({});
   });
 
   it("locks the content's contract row before it reads the invoice, so it queues behind Finalize (AC 18)", async () => {
@@ -130,6 +145,7 @@ describe('ManualPerformanceService', () => {
           contracts: {
             invoice: { status: 'running' },
             creators: {
+              ...CREATOR,
               social_accounts: [
                 {
                   platform: 'tiktok',
@@ -173,12 +189,24 @@ describe('ManualPerformanceService', () => {
       state: 'manual',
       lastSyncedAt: null,
       manualAt: NOW.toISOString(),
-      manualBy: ADMIN_EMAIL,
+      manualBy: 'Sinta',
     });
     expect(transaction.users.findUnique).toHaveBeenCalledWith({
       where: { id: ADMIN_USER },
-      select: { email: true },
+      select: { name: true, email: true },
     });
+  });
+
+  // PBI-23, 23.10: the card names the admin as every later read of the link does.
+  it('answers with the name of the admin who typed the numbers', async () => {
+    transaction.users.findUnique.mockResolvedValue({
+      name: 'Sinta Dewi',
+      email: ADMIN_EMAIL,
+    });
+
+    const saved = await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW);
+
+    expect(saved.manualBy).toBe('Sinta Dewi');
   });
 
   // Corner: the local stand-in for sign-in has no admin account, so the numbers name no one.
@@ -283,6 +311,7 @@ describe('ManualPerformanceService', () => {
           contracts: {
             invoice: null,
             creators: {
+              ...CREATOR,
               social_accounts: [
                 {
                   platform: 'instagram',
@@ -310,7 +339,7 @@ describe('ManualPerformanceService', () => {
           contents: {
             contracts: {
               invoice: { status },
-              creators: { social_accounts: [] },
+              creators: { ...CREATOR, social_accounts: [] },
             },
           },
         }),
@@ -357,5 +386,63 @@ describe('ManualPerformanceService', () => {
       },
     });
     expect(transaction.content_events.create).not.toHaveBeenCalled();
+  });
+
+  // PBI-23 (SCRUM-295): "Creator & Kontrak" in Log Aktivitas (OWASP A09:2025).
+  describe('Log Aktivitas', () => {
+    it('records the old and new numbers and the platform, by the admin, after the link is saved', async () => {
+      transaction.content_links.findFirst.mockResolvedValue(
+        row({ views: 100, likes: 5, comments: 1, shares: 0 }),
+      );
+
+      await service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW);
+
+      expect(transaction.audit_logs.create).toHaveBeenCalledExactlyOnceWith({
+        data: {
+          actor_user_id: ADMIN_USER,
+          actor_name: 'Sinta',
+          actor_role: 'admin',
+          category: 'creator_kontrak',
+          action: 'manual_performance_saved',
+          target_type: 'content_link',
+          target_id: LINK_ID,
+          target_label: 'Link instagram Rangga Pratama',
+          creator_id: CREATOR_ID,
+          old_values: {
+            platform: 'instagram',
+            views: 100,
+            likes: 5,
+            comments: 1,
+            shares: 0,
+          },
+          new_values: { platform: 'instagram', ...TYPED },
+          note: null,
+        },
+      });
+      expect(
+        transaction.audit_logs.create.mock.invocationCallOrder[0],
+      ).toBeGreaterThan(
+        transaction.content_links.updateMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('records nothing when the link changed before the write', async () => {
+      transaction.content_links.updateMany.mockResolvedValue({ count: 0 });
+
+      await refusal(
+        service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
+      );
+
+      expect(transaction.audit_logs.create).not.toHaveBeenCalled();
+    });
+
+    it('fails the save when its entry cannot be written, so the numbers roll back', async () => {
+      const failure = new Error('log failed');
+      transaction.audit_logs.create.mockRejectedValue(failure);
+
+      await expect(
+        service.save(CONTENT_ID, 'instagram', TYPED, ADMIN_USER, NOW),
+      ).rejects.toBe(failure);
+    });
   });
 });
