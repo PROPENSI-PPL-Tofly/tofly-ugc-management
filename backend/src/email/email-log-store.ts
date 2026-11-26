@@ -28,8 +28,11 @@ export interface EmailLogStore {
   markNotReady(eventKey: string, recipient: string, at: Date): Promise<void>;
   /** Marks the row sending just before the mail server is asked (review on #253, AC 8). */
   startSending(eventKey: string, recipient: string, at: Date): Promise<void>;
-  /** The rows left sending for 30 minutes at `at`: they may have gone out, so they are closed. */
-  stuckSending(at: Date): Promise<LoggedEmail[]>;
+  /**
+   * Closes the rows left sending for 30 minutes at `at` as UnknownOutcome: they may have gone out,
+   * so they are never sent again. Answers how many it closed (review on #264).
+   */
+  closeStuckSending(at: Date): Promise<number>;
   /** The failed emails the 08:00 run may still try again at `at`, oldest first (11.3). */
   failedToRetry(at: Date): Promise<LoggedEmail[]>;
   /** Moves a retryable row to pending in one guarded update; false when another run got it. */
@@ -156,20 +159,23 @@ export class PrismaEmailLogStore implements EmailLogStore {
     });
   }
 
-  failedToRetry(at: Date): Promise<LoggedEmail[]> {
-    return this.read(retryable(at));
-  }
-
-  stuckSending(at: Date): Promise<LoggedEmail[]> {
-    return this.read({
-      status: 'sending',
-      updated_at: { lt: new Date(at.getTime() - STALE_PENDING_MS) },
+  async closeStuckSending(at: Date): Promise<number> {
+    // One statement for every stuck row, so the run reads nothing first and gets the count back.
+    const { count } = await this.prisma.email_log.updateMany({
+      where: { status: 'sending', updated_at: { lt: new Date(at.getTime() - STALE_PENDING_MS) } },
+      data: {
+        status: 'failed',
+        attempts: MAX_EMAIL_ATTEMPTS,
+        last_error: 'UnknownOutcome',
+        updated_at: at,
+      },
     });
+    return count;
   }
 
-  private async read(where: Prisma.email_logWhereInput): Promise<LoggedEmail[]> {
+  async failedToRetry(at: Date): Promise<LoggedEmail[]> {
     const rows = await this.prisma.email_log.findMany({
-      where,
+      where: retryable(at),
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       select: { event_key: true, template: true, recipient: true, payload: true },
     });
