@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Pill, type Tone } from "@/components/ui/pill";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
@@ -19,14 +19,11 @@ import {
 } from "@/lib/audit-log";
 import { EMPTY } from "@/lib/format";
 
-// From lg up a plain table; below it each row stacks into a card, and each cell prints its column
-// name from data-label, as Task Saya does.
+// From lg up a plain table; below it a list of cards, each naming every column. Two layouts
+// instead of one table restyled as cards, so neither needs a role written over its own (Sonar
+// S6843 on #232): a table whose display changes loses its semantics in some browsers.
 const HEAD = "px-5 py-3 font-semibold";
-const CELL = "px-5 py-3 align-top max-lg:block max-lg:px-0 max-lg:py-1";
-const LABELLED =
-  "max-lg:flex max-lg:items-start max-lg:gap-2 max-lg:before:w-20 max-lg:before:shrink-0 max-lg:before:text-xs max-lg:before:text-muted max-lg:before:content-[attr(data-label)]";
-
-const COLUMNS = ["Waktu", "Aktor", "Kategori", "Aksi", "Target", "Perubahan"] as const;
+const CELL = "px-5 py-3 align-top";
 
 const CATEGORY_TONES: Record<AuditCategory, Tone> = {
   akses_admin: "accent",
@@ -91,64 +88,92 @@ function ChangeCell({ row }: Readonly<{ row: AuditLogRow }>) {
   );
 }
 
+function ActorCell({ row }: Readonly<{ row: AuditLogRow }>) {
+  const actor = auditActorLines(row.actor);
+  return (
+    <div>
+      <p className="font-semibold">{actor.name}</p>
+      {actor.role ? <p className="text-xs text-muted">{actor.role}</p> : null}
+    </div>
+  );
+}
+
+function TargetCell({ row }: Readonly<{ row: AuditLogRow }>) {
+  const targetHref = auditTargetHref(row);
+  return targetHref ? (
+    <Link href={targetHref} className="font-semibold text-accent-deep hover:underline">
+      {row.targetLabel}
+    </Link>
+  ) : (
+    row.targetLabel
+  );
+}
+
+interface Column {
+  label: string;
+  className: string;
+  show(row: AuditLogRow): ReactNode;
+}
+
+// Each column once, in the Sprint 4 prototype's order, for the table and the cards alike.
+const COLUMNS: readonly Column[] = [
+  { label: "Waktu", className: "whitespace-nowrap", show: (row) => auditTimeLabel(row.occurredAt) },
+  { label: "Aktor", className: "", show: (row) => <ActorCell row={row} /> },
+  {
+    label: "Kategori",
+    className: "",
+    show: (row) => <Pill tone={CATEGORY_TONES[row.category]}>{AUDIT_CATEGORY_LABELS[row.category]}</Pill>,
+  },
+  { label: "Aksi", className: "font-semibold", show: (row) => auditActionLabel(row.action) },
+  { label: "Target", className: "wrap-anywhere", show: (row) => <TargetCell row={row} /> },
+  { label: "Perubahan", className: "", show: (row) => <ChangeCell row={row} /> },
+];
+
 // The table of "Log Aktivitas" (PBI-23, 23.7), with the rows already filtered and paged.
 export function AuditLogTable({ rows }: Readonly<{ rows: AuditLogRow[] }>) {
   return (
-    <ScrollFrame>
-      {/* Explicit roles: a table whose display changes can lose its semantics in some browsers. */}
-      <table role="table" className="w-full text-[13px] max-lg:block">
-        <caption className="sr-only">Log aktivitas</caption>
-        <thead role="rowgroup" className="max-lg:sr-only">
-          <tr role="row" className="border-b border-rule text-left text-muted">
-            {COLUMNS.map((column) => (
-              <th key={column} role="columnheader" scope="col" className={HEAD}>
-                {column}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3">
-          {rows.map((row) => {
-            const actor = auditActorLines(row.actor);
-            const targetHref = auditTargetHref(row);
-            return (
-              <tr
-                key={row.id}
-                role="row"
-                className="border-b border-rule max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
-              >
-                <td role="cell" data-label="Waktu" className={`${CELL} ${LABELLED} whitespace-nowrap`}>
-                  {auditTimeLabel(row.occurredAt)}
-                </td>
-                <td role="cell" data-label="Aktor" className={`${CELL} ${LABELLED}`}>
-                  <div>
-                    <p className="font-semibold">{actor.name}</p>
-                    {actor.role ? <p className="text-xs text-muted">{actor.role}</p> : null}
-                  </div>
-                </td>
-                <td role="cell" data-label="Kategori" className={`${CELL} ${LABELLED}`}>
-                  <Pill tone={CATEGORY_TONES[row.category]}>{AUDIT_CATEGORY_LABELS[row.category]}</Pill>
-                </td>
-                <td role="cell" data-label="Aksi" className={`${CELL} ${LABELLED} font-semibold`}>
-                  {auditActionLabel(row.action)}
-                </td>
-                <td role="cell" data-label="Target" className={`${CELL} ${LABELLED} wrap-anywhere`}>
-                  {targetHref ? (
-                    <Link href={targetHref} className="font-semibold text-accent-deep hover:underline">
-                      {row.targetLabel}
-                    </Link>
-                  ) : (
-                    row.targetLabel
-                  )}
-                </td>
-                <td role="cell" data-label="Perubahan" className={`${CELL} ${LABELLED}`}>
-                  <ChangeCell row={row} />
-                </td>
+    <>
+      <div className="max-lg:hidden">
+        <ScrollFrame>
+          <table className="w-full text-[13px]">
+            <caption className="sr-only">Log aktivitas</caption>
+            <thead>
+              <tr className="border-b border-rule text-left text-muted">
+                {COLUMNS.map((column) => (
+                  <th key={column.label} scope="col" className={HEAD}>
+                    {column.label}
+                  </th>
+                ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </ScrollFrame>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-rule">
+                  {COLUMNS.map((column) => (
+                    <td key={column.label} className={`${CELL} ${column.className}`}>
+                      {column.show(row)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollFrame>
+      </div>
+      <ul aria-label="Log aktivitas" className="flex flex-col gap-3 text-[13px] lg:hidden">
+        {rows.map((row) => (
+          <li key={row.id} className="rounded-(--radius-panel) border border-rule bg-surface px-4 py-3">
+            <dl className="flex flex-col gap-2">
+              {COLUMNS.map((column) => (
+                <div key={column.label} className="flex items-start gap-2">
+                  <dt className="w-20 shrink-0 text-xs text-muted">{column.label}</dt>
+                  <dd className={`min-w-0 ${column.className}`}>{column.show(row)}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
