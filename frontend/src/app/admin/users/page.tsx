@@ -12,7 +12,7 @@ import {
   parseAdminUserPage,
 } from "@/lib/admin-users";
 import { fetchAdminUsers } from "@/lib/admin-users.server";
-import { currentRole } from "@/lib/session.server";
+import { currentSession } from "@/lib/session.server";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +35,8 @@ export default async function AdminUsersPage({
 
   // The menu is hidden from an Admin, and a typed address must not show what the menu hides.
   // The backend refuses too; this is what the browser is shown (AC 3).
-  const role = await currentRole();
-  if (role !== "super_admin") {
+  const session = await currentSession();
+  if (!session?.isSuperAdmin) {
     notFound();
   }
 

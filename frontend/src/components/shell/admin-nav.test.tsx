@@ -1,12 +1,50 @@
 import { render, screen } from "@testing-library/react";
 import { usePathname } from "next/navigation";
 import { AdminNav } from "./admin-nav";
-import { AdminRoleProvider } from "./admin-role";
+import { SuperAdminProvider } from "./super-admin-context";
 import { expectPhoneTarget } from "@/test/touch-target";
 
 vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
 describe("AdminNav", () => {
+  // PBI-23 AC 1 and 3: the Super Admin menu stays hidden from everyone else.
+  it("adds Log Aktivitas for a Super Admin, as the sixth equal tile on a phone", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/log-aktivitas");
+
+    render(
+      <SuperAdminProvider isSuperAdmin>
+        <AdminNav />
+      </SuperAdminProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: "Log Aktivitas" });
+    expect(link).toHaveAttribute("href", "/admin/log-aktivitas");
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getAllByRole("link").at(-1)).toBe(link);
+    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-6");
+  });
+
+  it("hides Log Aktivitas from a regular Admin", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(
+      <SuperAdminProvider isSuperAdmin={false}>
+        <AdminNav />
+      </SuperAdminProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Log Aktivitas" })).not.toBeInTheDocument();
+  });
+
+  it("hides Log Aktivitas when nothing says who is signed in", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/creators");
+
+    render(<AdminNav />);
+
+    expect(screen.queryByRole("link", { name: "Log Aktivitas" })).not.toBeInTheDocument();
+  });
+
   it("marks the creator database as current on its own page and below it", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators/abc/content-plan");
 
@@ -162,9 +200,9 @@ describe("the Super Admin's extra place", () => {
   function renderAs(role: "admin" | "super_admin") {
     vi.mocked(usePathname).mockReturnValue("/admin/creators");
     render(
-      <AdminRoleProvider role={role}>
+      <SuperAdminProvider isSuperAdmin={role === "super_admin"}>
         <AdminNav />
-      </AdminRoleProvider>,
+      </SuperAdminProvider>,
     );
   }
 
@@ -175,13 +213,20 @@ describe("the Super Admin's extra place", () => {
     expect(screen.queryByRole("link", { name: "Pengguna Admin" })).toBeNull();
   });
 
-  it("adds Pengguna Admin beside them for a Super Admin", () => {
+  it("adds Pengguna Admin and Log Aktivitas beside them for a Super Admin", () => {
     renderAs("super_admin");
 
     expect(screen.getByRole("link", { name: "Pengguna Admin" })).toHaveAttribute(
       "href",
       "/admin/users",
     );
-    expect(screen.getAllByRole("link")).toHaveLength(5);
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Kreator",
+      "Content Plan",
+      "Performa Konten",
+      "Pembayaran",
+      "Pengguna Admin",
+      "Log Aktivitas",
+    ]);
   });
 });

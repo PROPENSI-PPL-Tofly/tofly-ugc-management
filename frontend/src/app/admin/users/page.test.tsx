@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { adminUser, listResponse } from "@/components/admin-users/admin.fixture";
 import { fetchAdminUsers } from "@/lib/admin-users.server";
-import { currentRole } from "@/lib/session.server";
+import { currentSession } from "@/lib/session.server";
 import AdminUsersPage from "./page";
 
 /** What Next throws to stop rendering and show the not-found screen. */
 class NotFound extends Error {}
 
 vi.mock("@/lib/admin-users.server", () => ({ fetchAdminUsers: vi.fn() }));
-vi.mock("@/lib/session.server", () => ({ currentRole: vi.fn() }));
+vi.mock("@/lib/session.server", () => ({ currentSession: vi.fn() }));
 
 let pageSearchParams = new URLSearchParams();
 
@@ -38,8 +38,8 @@ async function renderPage(params: Record<string, string | string[] | undefined> 
 
 describe("Pengguna Admin page", () => {
   beforeEach(() => {
-    vi.mocked(currentRole).mockReset();
-    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(currentSession).mockReset();
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
     vi.mocked(fetchAdminUsers).mockReset();
   });
 
@@ -92,8 +92,8 @@ describe("Pengguna Admin page", () => {
 
 describe("Pengguna Admin page states", () => {
   beforeEach(() => {
-    vi.mocked(currentRole).mockReset();
-    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(currentSession).mockReset();
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
     vi.mocked(fetchAdminUsers).mockReset();
   });
 
@@ -177,8 +177,8 @@ describe("Pengguna Admin page states", () => {
 
 describe("Pengguna Admin search", () => {
   beforeEach(() => {
-    vi.mocked(currentRole).mockReset();
-    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(currentSession).mockReset();
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
     vi.mocked(fetchAdminUsers).mockReset();
     vi.mocked(fetchAdminUsers).mockResolvedValue({
       kind: "loaded",
@@ -195,19 +195,19 @@ describe("Pengguna Admin search", () => {
 
 describe("Pengguna Admin gate", () => {
   beforeEach(() => {
-    vi.mocked(currentRole).mockReset();
+    vi.mocked(currentSession).mockReset();
     vi.mocked(fetchAdminUsers).mockReset();
   });
 
   it("gives an Admin the not-found page instead of the list, and asks for none", async () => {
-    vi.mocked(currentRole).mockResolvedValue("admin");
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false });
 
     await expect(renderPage()).rejects.toThrow(NotFound);
     expect(fetchAdminUsers).not.toHaveBeenCalled();
   });
 
   it("gives a signed-out visitor the not-found page too", async () => {
-    vi.mocked(currentRole).mockResolvedValue(null);
+    vi.mocked(currentSession).mockResolvedValue(null);
 
     await expect(renderPage()).rejects.toThrow(NotFound);
     expect(fetchAdminUsers).not.toHaveBeenCalled();
@@ -216,8 +216,8 @@ describe("Pengguna Admin gate", () => {
 
 describe("Pengguna Admin's way to add someone", () => {
   beforeEach(() => {
-    vi.mocked(currentRole).mockReset();
-    vi.mocked(currentRole).mockResolvedValue("super_admin");
+    vi.mocked(currentSession).mockReset();
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
     vi.mocked(fetchAdminUsers).mockReset();
     vi.mocked(fetchAdminUsers).mockResolvedValue({
       kind: "loaded",
