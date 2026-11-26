@@ -19,6 +19,7 @@ export default defineConfig({
       exclude: [
         'src/main.ts',
         'src/email/send-test-email-cli.ts',
+        'src/email/notifications/preview-notifications-cli.ts',
         // Nest wiring is proven by booting the app. The email sign-in modules (PBI-39) are measured
         // instead: they choose which adapter (Prisma, a fail-closed sender) a request really gets.
         'src/*.module.ts',
