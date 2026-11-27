@@ -231,7 +231,14 @@ export function myTasksAfterTabChange(state: MyTasksParams, tab: MyTaskTab): MyT
   return { ...state, tab, status: [], sort: DEFAULT_MY_TASKS_SORT, page: 1 };
 }
 
+/** A hand-in: what the creator sends from a form (a draft or the video links). */
 export type MyTaskAction = "submit_draft" | "resubmit_draft" | "submit_video";
+
+/**
+ * Every move the API can offer a creator: a hand-in, or withdrawing a pending proposal (PBI-14,
+ * 14.3), which is a confirmation and never opens a hand-in form.
+ */
+export type CreatorAction = MyTaskAction | "cancel_proposal";
 
 export interface MyTask {
   /** The id the draft and video endpoints take. */
@@ -245,7 +252,7 @@ export interface MyTask {
   /** Late, overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
   tags: ContentTag[];
   /** The buttons this row shows today, in display order; empty means none. */
-  actions: MyTaskAction[];
+  actions: CreatorAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
   /** When the admin last added a follow-up note to the open round (ISO instant), else null (PBI-33). */

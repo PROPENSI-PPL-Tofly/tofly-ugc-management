@@ -10,7 +10,7 @@ import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
 import type { Role } from "./session";
 import { METRICS, formatMetric, type MetricName } from "./link-performance";
-import type { MyTaskAction } from "./my-tasks";
+import type { CreatorAction } from "./my-tasks";
 import { PLATFORM_LABELS, linkEventTitle, type ContentLink, type Platform } from "./platform-links";
 import type { EditWindow } from "./content-edit";
 import { formatDate } from "./format";
@@ -107,7 +107,7 @@ export interface RawContentDetail {
   tags: ContentTag[];
   waitingOn: "admin" | "creator" | null;
   latestSubmissionId: string | null;
-  creatorActions: MyTaskAction[];
+  creatorActions: CreatorAction[];
   events: RawContentEvent[];
   /** The submitted links, one per platform (AC 11); absent in an answer that predates 38.1. */
   links?: ContentLink[];
