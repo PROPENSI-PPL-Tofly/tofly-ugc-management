@@ -19,9 +19,9 @@ import {
   reactivateAdmin,
   updateAdmin,
   type AdminSaveOutcome,
-  type SensitiveAction,
 } from "@/lib/admin-users-api";
 import { EditAdminModal } from "./edit-admin-modal";
+import type { WithConfirmation } from "./use-admin-confirmation";
 
 const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
@@ -37,13 +37,16 @@ export function AdminRowActions({
   onChanged,
 }: {
   user: AdminUser;
-  withConfirmation: (action: SensitiveAction, run: () => void) => void;
+  withConfirmation: WithConfirmation;
   onChanged: (message: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<AdminFailure | null>(null);
+
+  // A prompt closed without a code sends nothing, so the row stops waiting for an answer.
+  const stopWaiting = () => setSaving(false);
 
   function apply(result: AdminSaveOutcome, message: string, close: () => void) {
     setSaving(false);
@@ -71,7 +74,7 @@ export function AdminRowActions({
     };
 
     if (changedRole) {
-      withConfirmation("role_change", send);
+      withConfirmation("role_change", send, stopWaiting);
     } else {
       send();
     }
@@ -86,7 +89,7 @@ export function AdminRowActions({
       void deactivateAdmin(user.id).then((result) =>
         apply(result, "Admin dinonaktifkan.", () => setDeactivating(false)),
       );
-    });
+    }, stopWaiting);
   }
 
   function reactivate() {
@@ -99,7 +102,7 @@ export function AdminRowActions({
     };
 
     if (user.role === "super_admin") {
-      withConfirmation("reactivate_super_admin", send);
+      withConfirmation("reactivate_super_admin", send, stopWaiting);
     } else {
       send();
     }

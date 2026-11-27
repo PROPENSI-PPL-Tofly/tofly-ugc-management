@@ -59,7 +59,7 @@ describe("the Pengguna Admin row actions", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
 
     await waitFor(() => expect(deactivateAdmin).toHaveBeenCalledWith("u1"));
-    expect(withConfirmation).toHaveBeenCalledWith("deactivate", expect.any(Function));
+    expect(withConfirmation).toHaveBeenCalledWith("deactivate", expect.any(Function), expect.any(Function));
     expect(onChanged).toHaveBeenCalledWith("Admin dinonaktifkan.");
   });
 
@@ -75,7 +75,7 @@ describe("the Pengguna Admin row actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Aktifkan" }));
 
     await waitFor(() => expect(reactivateAdmin).toHaveBeenCalledWith("u1"));
-    expect(withConfirmation).toHaveBeenCalledWith("reactivate_super_admin", expect.any(Function));
+    expect(withConfirmation).toHaveBeenCalledWith("reactivate_super_admin", expect.any(Function), expect.any(Function));
     expect(onChanged).toHaveBeenCalledWith("Admin diaktifkan kembali.");
   });
 
@@ -109,7 +109,7 @@ describe("the Pengguna Admin row actions", () => {
         { name: "Rangga Pratama", role: "super_admin" },
       ),
     );
-    expect(withConfirmation).toHaveBeenCalledWith("role_change", expect.any(Function));
+    expect(withConfirmation).toHaveBeenCalledWith("role_change", expect.any(Function), expect.any(Function));
   });
 
   it("does not ask for a code when only the name changed", async () => {
