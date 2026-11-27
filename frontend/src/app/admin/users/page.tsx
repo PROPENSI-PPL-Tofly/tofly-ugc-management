@@ -58,7 +58,7 @@ export default async function AdminUsersPage({
 
   // One email confirmation for Tambah Admin and the rows, as the backend holds one per session.
   return (
-    <AdminConfirmationProvider>
+    <AdminConfirmationProvider confirmedUntil={result?.confirmedUntil ?? null}>
       <AppShell title="Pengguna Admin" action={<AddAdminTrigger />}>
         {invalid !== null ? (
           // Rendered as text: whatever was typed into the URL is shown back, never interpreted.

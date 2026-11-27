@@ -35,8 +35,18 @@ const SharedConfirmation = createContext<LiveUntil | null>(null);
  * Holds the one confirmation for the whole Pengguna Admin page. The backend confirms the session,
  * not a screen, so a code entered in Tambah Admin also covers the rows for the same 15 minutes.
  */
-export function AdminConfirmationProvider({ children }: { children: ReactNode }) {
-  const live = useState<number | null>(null);
+export function AdminConfirmationProvider({
+  children,
+  confirmedUntil = null,
+}: Readonly<{
+  children: ReactNode;
+  /** Until when the backend holds this session as confirmed, as the page loaded it (AC 11). */
+  confirmedUntil?: string | null;
+}>) {
+  const live = useState<number | null>(() => {
+    const moment = confirmedUntil === null ? Number.NaN : Date.parse(confirmedUntil);
+    return Number.isNaN(moment) ? null : moment;
+  });
   return <SharedConfirmation.Provider value={live}>{children}</SharedConfirmation.Provider>;
 }
 

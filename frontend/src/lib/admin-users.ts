@@ -85,6 +85,8 @@ export interface AdminUserListResponse {
   pageSize: number;
   total: number;
   totalPages: number;
+  /** ISO time the signed-in session stays confirmed until, or null (AC 11). */
+  confirmedUntil: string | null;
 }
 
 export const ROLE_LABELS: Record<AdminRole, string> = {
@@ -179,5 +181,6 @@ export function toAdminUserList(raw: unknown): AdminUserListResponse {
     pageSize,
     total,
     totalPages: Math.ceil(total / pageSize),
+    confirmedUntil: typeof answer.confirmedUntil === "string" ? answer.confirmedUntil : null,
   };
 }

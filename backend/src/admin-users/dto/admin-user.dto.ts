@@ -27,3 +27,9 @@ export interface AdminUserListResponse {
   activeCount: number;
   inactiveCount: number;
 }
+
+/** The list as the page gets it, with until when the caller's session stays confirmed. */
+export interface AdminUserListAnswer extends AdminUserListResponse {
+  /** ISO time; null when the session holds no live email-code confirmation (AC 11). */
+  confirmedUntil: string | null;
+}
