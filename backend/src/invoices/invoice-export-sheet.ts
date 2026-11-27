@@ -1,4 +1,4 @@
-// What the bulk export writes: a small real xlsx (OOXML in a ZIP) inside the response ZIP.
+// What the bulk export writes: a small real xlsx (OOXML in a ZIP), answered as the file itself.
 // Every figure comes from ExportSource, which the reader fills from the invoice's snapshot.
 import type { ZipEntry } from './zip-archive.js';
 
@@ -6,6 +6,8 @@ import type { ZipEntry } from './zip-archive.js';
 export interface ExportSource {
   id: string;
   status: string;
+  /** The number issued at finalize, the one its PDF carries; null for an older invoice without one. */
+  invoiceNumber: string | null;
   creatorName: string;
   creatorEmail: string;
   period: number;
@@ -21,6 +23,7 @@ export interface ExportSource {
     corrected: boolean;
   }[];
   total: number;
+  /** Jakarta days (YYYY-MM-DD), the day the admin and the creator saw the move happen. */
   finalizedAt: string | null;
   acknowledgedAt: string | null;
   paidAt: string | null;
@@ -77,28 +80,19 @@ export function formatRupiah(amount: number): string {
   return amount < 0 ? `-Rp${digits}` : `Rp${digits}`;
 }
 
-/** TOF-INV-YYYYMM-NNN: the month it was frozen and its place in this export. */
-export function invoiceNumber(
-  finalizedAt: string | null,
-  sequence: number,
-  today: Date,
-): string {
-  const day = finalizedAt ?? today.toISOString();
-  return `TOF-INV-${day.slice(0, 7).replace('-', '')}-${String(sequence).padStart(3, '0')}`;
-}
-
 function money(amount: number | null): string {
   return amount === null ? 'Menunggu data' : formatRupiah(amount);
 }
 
+/** The snapshot keeps a penalty as a positive amount; every screen shows it as a deduction. */
+function deduction(amount: number | null): number | null {
+  return amount === null || amount === 0 ? amount : -Math.abs(amount);
+}
+
 /** The screen's snapshot is the only source: no component is recomputed here. */
-export function toExportLine(
-  source: ExportSource,
-  sequence: number,
-  today: Date,
-): ExportLine {
+export function toExportLine(source: ExportSource): ExportLine {
   return {
-    invoiceNumber: invoiceNumber(source.finalizedAt, sequence, today),
+    invoiceNumber: source.invoiceNumber ?? '-',
     creatorName: source.creatorName,
     creatorEmail: source.creatorEmail,
     period: source.period,
@@ -108,7 +102,7 @@ export function toExportLine(
       `Fixed Rate: ${money(source.fixedRate)}`,
       `Fee Konten Tambahan: ${money(source.additionalContent)}`,
       `Bonus Performa: ${money(source.performanceBonus)}`,
-      `Penalti: ${money(source.penalty)}`,
+      `Penalti: ${money(deduction(source.penalty))}`,
     ].join('; '),
     adjustments:
       source.adjustments.length === 0
@@ -176,10 +170,7 @@ export function sheetXml(lines: readonly ExportLine[]): string {
 }
 
 /** The five parts Excel needs to open a sheet as an xlsx workbook. */
-export function xlsxFiles(
-  lines: readonly ExportLine[],
-  _today: Date,
-): ZipEntry[] {
+export function xlsxFiles(lines: readonly ExportLine[]): ZipEntry[] {
   return [
     {
       name: '[Content_Types].xml',

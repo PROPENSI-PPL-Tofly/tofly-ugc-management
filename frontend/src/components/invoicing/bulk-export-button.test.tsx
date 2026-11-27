@@ -6,9 +6,16 @@ vi.mock("@/lib/api-client", () => ({ apiFetch }));
 
 const IDS = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
 
-function response(body = "PK", disposition: string | null = "attachment; filename*=UTF-8''Rekap_Invoice_20260720.zip", ok = true) {
+function response(
+  body = "PK",
+  disposition: string | null = "attachment; filename*=UTF-8''Rekap_Invoice_20260720.xlsx",
+  ok = true,
+  status = ok ? 201 : 500,
+) {
   return {
     ok,
+    status,
+    json: vi.fn().mockImplementation(async () => JSON.parse(body)),
     blob: vi.fn().mockResolvedValue(new Blob([body])),
     headers: { get: (name: string) => (name === "content-disposition" ? disposition : null) },
   } as unknown as Response;
@@ -16,17 +23,17 @@ function response(body = "PK", disposition: string | null = "attachment; filenam
 
 describe("downloadFilename", () => {
   it("reads an encoded name, a quoted name, and falls back when there is none", () => {
-    expect(downloadFilename("attachment; filename*=UTF-8''Rekap_Invoice_20260720.zip")).toBe(
-      "Rekap_Invoice_20260720.zip",
+    expect(downloadFilename("attachment; filename*=UTF-8''Rekap_Invoice_20260720.xlsx")).toBe(
+      "Rekap_Invoice_20260720.xlsx",
     );
-    expect(downloadFilename('attachment; filename="Rekap_Invoice.zip"')).toBe(
-      "Rekap_Invoice.zip",
+    expect(downloadFilename('attachment; filename="Rekap_Invoice.xlsx"')).toBe(
+      "Rekap_Invoice.xlsx",
     );
-    expect(downloadFilename(null)).toBe("Rekap_Invoice.zip");
+    expect(downloadFilename(null)).toBe("Rekap_Invoice.xlsx");
     expect(downloadFilename("attachment; filename*=UTF-8''%E0%A4%A")).toBe(
-      "Rekap_Invoice.zip",
+      "Rekap_Invoice.xlsx",
     );
-    expect(downloadFilename("attachment")).toBe("Rekap_Invoice.zip");
+    expect(downloadFilename("attachment")).toBe("Rekap_Invoice.xlsx");
   });
 });
 
@@ -54,7 +61,7 @@ describe("BulkExportButton (31.5)", () => {
     expect(apiFetch).not.toHaveBeenCalled();
   });
 
-  it("posts the ticked ids and saves the ZIP the server streamed", async () => {
+  it("posts the ticked ids and saves the xlsx the server streamed", async () => {
     apiFetch.mockResolvedValue(response());
     const done = vi.fn();
     const { container } = render(
@@ -74,7 +81,7 @@ describe("BulkExportButton (31.5)", () => {
     expect(click).toHaveBeenCalledTimes(1);
     expect(revoke).toHaveBeenCalledWith("blob:rekap");
     expect(done).toHaveBeenCalledWith(
-      "Rekap_Invoice_20260720.zip diunduh (2 invoice).",
+      "Rekap_Invoice_20260720.xlsx diunduh (2 invoice).",
     );
   });
 
@@ -118,5 +125,48 @@ describe("BulkExportButton (31.5)", () => {
 
     await waitFor(() => expect(failed).toHaveBeenCalledTimes(1));
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("asks the server nothing when every ticked invoice would be skipped", async () => {
+    const done = vi.fn();
+    render(<BulkExportButton ids={IDS} exportable={0} onDone={done} onFailure={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (2)" }));
+
+    await waitFor(() =>
+      expect(done).toHaveBeenCalledWith("Tidak ada invoice yang bisa diunduh."),
+    );
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it("says so when the server finds nothing to export any more, and saves no file", async () => {
+    apiFetch.mockResolvedValue(
+      response(
+        JSON.stringify({ code: "INVOICE_EXPORT_EMPTY", message: "Tidak ada invoice yang bisa diunduh." }),
+        null,
+        false,
+        422,
+      ),
+    );
+    const failed = vi.fn();
+    render(<BulkExportButton ids={IDS} onDone={vi.fn()} onFailure={failed} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (2)" }));
+
+    await waitFor(() =>
+      expect(failed).toHaveBeenCalledWith("Tidak ada invoice yang bisa diunduh."),
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("keeps the generic message for any other refusal, even one without a JSON body", async () => {
+    apiFetch.mockResolvedValue(response("<html>", null, false, 422));
+    const failed = vi.fn();
+    render(<BulkExportButton ids={IDS} onDone={vi.fn()} onFailure={failed} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (2)" }));
+
+    await waitFor(() => expect(failed).toHaveBeenCalledWith("Gagal membuat rekap. Coba lagi."));
   });
 });

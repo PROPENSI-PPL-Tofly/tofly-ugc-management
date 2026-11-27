@@ -1,4 +1,4 @@
-import { INVOICE_STATUS_LABELS, invoiceTitle, type InvoiceStatus } from "@/lib/invoice";
+import { INVOICE_STATUS_LABELS, type InvoiceStatus } from "@/lib/invoice";
 
 /** The app's pipeline plus Cancelled, which the prototype can show for an ended contract. */
 export type SelectableStatus = InvoiceStatus | "cancelled";
@@ -12,7 +12,9 @@ export interface SelectableRow {
 }
 
 export interface SkippedInvoice {
+  /** The creator's name. */
   title: string;
+  /** "Periode X, Status", so two periods of one creator stay apart in the notice. */
   label: string;
 }
 
@@ -49,5 +51,8 @@ export function skippedInvoices(
 ): SkippedInvoice[] {
   return rows
     .filter((row) => selected.includes(row.contractId) && skippable(row.invoiceStatus))
-    .map((row) => ({ title: invoiceTitle(row), label: label(row.invoiceStatus) }));
+    .map((row) => ({
+      title: row.creatorName,
+      label: `Periode ${row.periodNumber}, ${label(row.invoiceStatus)}`,
+    }));
 }
