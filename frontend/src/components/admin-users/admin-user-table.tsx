@@ -19,12 +19,12 @@ import {
 } from "@/lib/admin-users";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
+import { ADMIN_CELL, ADMIN_ROW } from "./admin-table-classes";
 import { AdminRowActions } from "./admin-row-actions";
 import { useAdminConfirmation } from "./use-admin-confirmation";
 import Link from "next/link";
 
 const HEAD = "border-b border-rule px-5 pb-2 pt-3 text-left text-xs font-semibold text-muted";
-const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
 const ROLE_TONES: Record<AdminRole, Tone> = {
   super_admin: "accent",
@@ -132,26 +132,28 @@ export function AdminUserTable({
           </tr>
         </thead>
 
-        <tbody role="rowgroup">
+        <tbody role="rowgroup" className="max-lg:flex max-lg:flex-col max-lg:gap-3">
           {users.map((user) => {
             const status = adminUserStatus(user);
 
             return (
-              <tr key={user.id} role="row">
-                <td className={`${CELL} font-semibold text-ink`}>
-                  {adminUserDisplayName(user)}
+              <tr key={user.id} role="row" className={ADMIN_ROW}>
+                <td role="cell" data-label="Nama" className={`${ADMIN_CELL} font-semibold text-ink`}>
+                  <span className="min-w-0">{adminUserDisplayName(user)}</span>
                 </td>
-                <td className={`${CELL} wrap-anywhere text-ink-2`}>{user.email}</td>
-                <td className={CELL}>
+                <td role="cell" data-label="Email" className={`${ADMIN_CELL} text-ink-2`}>
+                  <span className="min-w-0 wrap-anywhere">{user.email}</span>
+                </td>
+                <td role="cell" data-label="Peran" className={ADMIN_CELL}>
                   <Pill tone={ROLE_TONES[user.role]}>{ROLE_LABELS[user.role]}</Pill>
                 </td>
-                <td className={CELL}>
+                <td role="cell" data-label="Status" className={ADMIN_CELL}>
                   <StatusDot tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</StatusDot>
                 </td>
-                <td className={`${CELL} whitespace-nowrap text-ink-2`}>
+                <td role="cell" data-label="Terakhir masuk" className={`${ADMIN_CELL} whitespace-nowrap text-ink-2`}>
                   {formatTimestamp(user.lastSignInAt)}
                 </td>
-                <td className={`${CELL} whitespace-nowrap text-ink-2`}>
+                <td role="cell" data-label="Ditambahkan" className={`${ADMIN_CELL} whitespace-nowrap text-ink-2`}>
                   {formatJakartaDay(user.createdAt)}
                 </td>
                 <AdminRowActions

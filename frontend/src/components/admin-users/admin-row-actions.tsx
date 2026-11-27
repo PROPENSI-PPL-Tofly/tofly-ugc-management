@@ -20,10 +20,10 @@ import {
   updateAdmin,
   type AdminSaveOutcome,
 } from "@/lib/admin-users-api";
+import { ADMIN_CELL } from "./admin-table-classes";
 import { EditAdminModal } from "./edit-admin-modal";
 import type { WithConfirmation } from "./use-admin-confirmation";
 
-const CELL = "border-b border-rule-2 px-5 py-3 align-top text-[13px]";
 
 /**
  * The actions at the end of one admin's row (AC 6 to AC 11). A role change waits for the email
@@ -109,7 +109,7 @@ export function AdminRowActions({
   }
 
   return (
-    <td className={CELL}>
+    <td role="cell" data-label="Aksi" className={`${ADMIN_CELL} max-lg:flex-wrap`}>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
