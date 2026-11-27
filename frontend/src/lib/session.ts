@@ -7,8 +7,8 @@ export type Role = "admin" | "creator" | "super_admin";
 export const APP_NAME = "Tofly Creator Management System";
 
 const HOME: Record<Role, string> = {
-  admin: "/admin/creators",
-  super_admin: "/admin/creators",
+  admin: "/admin/dashboard",
+  super_admin: "/admin/dashboard",
   creator: "/creator/dashboard",
 };
 

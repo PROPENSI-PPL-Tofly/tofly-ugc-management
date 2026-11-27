@@ -57,7 +57,7 @@ describe("AppShell", () => {
         </AppShell>,
     );
 
-    expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).toHaveAttribute("href", "/admin/creators");
+    expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).toHaveAttribute("href", "/admin/dashboard");
     expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
   });
 

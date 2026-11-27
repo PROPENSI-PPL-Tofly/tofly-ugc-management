@@ -61,9 +61,9 @@ describe("Log Aktivitas page", () => {
 
     expect(screen.getByRole("heading", { name: "Akses ditolak" })).toBeInTheDocument();
     expect(screen.getByText("Halaman ini hanya untuk Super Admin.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Kembali ke Kreator" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kembali ke Dashboard" })).toHaveAttribute(
       "href",
-      "/admin/creators",
+      "/admin/dashboard",
     );
     expect(load).not.toHaveBeenCalled();
     expect(loadOptions).not.toHaveBeenCalled();

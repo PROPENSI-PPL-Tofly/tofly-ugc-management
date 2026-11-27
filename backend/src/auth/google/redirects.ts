@@ -7,7 +7,7 @@ export type SignInError = 'not_authorized' | 'sign_in_failed' | 'cancelled';
 // so the callback cannot be turned into an open redirect. Each is the role's home as the
 // frontend names it (lib/session.ts), so signing in lands where `/` and the wordmark lead.
 const LANDING: Record<Principal['role'], string> = {
-  admin: '/admin/creators',
+  admin: '/admin/dashboard',
   creator: '/creator/dashboard',
 };
 
