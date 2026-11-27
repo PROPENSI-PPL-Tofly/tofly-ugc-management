@@ -16,9 +16,18 @@ import {
   quotaProblem,
   usernameLock,
 } from './creator-edit-policy.js';
-import { invalidEdit, type CreatorEdit, type NameColumns, type TermsEdit } from './creator-edit.js';
+import {
+  invalidEdit,
+  type CreatorEdit,
+  type NameColumns,
+  type TermsEdit,
+} from './creator-edit.js';
 import { joinName } from './evergreen.js';
-import { SOCIAL_PLATFORMS, USERNAME_FIELDS, type NewCreatorErrors } from './new-creator.js';
+import {
+  SOCIAL_PLATFORMS,
+  USERNAME_FIELDS,
+  type NewCreatorErrors,
+} from './new-creator.js';
 import { submittedPlatforms } from './submitted-platforms.js';
 
 /** The creator with everything an edit is compared with and judged against. */
@@ -28,7 +37,9 @@ const EDITED_CREATOR = {
   middle_name: true,
   last_name: true,
   users: { select: { email: true, is_admin: true } },
-  social_accounts: { select: { platform: true, username: true, ...CONNECTION_COLUMNS } },
+  social_accounts: {
+    select: { platform: true, username: true, ...CONNECTION_COLUMNS },
+  },
   contracts: {
     orderBy: { start_date: 'asc' },
     select: {
@@ -45,7 +56,9 @@ const EDITED_CREATOR = {
   },
 } satisfies Prisma.creatorsSelect;
 
-type EditedCreator = Prisma.creatorsGetPayload<{ select: typeof EDITED_CREATOR }>;
+type EditedCreator = Prisma.creatorsGetPayload<{
+  select: typeof EDITED_CREATOR;
+}>;
 type EditedPeriod = EditedCreator['contracts'][number];
 
 type EditTransaction = Pick<
@@ -110,26 +123,36 @@ function isoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function identityChanges(creator: EditedCreator, edit: CreatorEdit): IdentityChanges {
+function identityChanges(
+  creator: EditedCreator,
+  edit: CreatorEdit,
+): IdentityChanges {
   const usernames = SOCIAL_PLATFORMS.flatMap((platform): UsernameChange[] => {
     const typed = edit.usernames[platform];
     if (typed === undefined) return [];
     const from =
-      creator.social_accounts.find((account) => account.platform === platform)?.username ?? null;
+      creator.social_accounts.find((account) => account.platform === platform)
+        ?.username ?? null;
     const to = typed === '' ? null : typed;
     return from === to ? [] : [{ platform, from, to }];
   });
 
   return {
-    ...(edit.name && joinName(edit.name) !== joinName(creator) && { name: edit.name }),
+    ...(edit.name &&
+      joinName(edit.name) !== joinName(creator) && { name: edit.name }),
     // users.email is citext: another case is the same address.
     ...(edit.email !== undefined &&
-      edit.email.toLowerCase() !== creator.users.email.toLowerCase() && { email: edit.email }),
+      edit.email.toLowerCase() !== creator.users.email.toLowerCase() && {
+        email: edit.email,
+      }),
     usernames,
   };
 }
 
-function periodChanges(creator: EditedCreator, edit: CreatorEdit): PeriodChanges | null {
+function periodChanges(
+  creator: EditedCreator,
+  edit: CreatorEdit,
+): PeriodChanges | null {
   if (edit.contractId === undefined) return null;
   const index = creator.contracts.findIndex(({ id }) => id === edit.contractId);
   // Another creator's contract is a 404 like a missing one, so an id never says whose it is.
@@ -146,16 +169,22 @@ function periodChanges(creator: EditedCreator, edit: CreatorEdit): PeriodChanges
     period,
     number: index + 1,
     terms: {
-      ...(contractType !== undefined && contractType !== period.contract_type && { contractType }),
-      ...(fixedRate !== undefined && !period.fixed_rate.equals(fixedRate) && { fixedRate }),
-      ...(contractEnd && contractEnd.getTime() !== period.end_date.getTime() && { contractEnd }),
+      ...(contractType !== undefined &&
+        contractType !== period.contract_type && { contractType }),
+      ...(fixedRate !== undefined &&
+        !period.fixed_rate.equals(fixedRate) && { fixedRate }),
+      ...(contractEnd &&
+        contractEnd.getTime() !== period.end_date.getTime() && { contractEnd }),
       ...(quota !== undefined && quota !== period.content_quota && { quota }),
     },
   };
 }
 
 /** Each changed identity field as it was and as it is now, under the form's names. */
-function identityValues(creator: EditedCreator, changes: IdentityChanges): [Values, Values] {
+function identityValues(
+  creator: EditedCreator,
+  changes: IdentityChanges,
+): [Values, Values] {
   const before: Values = {};
   const after: Values = {};
   if (changes.name) {
@@ -182,11 +211,17 @@ function termValues({ period, terms }: PeriodChanges): [Values, Values] {
     quota: period.content_quota,
   };
   const before = Object.fromEntries(
-    Object.keys(terms).map((field) => [field, stored[field as keyof TermsEdit]]),
+    Object.keys(terms).map((field) => [
+      field,
+      stored[field as keyof TermsEdit],
+    ]),
   );
   return [
     before,
-    { ...terms, ...(terms.contractEnd && { contractEnd: isoDay(terms.contractEnd) }) },
+    {
+      ...terms,
+      ...(terms.contractEnd && { contractEnd: isoDay(terms.contractEnd) }),
+    },
   ];
 }
 
@@ -205,17 +240,23 @@ function assertTermsAllowed(
   }
 
   const errors: NewCreatorErrors = {};
-  const endProblem = terms.contractEnd && contractEndProblem(terms.contractEnd, period, periods);
+  const endProblem =
+    terms.contractEnd && contractEndProblem(terms.contractEnd, period, periods);
   if (endProblem) errors.contractEnd = endProblem;
   const shortQuota =
-    terms.quota === undefined ? undefined : quotaProblem(terms.quota, period._count.contents);
+    terms.quota === undefined
+      ? undefined
+      : quotaProblem(terms.quota, period._count.contents);
   if (shortQuota) errors.quota = shortQuota;
   if (Object.keys(errors).length > 0) throw invalidEdit(errors);
 }
 
 // users.email is the only unique column of users this update can collide on.
 function isEmailTaken(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
 }
 
 /**
@@ -229,7 +270,8 @@ export class CreatorEditService implements CreatorEditor {
   constructor(
     @Inject(PrismaService) private readonly prisma: CreatorEditClient,
     @Inject(CREATOR_EDIT_AUDIT) private readonly audit: CreatorEditAudit,
-    @Inject(CREATOR_EDIT_NOTIFIER) private readonly notifier: CreatorEditNotifier,
+    @Inject(CREATOR_EDIT_NOTIFIER)
+    private readonly notifier: CreatorEditNotifier,
   ) {}
 
   async edit(
@@ -268,7 +310,10 @@ export class CreatorEditService implements CreatorEditor {
       if (contract && termFields.length > 0) {
         await this.audit.recordBy(tx, adminUserId, {
           action: 'period_changed',
-          target: { id: contract.period.id, label: `${label} · Periode ${contract.number}` },
+          target: {
+            id: contract.period.id,
+            label: `${label} · Periode ${contract.number}`,
+          },
           creatorId,
           oldValues: oldTerms,
           newValues: newTerms,
@@ -282,7 +327,10 @@ export class CreatorEditService implements CreatorEditor {
   }
 
   /** Locks before reading, in one order, so no edit, Finalize, hand-in or early end interleaves. */
-  private async lockAndRead(tx: EditTransaction, creatorId: string): Promise<EditedCreator> {
+  private async lockAndRead(
+    tx: EditTransaction,
+    creatorId: string,
+  ): Promise<EditedCreator> {
     await tx.$queryRaw(
       Prisma.sql`SELECT id FROM creators WHERE id = ${creatorId}::uuid FOR UPDATE`,
     );
@@ -309,14 +357,21 @@ export class CreatorEditService implements CreatorEditor {
     { email, usernames }: IdentityChanges,
   ): Promise<void> {
     if (email !== undefined && creator.users.is_admin) {
-      throw invalidEdit({ email: 'Email akun Admin tidak bisa diubah dari sini' });
+      throw invalidEdit({
+        email: 'Email akun Admin tidak bisa diubah dari sini',
+      });
     }
     if (usernames.length === 0) return;
 
     const submitted = await submittedPlatforms(tx, creatorId);
     for (const { platform } of usernames) {
-      const account = creator.social_accounts.find((row) => row.platform === platform);
-      assertUsernameEditable(usernameLock(account, submitted.has(platform)), platform);
+      const account = creator.social_accounts.find(
+        (row) => row.platform === platform,
+      );
+      assertUsernameEditable(
+        usernameLock(account, submitted.has(platform)),
+        platform,
+      );
     }
   }
 
@@ -328,10 +383,14 @@ export class CreatorEditService implements CreatorEditor {
     now: Date,
   ): Promise<void> {
     if (name) {
-      await tx.creators.update({ where: { id: creatorId }, data: { ...name, updated_at: now } });
+      await tx.creators.update({
+        where: { id: creatorId },
+        data: { ...name, updated_at: now },
+      });
     }
     if (email !== undefined) await this.saveEmail(tx, creator, email, now);
-    for (const change of usernames) await this.saveUsername(tx, creatorId, change, now);
+    for (const change of usernames)
+      await this.saveUsername(tx, creatorId, change, now);
   }
 
   /** The address is the whitelist: from here on only the new one signs in (OWASP A07). */
@@ -342,13 +401,20 @@ export class CreatorEditService implements CreatorEditor {
     now: Date,
   ): Promise<void> {
     await tx.users
-      .update({ where: { id: creator.user_id }, data: { email, updated_at: now } })
+      .update({
+        where: { id: creator.user_id },
+        data: { email, updated_at: now },
+      })
       .catch((error: unknown) => {
-        throw isEmailTaken(error) ? invalidEdit({ email: 'Email sudah terdaftar' }) : error;
+        throw isEmailTaken(error)
+          ? invalidEdit({ email: 'Email sudah dipakai' })
+          : error;
       });
     await tx.app_sessions.deleteMany({ where: { userId: creator.user_id } });
     await tx.login_codes.deleteMany({
-      where: { email: { in: [creator.users.email.toLowerCase(), email.toLowerCase()] } },
+      where: {
+        email: { in: [creator.users.email.toLowerCase(), email.toLowerCase()] },
+      },
     });
   }
 
@@ -424,7 +490,10 @@ export class CreatorEditService implements CreatorEditor {
     });
   }
 
-  private async notify(creatorId: string, { period, terms }: PeriodChanges): Promise<void> {
+  private async notify(
+    creatorId: string,
+    { period, terms }: PeriodChanges,
+  ): Promise<void> {
     if (terms.contractEnd) {
       await this.notifier.contractEndChanged({
         creatorId,
@@ -433,7 +502,11 @@ export class CreatorEditService implements CreatorEditor {
       });
     }
     if (terms.quota !== undefined) {
-      await this.notifier.quotaChanged({ creatorId, contractId: period.id, quota: terms.quota });
+      await this.notifier.quotaChanged({
+        creatorId,
+        contractId: period.id,
+        quota: terms.quota,
+      });
     }
   }
 }

@@ -174,7 +174,11 @@ export interface OnboardingClient {
 
 /** What the Add Creator endpoint needs, so it can inject or stub onboarding by contract. */
 export interface CreatorOnboarder {
-  onboard(input: NewCreator, now?: Date, adminUserId?: string): Promise<OnboardedCreator>;
+  onboard(
+    input: NewCreator,
+    now?: Date,
+    adminUserId?: string,
+  ): Promise<OnboardedCreator>;
 }
 
 @Injectable()
@@ -192,7 +196,10 @@ export class CreatorOnboardingService implements CreatorOnboarder {
     },
     @Optional()
     @Inject(CREATOR_NOTIFIER)
-    private readonly notifier: Pick<CreatorNotifier, 'accountReady'> = noCreatorEmail,
+    private readonly notifier: Pick<
+      CreatorNotifier,
+      'accountReady'
+    > = noCreatorEmail,
   ) {}
 
   /**
@@ -232,7 +239,7 @@ export class CreatorOnboardingService implements CreatorOnboarder {
       })
       .catch((error: unknown) => {
         throw isEmailTaken(error)
-          ? invalid({ email: 'Email sudah terdaftar' })
+          ? invalid({ email: 'Email sudah dipakai' })
           : error;
       });
 

@@ -201,7 +201,7 @@ export function validateCreatorForm(
   } else if (!EMAIL_FORMAT.test(input.email)) {
     errors.email = "Format email tidak valid";
   } else if (existingEmails.includes(input.email)) {
-    errors.email = "Email sudah terdaftar";
+    errors.email = "Email sudah dipakai";
   }
 
   Object.assign(errors, validateContractTerms(input, today, bufferDays));
