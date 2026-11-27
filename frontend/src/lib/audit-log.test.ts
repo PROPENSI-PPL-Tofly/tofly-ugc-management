@@ -16,6 +16,7 @@ import {
   buildAuditLogQuery,
   keepActionsInCategories,
   parseAuditLogParams,
+  type AuditAction,
 } from "./audit-log";
 import { EMPTY, formatDate } from "./format";
 
@@ -417,14 +418,53 @@ describe("auditChangeShown", () => {
     ["shares", "1", "2", "Shares", "1", "2"],
     ["quota", "4", "6", "Kuota", "4", "6"],
     ["interval", "7", "14", "Interval (hari)", "7", "14"],
-    ["contractType", "a", "b", "Tipe Kontrak", "a", "b"],
-    ["platform", "tiktok", "instagram", "Platform", "tiktok", "instagram"],
+    ["contractType", "regular", "probation", "Tipe Kontrak", "Regular", "Probation"],
+    ["platform", "tiktok", "instagram", "Platform", "TikTok", "Instagram"],
     ["fileName", EMPTY, "bukti.pdf", "Nama File", EMPTY, "bukti.pdf"],
     ["name", "Lama", "Baru", "Nama", "Lama", "Baru"],
     ["email", "a@x.id", "b@x.id", "Email", "a@x.id", "b@x.id"],
-    ["socialAccounts", "[1]", "[2]", "Akun Sosial", "[1]", "[2]"],
-    ["contract", "{}", '{"a":1}', "Kontrak", "{}", '{"a":1}'],
-    ["performanceBonus", "{}", '{"a":1}', "Bonus Performa", "{}", '{"a":1}'],
+    // QA: these were shown as stored, key and value alike (role: admin → super_admin).
+    ["role", EMPTY, "admin", "Peran", EMPTY, "Admin"],
+    ["role", "admin", "super_admin", "Peran", "Admin", "Super Admin"],
+    ["status", "active", "inactive", "Status", "Aktif", "Nonaktif"],
+    ["status", "running", "cancelled", "Status", "Berjalan", "Cancelled"],
+    ["bufferDays", "5", "7", "Buffer Deadline", "5 hari", "7 hari"],
+    ["contractEnd", "2027-03-01", "2027-04-01", "Akhir Kontrak", "1 Mar 2027", "1 Apr 2027"],
+    ["reason", EMPTY, "violation", "Alasan", EMPTY, "Pelanggaran Kontrak"],
+    ["reason", EMPTY, "other", "Alasan", EMPTY, "Lainnya"],
+    ["invoice", EMPTY, "cancel", "Invoice", EMPTY, "Batalkan Invoice"],
+    ["invoice", EMPTY, "pay", "Invoice", EMPTY, "Bayar Sesuai Kontrak"],
+    ["upcomingPeriods", EMPTY, "keep", "Periode Belum Dimulai", EMPTY, "Pertahankan"],
+    ["upcomingPeriods", EMPTY, "delete", "Periode Belum Dimulai", EMPTY, "Hapus"],
+    ["keptPeriods", EMPTY, "[2,3]", "Periode Dipertahankan", EMPTY, "Periode 2, Periode 3"],
+    ["deletedPeriods", EMPTY, "[]", "Periode Dihapus", EMPTY, EMPTY],
+    ["closedContents", EMPTY, "1", "Konten Ditutup", EMPTY, "1 konten"],
+    ["instagramUsername", "lama", "baru", "Username Instagram", "@lama", "@baru"],
+    ["tiktokUsername", "adit.tt", EMPTY, "Username TikTok", "@adit.tt", EMPTY],
+    [
+      "socialAccounts",
+      EMPTY,
+      '[{"platform":"instagram","username":"rangga"},{"platform":"tiktok","username":"rg"}]',
+      "Akun Sosial",
+      EMPTY,
+      "Instagram @rangga, TikTok @rg",
+    ],
+    [
+      "contract",
+      EMPTY,
+      '{"contractId":"k1","contractType":"regular","endDate":"2027-02-15","fixedRate":500000,"interval":14,"quota":6,"startDate":"2026-08-19"}',
+      "Kontrak",
+      EMPTY,
+      "Regular · 19 Agu 2026 – 15 Feb 2027 · 6 konten · Rp500.000",
+    ],
+    [
+      "performanceBonus",
+      EMPTY,
+      '{"instagram":{"metric":"views","tiers":[{"min":1000,"bonus":50000}]},"tiktok":{"metric":null,"tiers":[]}}',
+      "Bonus Performa",
+      EMPTY,
+      "Instagram: views, 1 tingkat · TikTok: belum diatur",
+    ],
   ])("reads %s from %s to %s", (field, from, to, label, shownFrom, shownTo) => {
     expect(shown(field, from, to)).toEqual({ label, from: shownFrom, to: shownTo });
   });
@@ -447,6 +487,96 @@ describe("auditChangeShown", () => {
 
   it("keeps a field it does not know under its own name", () => {
     expect(shown("days", "7", "5")).toEqual({ label: "days", from: "7", to: "5" });
+  });
+});
+
+// Every action the backend logs, with the fields its callers write (backend/src/**: recordBy).
+// A field added there without a name here fails this test instead of reaching the page raw.
+const ENTRY_PER_ACTION: Record<AuditAction, [Record<string, unknown> | null, Record<string, unknown>]> = {
+  admin_added: [null, { name: "Budi", email: "b@x.id", role: "admin" }],
+  admin_changed: [{ name: "Budi", role: "admin" }, { name: "Budi QA", role: "super_admin" }],
+  admin_deactivated: [{ status: "active" }, { status: "inactive" }],
+  admin_reactivated: [{ status: "inactive" }, { status: "active" }],
+  creator_added: [
+    null,
+    {
+      name: "Rangga",
+      email: "r@x.id",
+      socialAccounts: [{ platform: "instagram", username: "rangga" }],
+      contract: {
+        contractId: "k1",
+        startDate: "2026-08-19",
+        endDate: "2027-02-15",
+        contractType: "regular",
+        interval: 14,
+        quota: 6,
+        fixedRate: 500000,
+      },
+    },
+  ],
+  creator_changed: [
+    { name: "A", email: "a@x.id", instagramUsername: "a", tiktokUsername: "a" },
+    { name: "B", email: "b@x.id", instagramUsername: "b", tiktokUsername: "b" },
+  ],
+  contract_extended: [
+    null,
+    { startDate: "2027-02-26", endDate: "2027-08-25", contractType: "regular", interval: 14, quota: 4, fixedRate: 400000 },
+  ],
+  period_changed: [
+    { contractType: "regular", fixedRate: 500000, contractEnd: "2027-02-15", quota: 6 },
+    { contractType: "probation", fixedRate: 750000, contractEnd: "2027-03-01", quota: 8 },
+  ],
+  period_deleted: [
+    { startDate: "2027-02-26", endDate: "2027-08-25", contractType: "regular", interval: 14, quota: 4, fixedRate: 400000 },
+    {},
+  ],
+  contract_ended_early: [
+    { endDate: "2027-02-25" },
+    {
+      endDate: "2026-11-27",
+      invoice: "cancel",
+      reason: "other",
+      closedContents: 1,
+      upcomingPeriods: "keep",
+      deletedPeriods: [],
+      keptPeriods: [2],
+    },
+  ],
+  manual_performance_saved: [
+    { platform: "instagram", views: 1, likes: 1, comments: 1, shares: 1 },
+    { platform: "tiktok", views: 2, likes: 2, comments: 2, shares: 2 },
+  ],
+  invoice_finalized: [{ status: "running" }, { status: "finalized", total: 4500000 }],
+  invoice_line_corrected: [{ total: 4500000 }, { total: 4000000 }],
+  invoice_acknowledged: [{ status: "finalized" }, { status: "creator_acked" }],
+  payment_proof_uploaded: [{ status: "creator_acked" }, { status: "payment_uploaded", fileName: "bukti.pdf" }],
+  payment_confirmed: [{ status: "payment_uploaded" }, { status: "paid" }],
+  invoice_cancelled: [{ status: "running" }, { status: "cancelled" }],
+  rate_formula_changed: [
+    { specificBonus: 0, latePenaltyPerDay: 1000, maxPenaltyDays: 3, performanceBonus: {} },
+    {
+      specificBonus: 25000,
+      latePenaltyPerDay: 2000,
+      maxPenaltyDays: 5,
+      performanceBonus: { instagram: { metric: "views", tiers: [] } },
+    },
+  ],
+  buffer_changed: [{ bufferDays: 5 }, { bufferDays: 7 }],
+};
+
+describe("every logged action, as Log Aktivitas shows it", () => {
+  const RAW_WORDS = /(super_admin|inactive|running|cancel|violation|keep|delete|probation|regular)/;
+
+  it.each(Object.entries(ENTRY_PER_ACTION))("names every field of %s in the app's words", (_action, [before, after]) => {
+    const changes = auditChanges(before, after);
+    expect(changes.length).toBeGreaterThan(0);
+
+    for (const change of changes) {
+      const { label, from, to } = auditChangeShown(change);
+      expect(label, `field ${change.field}`).not.toBe(change.field);
+      expect(`${from} ${to}`, `field ${change.field}`).not.toMatch(RAW_WORDS);
+      expect(`${from} ${to}`, `field ${change.field}`).not.toMatch(/[{[]/);
+    }
   });
 });
 
