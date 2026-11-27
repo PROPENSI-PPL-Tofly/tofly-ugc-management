@@ -5,8 +5,9 @@ import { FRAME_THEMES } from "./frame-theme";
 import { ShellNav, type Place } from "./shell-nav";
 import { useIsSuperAdmin } from "./super-admin-context";
 
-// The four places every admin works in.
+// The places every admin works in, the executive Dashboard first (prototype, PBI-24).
 const EVERYDAY: Place[] = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: "dash" },
   { href: "/admin/creators", label: "Kreator", icon: "people" },
   { href: "/admin/content-plan", label: "Content Plan", icon: "calendar" },
   { href: "/admin/performance", label: "Performa Konten", icon: "chart" },

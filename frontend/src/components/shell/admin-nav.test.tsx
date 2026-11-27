@@ -190,6 +190,7 @@ describe("AdminNav", () => {
       expect(icon).toHaveAttribute("aria-hidden", "true");
     }
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Dashboard",
       "Kreator",
       "Content Plan",
       "Performa Konten",
@@ -218,10 +219,10 @@ describe("the Super Admin's extra place", () => {
     );
   }
 
-  it("keeps the four everyday places for an Admin and no Super Admin door", () => {
+  it("keeps the five everyday places for an Admin and no Super Admin door", () => {
     renderAs("admin");
 
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    expect(screen.getAllByRole("link")).toHaveLength(5);
     expect(screen.queryByRole("link", { name: "Pengguna Admin" })).toBeNull();
   });
 
@@ -233,6 +234,7 @@ describe("the Super Admin's extra place", () => {
       "/admin/users",
     );
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Dashboard",
       "Kreator",
       "Content Plan",
       "Performa Konten",

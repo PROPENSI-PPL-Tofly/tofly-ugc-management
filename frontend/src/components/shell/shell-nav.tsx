@@ -27,7 +27,7 @@ const TILE = `flex flex-col items-center justify-center gap-1 rounded-xl bg-surf
 
 // One column per place, so every role's places share one row of equal tiles on a phone. Whole
 // class names, so Tailwind finds them.
-const COLUMNS: Record<number, string> = { 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6" };
+const COLUMNS: Record<number, string> = { 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6", 7: "grid-cols-7" };
 
 /**
  * The menu shared by every role: each role passes its places and its frame's colours, so a new

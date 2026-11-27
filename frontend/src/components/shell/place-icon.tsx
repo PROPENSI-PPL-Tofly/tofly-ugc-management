@@ -1,8 +1,9 @@
 /** The icon each place in the menu carries above its name on a phone tile. */
-export type PlaceIconName = "home" | "tasks" | "wallet" | "people" | "calendar" | "receipt" | "chart" | "shield" | "log";
+export type PlaceIconName = "dash" | "home" | "tasks" | "wallet" | "people" | "calendar" | "receipt" | "chart" | "shield" | "log";
 
 // One 24-unit stroke drawing per place, in the menu's current colour.
 const PATHS: Record<PlaceIconName, readonly string[]> = {
+  dash: ["M4 4h6v8H4z", "M14 4h6v4h-6z", "M14 12h6v8h-6z", "M4 16h6v4H4z"],
   home: ["M3 10.5 12 3l9 7.5", "M5 9.5V21h14V9.5"],
   tasks: ["M9 6h11", "M9 12h11", "M9 18h11", "M4 6h.01", "M4 12h.01", "M4 18h.01"],
   wallet: ["M5 6h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z", "M3 10h18", "M16 15h2"],
