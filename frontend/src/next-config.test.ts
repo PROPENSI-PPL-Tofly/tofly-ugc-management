@@ -9,4 +9,16 @@ describe("next.config", () => {
     expect(PROOF_MAX_BYTES).toBe(5 * 1024 * 1024);
     expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe("6mb");
   });
+
+  // ZAP 90004: no document may embed a cross-origin resource that has not agreed to it.
+  // "credentialless" keeps the storage bucket's signed images working: they load without cookies.
+  it("isolates every document from cross-origin embeds that did not opt in", async () => {
+    const [rule] = (await nextConfig.headers?.()) ?? [];
+
+    expect(rule.source).toBe("/(.*)");
+    expect(rule.headers).toContainEqual({
+      key: "Cross-Origin-Embedder-Policy",
+      value: "credentialless",
+    });
+  });
 });
