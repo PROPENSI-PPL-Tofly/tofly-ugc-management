@@ -107,6 +107,14 @@ export default defineConfig({
             functions: 100,
             statements: 100,
           },
+        // 24.1: the executive dashboard's formulas decide what management spends on, so every
+        // line and branch of the new module is held to full coverage from its first commit.
+        'src/dashboard/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
       },
     },
   },
