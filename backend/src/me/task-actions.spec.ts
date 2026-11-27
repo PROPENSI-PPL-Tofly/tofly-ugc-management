@@ -1,4 +1,6 @@
 import {
+  canCancelProposal,
+  taskRowActions,
   canSubmitDraft,
   canSubmitVideo,
   inGraceWindow,
@@ -96,5 +98,32 @@ describe('taskActions', () => {
     ['link_submitted', H_MINUS_1, []],
   ] as const)('%s on %s → %j', (status, today, expected) => {
     expect(taskActions(status, DEADLINE, today)).toEqual(expected);
+  });
+});
+
+// PBI-14 AC 5: Task Saya's row adds the one thing a creator does with their own pending proposal.
+// The Content Detail panel keeps taskActions, whose buttons all hand something in.
+describe('canCancelProposal', () => {
+  it.each([
+    ['pending', true],
+    ['scheduled', false],
+    ['draft_review', false],
+    ['draft_revision', false],
+    ['draft_approved', false],
+    ['link_submitted', false],
+  ] as const)('%s → %s', (status, expected) => {
+    expect(canCancelProposal(status)).toBe(expected);
+  });
+});
+
+describe('taskRowActions', () => {
+  it.each([
+    ['pending', '2026-10-10', ['cancel_proposal']],
+    ['pending', '2026-10-19', ['cancel_proposal']],
+    ['scheduled', '2026-10-10', ['submit_draft']],
+    ['draft_approved', '2026-10-19', ['submit_video']],
+    ['link_submitted', '2026-10-10', []],
+  ] as const)('%s on %s → %j', (status, today, expected) => {
+    expect(taskRowActions(status, '2026-10-20', today)).toEqual(expected);
   });
 });

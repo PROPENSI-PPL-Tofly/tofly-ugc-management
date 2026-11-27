@@ -8,9 +8,12 @@ import {
 } from './my-task-query.js';
 
 describe('MY_TASK_TAB_STATUSES', () => {
-  it('groups a creator’s committed work by whose turn it is, never listing a pending proposal', () => {
+  // PBI-14 AC 5: the creator's own pending proposal waits for the admin, so it shows under
+  // Menunggu Admin and Semua beside the work an admin assigned.
+  it('groups a creator’s work by whose turn it is, a pending proposal waiting for the admin', () => {
     expect(MY_TASK_TAB_STATUSES).toEqual({
       all: [
+        'pending',
         'scheduled',
         'draft_review',
         'draft_revision',
@@ -18,7 +21,7 @@ describe('MY_TASK_TAB_STATUSES', () => {
         'link_submitted',
       ],
       to_do: ['scheduled', 'draft_revision', 'draft_approved'],
-      waiting_admin: ['draft_review'],
+      waiting_admin: ['pending', 'draft_review'],
       done: ['link_submitted'],
     });
   });
@@ -39,6 +42,7 @@ describe('myTabOf', () => {
     ['draft_revision', 'to_do'],
     ['draft_approved', 'to_do'],
     ['draft_review', 'waiting_admin'],
+    ['pending', 'waiting_admin'],
     ['link_submitted', 'done'],
   ] as const)('puts %s under %s', (status, tab) => {
     expect(myTabOf(status)).toBe(tab);
@@ -100,7 +104,7 @@ describe('checkMyTaskQuery', () => {
     ['the admin’s tab name', { tab: 'needs_approval' }],
     ['an unknown tab', { tab: 'later' }],
     ['a repeated tab', { tab: ['all', 'done'] }],
-    ['a pending proposal, which is not assigned work', { status: 'pending' }],
+    ['a status no content has', { status: 'done' }],
     ['the removed draft_revised', { status: ['scheduled', 'draft_revised'] }],
     ['an unknown type', { type: 'optional' }],
     ['more statuses than any list holds', { status: Array(51).fill('scheduled') }],
@@ -119,11 +123,15 @@ describe('checkMyTaskQuery', () => {
   });
 
   it('names the creator’s statuses in the 400, so the caller sees what it may send', () => {
-    expect(() => checkMyTaskQuery({ status: 'pending' })).toThrow(
+    expect(() => checkMyTaskQuery({ status: 'done' })).toThrow(
       new BadRequestException(
-        'status must be one of scheduled, draft_review, draft_revision, draft_approved, link_submitted',
+        'status must be one of pending, scheduled, draft_review, draft_revision, draft_approved, link_submitted',
       ),
     );
+  });
+
+  it('lets a creator filter for their pending proposals', () => {
+    expect(checkMyTaskQuery({ status: 'pending' }).statuses).toEqual(['pending']);
   });
 
   it('reads the nearest deadline first when the query names it outright', () => {

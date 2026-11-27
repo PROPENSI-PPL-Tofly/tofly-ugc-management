@@ -139,7 +139,6 @@ describe('MyContentsController', () => {
   it.each([
     ['a non-numeric page', '?page=abc'],
     ['an unknown status', '?status=done'],
-    ['a pending proposal', '?status=pending'],
     ['an unknown tab', '?tab=action'],
     ['an unknown sort', '?sort=asc'],
     ['a period that ends before it starts', '?deadlineFrom=2026-10-31&deadlineTo=2026-10-01'],
