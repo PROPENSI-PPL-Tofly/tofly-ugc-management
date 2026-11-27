@@ -94,7 +94,7 @@ describe("AddCreatorTrigger", () => {
     createCreator.mockResolvedValue({
       ok: false,
       message: "Data creator tidak valid",
-      errors: { email: "Email sudah terdaftar" },
+      errors: { email: "Email sudah dipakai" },
     });
     render(<AddCreatorTrigger />);
     openAndFill();
@@ -102,7 +102,7 @@ describe("AddCreatorTrigger", () => {
     await save();
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("Email sudah dipakai")).toBeInTheDocument();
     expect(screen.getByLabelText(/nama creator/i)).toHaveValue("Bagas");
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -125,7 +125,7 @@ describe("AddCreatorTrigger", () => {
     createCreator.mockResolvedValue({
       ok: false,
       message: "Creator gagal disimpan. Coba lagi.",
-      errors: { email: "Email sudah terdaftar" },
+      errors: { email: "Email sudah dipakai" },
     });
     render(<AddCreatorTrigger />);
     openAndFill();
@@ -135,7 +135,7 @@ describe("AddCreatorTrigger", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buang" }));
     fireEvent.click(screen.getByRole("button", { name: /tambah creator/i }));
 
-    expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Email sudah dipakai")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

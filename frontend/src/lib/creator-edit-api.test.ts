@@ -34,7 +34,7 @@ describe("saveCreatorEdit", () => {
   it("gives back the server's message under each field the form has", async () => {
     answer(422, {
       errors: {
-        email: "Email sudah terdaftar",
+        email: "Email sudah dipakai",
         contractType: "Jenis kontrak wajib dipilih",
         contractId: "Periode tidak valid",
         quota: 7,
@@ -44,7 +44,7 @@ describe("saveCreatorEdit", () => {
     await expect(saveCreatorEdit(CREATOR, { email: "x@y.co" })).resolves.toEqual({
       ok: false,
       message: "Data creator tidak valid",
-      errors: { email: "Email sudah terdaftar", contractType: "Jenis kontrak wajib dipilih" },
+      errors: { email: "Email sudah dipakai", contractType: "Jenis kontrak wajib dipilih" },
     });
   });
 

@@ -370,7 +370,7 @@ describe('CreatorEditService.edit', () => {
         status: 422,
         body: {
           message: 'Data creator tidak valid',
-          errors: { email: 'Email sudah terdaftar' },
+          errors: { email: 'Email sudah dipakai' },
         },
       });
       expect(s.tx.app_sessions.deleteMany).not.toHaveBeenCalled();

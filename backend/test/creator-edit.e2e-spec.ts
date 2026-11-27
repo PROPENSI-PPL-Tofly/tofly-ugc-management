@@ -292,7 +292,7 @@ describe('Ubah Data (e2e)', () => {
       name: 'Rani',
       email: other.email.toUpperCase(),
     }).expect(422);
-    expect(body.errors).toEqual({ email: 'Email sudah terdaftar' });
+    expect(body.errors).toEqual({ email: 'Email sudah dipakai' });
     const stored = await prisma.creators.findUniqueOrThrow({
       where: { id: salsa.id },
     });

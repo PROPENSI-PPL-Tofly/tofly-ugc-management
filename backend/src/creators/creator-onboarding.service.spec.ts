@@ -1,4 +1,7 @@
-import { CREATOR_NOTIFIER, type CreatorNotifier } from '../email/creator-notifier.js';
+import {
+  CREATOR_NOTIFIER,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
 import { UnprocessableEntityException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
@@ -119,10 +122,15 @@ describe('CreatorOnboardingService', () => {
     scheduling.bufferDays.mockResolvedValue(9);
 
     await expect(
-      service.onboard({ ...INPUT, deadlines: ['2026-10-10', '2026-11-04'] }, NOW),
+      service.onboard(
+        { ...INPUT, deadlines: ['2026-10-10', '2026-11-04'] },
+        NOW,
+      ),
     ).rejects.toMatchObject({
       response: {
-        errors: { deadlines: 'Deadline paling lambat 3 Nov 2026 (H-9 akhir kontrak)' },
+        errors: {
+          deadlines: 'Deadline paling lambat 3 Nov 2026 (H-9 akhir kontrak)',
+        },
       },
     });
     expect(prisma.creators.create).not.toHaveBeenCalled();
@@ -133,10 +141,15 @@ describe('CreatorOnboardingService', () => {
     const standalone = new CreatorOnboardingService(prisma as never);
 
     await expect(
-      standalone.onboard({ ...INPUT, deadlines: ['2026-10-10', '2026-11-08'] }, NOW),
+      standalone.onboard(
+        { ...INPUT, deadlines: ['2026-10-10', '2026-11-08'] },
+        NOW,
+      ),
     ).rejects.toMatchObject({
       response: {
-        errors: { deadlines: 'Deadline paling lambat 7 Nov 2026 (H-5 akhir kontrak)' },
+        errors: {
+          deadlines: 'Deadline paling lambat 7 Nov 2026 (H-5 akhir kontrak)',
+        },
       },
     });
   });
@@ -196,7 +209,9 @@ describe('CreatorOnboardingService', () => {
 
     await service.onboard(INPUT, NOW);
 
-    const contents = prisma.creators.create.mock.calls[0][0].data.contracts.create.contents.create;
+    const contents =
+      prisma.creators.create.mock.calls[0][0].data.contracts.create.contents
+        .create;
     expect(contents[0].content_events).toEqual({
       create: { ...SCHEDULED_BY_ADMIN, actor_user_id: null },
     });
@@ -299,7 +314,7 @@ describe('CreatorOnboardingService', () => {
     expect((error as UnprocessableEntityException).getResponse()).toEqual({
       code: 'VALIDATION_FAILED',
       message: 'Data creator tidak valid',
-      errors: { email: 'Email sudah terdaftar' },
+      errors: { email: 'Email sudah dipakai' },
     });
   });
 
@@ -382,13 +397,27 @@ describe('CreatorOnboardingService', () => {
 // PBI-11 (11.2, AC 1): the creator gets an email when their account is ready.
 describe('CreatorOnboardingService, the creator email', () => {
   async function built(create: ReturnType<typeof vi.fn>) {
-    const notifier = { accountReady: vi.fn<CreatorNotifier['accountReady']>().mockResolvedValue() };
+    const notifier = {
+      accountReady: vi
+        .fn<CreatorNotifier['accountReady']>()
+        .mockResolvedValue(),
+    };
     // The account and its Log Aktivitas entry are saved in one transaction (PBI-23).
     const prisma = {
       creators: { create },
-      users: { findUnique: vi.fn().mockResolvedValue({ name: 'Rani', email: 'rani@example.com', admin_role: 'admin' }) },
+      users: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({
+            name: 'Rani',
+            email: 'rani@example.com',
+            admin_role: 'admin',
+          }),
+      },
       audit_logs: { create: vi.fn().mockResolvedValue({}) },
-      $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) => work(prisma)),
+      $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) =>
+        work(prisma),
+      ),
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -409,11 +438,15 @@ describe('CreatorOnboardingService, the creator email', () => {
 
     await service.onboard(INPUT, NOW, ADMIN_USER_ID);
 
-    expect(notifier.accountReady).toHaveBeenCalledExactlyOnceWith({ creatorId: 'creator-1' });
+    expect(notifier.accountReady).toHaveBeenCalledExactlyOnceWith({
+      creatorId: 'creator-1',
+    });
   });
 
   it('tells nobody when the email is already registered', async () => {
-    const { notifier, service } = await built(vi.fn().mockRejectedValue(uniqueViolation()));
+    const { notifier, service } = await built(
+      vi.fn().mockRejectedValue(uniqueViolation()),
+    );
 
     await expect(service.onboard(INPUT, NOW, ADMIN_USER_ID)).rejects.toThrow();
     expect(notifier.accountReady).not.toHaveBeenCalled();

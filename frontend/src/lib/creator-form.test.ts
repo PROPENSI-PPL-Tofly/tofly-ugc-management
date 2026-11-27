@@ -149,7 +149,7 @@ describe("validateCreatorForm", () => {
 
     const errors = validateCreatorForm(VALID_INPUT, today, ["bagas@example.com"]);
 
-    expect(errors.email).toBe("Email sudah terdaftar");
+    expect(errors.email).toBe("Email sudah dipakai");
   });
 });
 

@@ -284,18 +284,18 @@ describe("EditCreatorTrigger", () => {
     saveCreatorEdit.mockResolvedValue({
       ok: false,
       message: "Data creator tidak valid",
-      errors: { email: "Email sudah terdaftar" },
+      errors: { email: "Email sudah dipakai" },
     });
     open();
     type(/^email/i, "taken@example.com");
     await confirm();
 
-    expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("Email sudah dipakai")).toBeInTheDocument();
     expect(screen.getByLabelText(/^email/i)).toHaveValue("taken@example.com");
     expect(refresh).not.toHaveBeenCalled();
 
     type(/^email/i, "free@example.com");
-    expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Email sudah dipakai")).not.toBeInTheDocument();
   });
 
   it("shows a failure that belongs to no field as an alert", async () => {
