@@ -61,6 +61,8 @@ export class ContractPeriodsController {
     @Req() request: SignedIn,
   ): Promise<SavedPeriod> {
     const now = new Date();
+    // A started period is refused as such before its body is judged by the rules for new dates.
+    await this.periods.assertEditable(id, contractId, now);
     return this.periods.update(
       id,
       contractId,

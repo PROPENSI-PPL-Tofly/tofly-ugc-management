@@ -8,6 +8,7 @@ import {
   creatorDetailAfterFilterChange,
   creatorDetailBase,
   creatorDetailHref,
+  defaultPeriodOf,
   isCreatorDetailFiltered,
   parseCreatorDetailParams,
   type CreatorDetailParams,
@@ -326,5 +327,31 @@ describe("creatorDetailAfterTabChange", () => {
       sort: "asc",
       page: 1,
     });
+  });
+});
+
+describe("defaultPeriodOf", () => {
+  // PBI-30: the bare address opens this period, so the switcher and the page must agree on it.
+  const expired = { status: "expired" as const, startDate: "2026-01-01" };
+  const active = { status: "active" as const, startDate: "2026-06-01" };
+  const next = { status: "upcoming" as const, startDate: "2027-01-01" };
+  const later = { status: "upcoming" as const, startDate: "2027-06-01" };
+
+  it("is the active period, even with a renewal still to start", () => {
+    expect(defaultPeriodOf([next, active, expired])).toBe(active);
+  });
+
+  it("is the earliest period still to start when none is active", () => {
+    expect(defaultPeriodOf([later, next, expired])).toBe(next);
+  });
+
+  it("is the most recent period when every one has ended, in whatever order they come", () => {
+    const older = { status: "expired" as const, startDate: "2025-01-01" };
+    expect(defaultPeriodOf([older, expired])).toBe(expired);
+    expect(defaultPeriodOf([expired, older])).toBe(expired);
+  });
+
+  it("is nothing for a creator without a contract", () => {
+    expect(defaultPeriodOf([])).toBeUndefined();
   });
 });

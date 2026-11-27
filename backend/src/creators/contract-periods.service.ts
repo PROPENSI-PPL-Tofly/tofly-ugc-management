@@ -24,6 +24,7 @@ import {
   overlappingPeriod,
   periodHasStarted,
   specificOutsidePeriod,
+  waitingPeriod,
 } from './contract-period.js';
 import { evergreenSchedule } from './creator-onboarding.service.js';
 import type { SavedPeriod } from './dto/contract-period.dto.js';
@@ -57,7 +58,9 @@ const CREATOR_PERIODS = {
   },
 } satisfies Prisma.creatorsSelect;
 
-type CreatorPeriods = Prisma.creatorsGetPayload<{ select: typeof CREATOR_PERIODS }>;
+type CreatorPeriods = Prisma.creatorsGetPayload<{
+  select: typeof CREATOR_PERIODS;
+}>;
 type PeriodRow = CreatorPeriods['contracts'][number];
 
 const SAVED_SELECT = {
@@ -148,7 +151,12 @@ function toSaved(row: SavedRow): SavedPeriod {
 
 /** What the period endpoints need, so the controller can inject or stub them by contract. */
 export interface PeriodKeeper {
-  create(creatorId: string, terms: ContractTerms, now: Date, adminUserId?: string): Promise<SavedPeriod>;
+  create(
+    creatorId: string,
+    terms: ContractTerms,
+    now: Date,
+    adminUserId?: string,
+  ): Promise<SavedPeriod>;
   update(
     creatorId: string,
     contractId: string,
@@ -161,6 +169,11 @@ export interface PeriodKeeper {
     contractId: string,
     now: Date,
     adminUserId?: string,
+  ): Promise<void>;
+  assertEditable(
+    creatorId: string,
+    contractId: string,
+    now: Date,
   ): Promise<void>;
 }
 
@@ -197,6 +210,7 @@ export class ContractPeriodsService implements PeriodKeeper {
     const saved = await this.prisma.$transaction(async (tx) => {
       const creator = await this.lockCreator(tx, creatorId);
       this.refuseOverlap(terms, creator.contracts);
+      this.refuseWhileWaiting(creator.contracts, now);
 
       const row = await tx.contracts.create({
         data: {
@@ -232,7 +246,13 @@ export class ContractPeriodsService implements PeriodKeeper {
   ): Promise<SavedPeriod> {
     return this.prisma.$transaction(async (tx) => {
       const creator = await this.lockCreator(tx, creatorId);
-      const period = await this.lockUnstarted(tx, creator, contractId, now, 'diubah');
+      const period = await this.lockUnstarted(
+        tx,
+        creator,
+        contractId,
+        now,
+        'diubah',
+      );
 
       this.refuseOverlap(
         terms,
@@ -314,6 +334,22 @@ export class ContractPeriodsService implements PeriodKeeper {
     });
   }
 
+  /**
+   * Whether the period can still be changed, asked before an edit's body is judged: a period that
+   * has started answers PERIOD_STARTED, never a date rule its old start no longer meets. update
+   * asks again inside its own transaction, so a period that starts in between is still refused.
+   */
+  assertEditable(
+    creatorId: string,
+    contractId: string,
+    now: Date,
+  ): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      const creator = await this.lockCreator(tx, creatorId);
+      await this.lockUnstarted(tx, creator, contractId, now, 'diubah');
+    });
+  }
+
   /** Locks the creator row until the transaction ends, then reads them with every period. */
   private async lockCreator(
     tx: PeriodsTransaction,
@@ -346,7 +382,9 @@ export class ContractPeriodsService implements PeriodKeeper {
     now: Date,
     action: 'diubah' | 'dihapus',
   ): Promise<PeriodRow> {
-    const period = creator.contracts.find((contract) => contract.id === contractId);
+    const period = creator.contracts.find(
+      (contract) => contract.id === contractId,
+    );
     if (!period) {
       throw new NotFoundException({
         code: 'PERIOD_NOT_FOUND',
@@ -363,13 +401,35 @@ export class ContractPeriodsService implements PeriodKeeper {
     return period;
   }
 
-  private refuseOverlap(terms: ContractTerms, others: readonly PeriodRow[]): void {
+  private refuseOverlap(
+    terms: ContractTerms,
+    others: readonly PeriodRow[],
+  ): void {
     const clash = overlappingPeriod(
       terms,
-      others.map((other) => ({ startDate: other.start_date, endDate: other.end_date })),
+      others.map((other) => ({
+        startDate: other.start_date,
+        endDate: other.end_date,
+      })),
     );
     if (clash) {
       throw invalid({ contractStart: clash });
+    }
+  }
+
+  private refuseWhileWaiting(periods: readonly PeriodRow[], now: Date): void {
+    const waiting = waitingPeriod(
+      periods.map((period) => ({
+        startDate: period.start_date,
+        endDate: period.end_date,
+      })),
+      now,
+    );
+    if (waiting) {
+      throw new ConflictException({
+        code: 'UPCOMING_PERIOD_EXISTS',
+        message: waiting,
+      });
     }
   }
 

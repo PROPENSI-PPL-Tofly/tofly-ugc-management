@@ -65,6 +65,8 @@ export interface CreatorSummary {
     contentQuota: number;
     /** The current contract's type; null without a contract. */
     type: ContractType | null;
+    /** A renewal still to start after the current period (PBI-30 AC 10); absent from older APIs. */
+    next?: { periodNumber: number; startDate: string } | null;
     /**
      * PBI-37 (37.1): set when the current contract was ended early; endDate is then its last day.
      * Absent from an API before PBI-37. Read only through readEarlyEnd.

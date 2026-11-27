@@ -36,6 +36,8 @@ export interface ContractSummary {
   /** The current contract's type; null without a contract. */
   type: ContractType | null;
 
+  /** A renewal still to start after the current period (PBI-30 AC 10); null when none waits. */
+  next: { periodNumber: number; startDate: string } | null;
   /**
    * PBI-37: set when the current contract was ended early, for "Berakhir Lebih Awal" with its
    * reason type; endDate is then the last day. The note stays on Creator Detail.

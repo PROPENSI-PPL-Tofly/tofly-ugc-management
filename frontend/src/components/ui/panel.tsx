@@ -41,8 +41,9 @@ export function PanelHead({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-5">
-      <div>
+    // Wraps rather than squeezes: on a phone the action drops under the title and hint.
+    <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-3 pt-5">
+      <div className="min-w-0 flex-1 basis-64">
         <h2 className="text-[15px]">{title}</h2>
         {hint ? <p className="mt-1 max-w-[64ch] text-[12.5px] text-muted">{hint}</p> : null}
       </div>

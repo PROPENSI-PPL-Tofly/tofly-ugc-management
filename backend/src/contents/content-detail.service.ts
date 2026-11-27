@@ -16,6 +16,7 @@ import {
 } from '../performance/performance-links.js';
 import { ADMIN_ACCOUNT_SELECT } from './content-event-actors.js';
 import { LINKS_AS_HANDED_IN } from './content-links.js';
+import { StartedPeriodSpecification } from '../creators/started-period.specification.js';
 import {
   toContentDetail,
   type ContentDetail,
@@ -100,7 +101,10 @@ const CONTENT_DETAIL_SELECT = {
 export interface ContentDetailClient {
   contents: {
     findFirst: (args: {
-      where: { id: string; contracts?: { creator_id: string } };
+      where: {
+        id: string;
+        contracts?: { creator_id: string; start_date: { lte: Date } };
+      };
       select: typeof CONTENT_DETAIL_SELECT;
     }) => Promise<ContentDetailRow | null>;
   };
@@ -141,8 +145,13 @@ export class ContentDetailService implements ContentDetailReader {
     const row = await this.prisma.contents.findFirst({
       where: {
         id,
+        // A creator reads only content of a period that has started, as Task Saya lists it
+        // (PBI-30 AC 8.2); the rest answers 404 like another creator's (OWASP A01).
         ...(options?.creatorId && {
-          contracts: { creator_id: options.creatorId },
+          contracts: {
+            creator_id: options.creatorId,
+            ...new StartedPeriodSpecification(now).asWhere(),
+          },
         }),
       },
       select: CONTENT_DETAIL_SELECT,

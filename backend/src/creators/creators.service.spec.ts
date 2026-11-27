@@ -275,6 +275,7 @@ describe('CreatorsService', () => {
             periodNumber: 1,
             contentQuota: 6,
             type: 'regular',
+            next: null,
             earlyEnd: null,
           },
           progress: {
@@ -566,6 +567,47 @@ describe('CreatorsService', () => {
       type: 'probation',
     });
   });
+
+  it('names a renewal still to start beside the current period (PBI-30 AC 10)', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'next',
+            start_date: day(31),
+            end_date: day(120),
+            content_quota: 3,
+            contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
+            contents: [],
+          },
+          {
+            id: 'current',
+            start_date: day(-30),
+            end_date: day(30),
+            content_quota: 4,
+            contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract).toMatchObject({
+      status: 'active',
+      periodNumber: 1,
+      next: { periodNumber: 2, startDate: '2026-10-19' },
+    });
+  });
+
 
   // PBI-37 AC 18: the Creator Database shows "Berakhir Lebih Awal" with the reason type.
   it('tells the current contract was ended early, with its original end and reason', async () => {

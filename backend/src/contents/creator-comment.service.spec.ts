@@ -11,8 +11,12 @@ const VALID_COMMENT = {
   comment: 'The updated draft is ready for review.',
 };
 
+// A period that started long ago, and one that starts long after any run of these tests.
+const STARTED = { start_date: new Date('2020-01-01T00:00:00Z') };
+const NOT_STARTED = { start_date: new Date('2999-01-01T00:00:00Z') };
+
 function createHarness(options?: {
-  content?: { id: string } | null;
+  content?: { id: string; contracts: { start_date: Date } } | null;
   creator?: {
     first_name: string;
     middle_name: string | null;
@@ -23,7 +27,9 @@ function createHarness(options?: {
     async (
       _args: Parameters<CreatorCommentTransaction['contents']['findFirst']>[0],
     ) =>
-      options?.content === undefined ? { id: CONTENT_ID } : options.content,
+      options?.content === undefined
+        ? { id: CONTENT_ID, contracts: STARTED }
+        : options.content,
   );
 
   const creatorsFindUnique = vi.fn(
@@ -110,6 +116,7 @@ describe('CreatorCommentService.addComment', () => {
       },
       select: {
         id: true,
+        contracts: { select: { start_date: true } },
       },
     });
 
@@ -178,6 +185,24 @@ describe('CreatorCommentService.addComment', () => {
       status: 404,
     });
 
+    expect(creatorsFindUnique).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a comment on content whose period has not started, as a draft or a link is refused', async () => {
+    const { service, creatorsFindUnique, eventCreate } = createHarness({
+      content: { id: CONTENT_ID, contracts: NOT_STARTED },
+    });
+
+    await expect(
+      service.addComment(CONTENT_ID, CREATOR_ID, VALID_COMMENT),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PERIOD_NOT_STARTED',
+        message: 'Periode kontrak konten ini belum dimulai',
+      },
+      status: 409,
+    });
     expect(creatorsFindUnique).not.toHaveBeenCalled();
     expect(eventCreate).not.toHaveBeenCalled();
   });

@@ -228,6 +228,23 @@ describe("CreatorTable", () => {
     expect(screen.getByText(/periode ke-2/)).toBeInTheDocument();
   });
 
+  it("names a renewal still to start under the current period, as the prototype does (PBI-30 AC 10)", () => {
+    render(
+      <CreatorTable
+        creators={[creator({ contract: { ...creator().contract, next: { periodNumber: 2, startDate: "2027-01-18" } } })]}
+        total={1}
+      />,
+    );
+
+    expect(screen.getByText("+ Periode 2 mulai 18 Jan 2027")).toBeInTheDocument();
+  });
+
+  it("names no renewal when none waits", () => {
+    render(<CreatorTable creators={[creator({ contract: { ...creator().contract, next: null } })]} total={1} />);
+
+    expect(screen.queryByText(/\+ Periode/)).not.toBeInTheDocument();
+  });
+
   it("names the contract type beside the time left", () => {
     render(
       <CreatorTable

@@ -172,6 +172,7 @@ export function CreatorContentBoard({
           quota={period.contentQuota}
           contractStart={period.startDate}
           contractEnd={period.endDate}
+          periodNumber={period.periodNumber}
           onClose={() => setAdding(false)}
           onSaved={() => {
             setAdding(false);

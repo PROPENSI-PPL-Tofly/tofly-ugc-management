@@ -82,6 +82,7 @@ export function AddContentModal({
                                     quota,
                                     contractStart,
                                     contractEnd,
+                                    periodNumber,
                                     onClose,
                                     onSaved,
                                 }: {
@@ -90,6 +91,8 @@ export function AddContentModal({
     quota: number;
     contractStart: string;
     contractEnd: string;
+    /** The period the content goes to, named above the title once a creator has more than one. */
+    periodNumber?: number;
     onClose: () => void;
     onSaved: () => void;
 }) {
@@ -205,6 +208,7 @@ export function AddContentModal({
         <>
         <Modal
             title="Tambah Konten"
+            eyebrow={periodNumber === undefined ? undefined : `Periode ${periodNumber}`}
             onClose={saving ? () => undefined : requestClose}
             footer={
                 <>

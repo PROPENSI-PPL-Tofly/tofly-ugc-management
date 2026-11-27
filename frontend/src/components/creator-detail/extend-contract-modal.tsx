@@ -69,6 +69,7 @@ const WORDING = {
 export function ExtendContractModal({
   creatorName,
   previous,
+  periodNumber,
   editing,
   onClose,
   onSubmit,
@@ -79,6 +80,8 @@ export function ExtendContractModal({
   creatorName: string;
   /** The period the new or changed one follows. */
   previous: PreviousPeriod;
+  /** The number the new or changed period carries, so the confirmation names it. */
+  periodNumber: number;
   /** A renewal still "Belum Dimulai", to change instead of adding a new one (AC 8). */
   editing?: CreatorPeriod;
   onClose: () => void;
@@ -195,7 +198,8 @@ export function ExtendContractModal({
           warning={editing ? undefined : (earlyEndWarning(previous.earlyEndReason) ?? undefined)}
           details={[
             ["Creator", creatorName],
-            ["Periode", formatContractWindow(request.contractStart, request.contractEnd)],
+            ["Periode", `Periode ${periodNumber}`],
+            ["Tanggal", formatContractWindow(request.contractStart, request.contractEnd)],
             ["Jenis Kontrak", CONTRACT_TYPE_LABELS[request.contractType]],
             ["Konten", `${request.quota} konten, tiap ${request.interval} hari`],
             ["Fixed Rate", formatRupiah(request.fixedRate)],

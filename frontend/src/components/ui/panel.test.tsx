@@ -58,6 +58,15 @@ describe("PanelHead", () => {
     expect(link.closest("p")).toHaveTextContent("Hubungkan akun. Kebijakan Privasi");
   });
 
+  // At 375 px the Periode Kontrak buttons squeezed the title and hint into one word a line.
+  it("lets its action drop under the title on a narrow screen rather than squeeze the hint", () => {
+    render(<PanelHead title="Periode Kontrak" hint="Pilih periode" action={<button type="button">Ubah</button>} />);
+
+    const words = screen.getByRole("heading", { name: "Periode Kontrak" }).parentElement as HTMLElement;
+    expect(words.parentElement).toHaveClass("flex-wrap");
+    expect(words).toHaveClass("min-w-0", "flex-1", "basis-64");
+  });
+
   it("renders without a hint", () => {
     render(<PanelHead title="Semua creator" />);
     expect(screen.getByRole("heading", { name: "Semua creator" })).toBeInTheDocument();

@@ -94,8 +94,13 @@ export default async function CreatorDetailPage({
             back={state.back}
             action={
               <>
-                {/* At most one shows: a renewal still to start is changed, otherwise one is added. */}
-                <UpcomingPeriodActions creatorId={id} creatorName={view.creator.name} periods={view.periods} />
+                {/* At most one shows: a renewal still to start is changed while open, otherwise one is added. */}
+                <UpcomingPeriodActions
+                  creatorId={id}
+                  creatorName={view.creator.name}
+                  periods={view.periods}
+                  selected={view.selected}
+                />
                 {/* PBI-37: only while a period runs and was not ended early; before the renewal, as the prototype orders them. */}
                 <EndContractEarlyTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />
                 <ExtendContractTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />

@@ -151,6 +151,22 @@ export const PERIOD_STATUS_LABELS: Record<PeriodStatus, string> = {
   upcoming: "Belum Dimulai",
 };
 
+/**
+ * The period the bare Creator Detail address opens (PBI-30): the active one, else the earliest
+ * still to start, else the most recent. The page picks the open period by it and the period
+ * switcher builds its links by it, so the bare link always opens the period it is drawn on.
+ */
+export function defaultPeriodOf<T extends { status: PeriodStatus; startDate: string }>(
+  periods: readonly T[],
+): T | undefined {
+  const byStart = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
+  return (
+    byStart.find((period) => period.status === "active") ??
+    byStart.find((period) => period.status === "upcoming") ??
+    byStart.at(-1)
+  );
+}
+
 /** The dot beside the label, as Creator Database colours a contract; never the only signal. */
 export const PERIOD_STATUS_TONES: Record<PeriodStatus, Tone> = {
   active: "green",

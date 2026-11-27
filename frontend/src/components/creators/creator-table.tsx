@@ -28,6 +28,7 @@ import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
   formatContractWindow,
+  formatDate,
   formatDaysRemaining,
   formatPercent,
   formatRevisions,
@@ -271,6 +272,11 @@ export function CreatorTable({
                         </p>
 
                         <p className="text-xs text-muted">{contractNote(creator)}</p>
+                        {creator.contract.next ? (
+                          <p className="text-xs text-accent-deep">
+                            {`+ Periode ${creator.contract.next.periodNumber} mulai ${formatDate(creator.contract.next.startDate)}`}
+                          </p>
+                        ) : null}
 
                         <ContractEarlyEnd creator={creator} />
                       </>
