@@ -6,10 +6,14 @@ import {
 } from './creator-access.js';
 import type { AdminRole, Principal, WhitelistResolver } from './ports.js';
 
-const ADMIN_ROLES: readonly unknown[] = ['admin', 'super_admin'] satisfies AdminRole[];
+const ADMIN_ROLES: readonly unknown[] = [
+  'admin',
+  'super_admin',
+] satisfies AdminRole[];
 
 type WhitelistUserRecord = {
   id: string;
+  name?: string | null;
   is_admin: boolean;
   admin_role: string | null;
   is_active: boolean;
@@ -34,6 +38,7 @@ type WhitelistPrismaClient = {
  */
 const USER_SELECT = {
   id: true,
+  name: true,
   is_admin: true,
   admin_role: true,
   is_active: true,
@@ -65,7 +70,10 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
   private async lookup(
     where: { email: string } | { id: string },
   ): Promise<Principal | null> {
-    const user = await this.prisma.users.findUnique({ where, select: USER_SELECT });
+    const user = await this.prisma.users.findUnique({
+      where,
+      select: USER_SELECT,
+    });
 
     if (!user) {
       return null;
@@ -77,10 +85,12 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       if (!user.is_active || !ADMIN_ROLES.includes(user.admin_role)) {
         return null;
       }
+      const name = user.name?.trim();
       return {
         userId: user.id,
         role: 'admin',
         adminRole: user.admin_role as AdminRole,
+        ...(name && { name }),
       };
     }
 
@@ -107,7 +117,9 @@ export class PrismaWhitelistResolver implements WhitelistResolver {
       role: 'creator',
       creatorId: creator.id,
       // PBI-37 (AC 13): only "Pembayaran" is left while an invoice waits.
-      ...(onlyPaymentsLeft(today, contracts) && { paymentsOnly: true as const }),
+      ...(onlyPaymentsLeft(today, contracts) && {
+        paymentsOnly: true as const,
+      }),
     };
   }
 }

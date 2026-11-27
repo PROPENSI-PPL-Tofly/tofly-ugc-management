@@ -48,7 +48,7 @@ export default async function ExecutiveDashboardPage({
   const retryHref = dashboardHref(state);
 
   return (
-    <AppShell role="admin" title="Dashboard">
+    <AppShell title="Dashboard">
       <RangeHeader
         period={dashboard?.period ?? null}
         options={RANGE_MONTHS.map((months) => ({ months, href: dashboardHref({ ...state, months }) }))}

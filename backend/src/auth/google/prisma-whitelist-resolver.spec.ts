@@ -5,6 +5,7 @@ import type { Principal } from './ports.js';
 // query that finds the user, so a sign-in and every request cost what they always did.
 const SELECT = {
   id: true,
+  name: true,
   is_admin: true,
   admin_role: true,
   is_active: true,

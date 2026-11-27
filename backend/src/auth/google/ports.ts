@@ -28,7 +28,13 @@ export type AdminRole = 'admin' | 'super_admin';
  * role change applies on the next request.
  */
 export type Principal =
-  | { userId: string; role: 'admin'; adminRole?: AdminRole }
+  | {
+      userId: string;
+      role: 'admin';
+      adminRole?: AdminRole;
+      /** The Admin's own name, for the frame's "Masuk sebagai"; absent when none is set. */
+      name?: string;
+    }
   | {
       userId: string;
       role: 'creator';

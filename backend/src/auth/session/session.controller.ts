@@ -17,9 +17,13 @@ import type { AdminRole } from '../google/ports.js';
 import { ACCESS_CHECK, type AccessCheck } from './access-check.js';
 import { AppSessionService } from './session.service.js';
 
-/** What a page needs to know about who is signed in; never an id, an email or a session detail. */
+/**
+ * What a page needs to know about who is signed in: the role, and for an Admin the name the frame
+ * shows ("Masuk sebagai"). Never an id, an email or a session detail.
+ */
 export type SessionAnswer =
-  { role: 'admin'; adminRole: AdminRole } | { role: 'creator' };
+  | { role: 'admin'; adminRole: AdminRole; name: string | null }
+  | { role: 'creator' };
 
 @Controller('auth')
 export class SessionController {
@@ -63,7 +67,11 @@ export class SessionController {
     }
     // Fails closed: an Admin the whitelist gives no role reads as a plain Admin.
     return current.role === 'admin'
-      ? { role: 'admin', adminRole: current.adminRole ?? 'admin' }
+      ? {
+          role: 'admin',
+          adminRole: current.adminRole ?? 'admin',
+          name: current.name ?? null,
+        }
       : { role: 'creator' };
   }
 

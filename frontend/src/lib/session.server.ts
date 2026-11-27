@@ -10,6 +10,12 @@ export type { Role };
 export interface Session {
   role: "admin" | "creator";
   isSuperAdmin: boolean;
+  /** An Admin's own name for the frame's "Masuk sebagai", or null (a creator, or no name set). */
+  name: string | null;
+}
+
+function nameOf(raw: unknown): string | null {
+  return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : null;
 }
 
 function withoutTrailingSlash(url: string): string {
@@ -38,11 +44,19 @@ export const currentSession = cache(async (): Promise<Session | null> => {
     throw new Error(`Reading the session failed with HTTP ${response.status}`);
   }
 
-  const { role, adminRole } = (await response.json()) as { role?: unknown; adminRole?: unknown };
+  const { role, adminRole, name } = (await response.json()) as {
+    role?: unknown;
+    adminRole?: unknown;
+    name?: unknown;
+  };
   if (role !== "admin" && role !== "creator") {
     throw new Error("The session answer named no known role");
   }
-  return { role, isSuperAdmin: role === "admin" && adminRole === "super_admin" };
+  return {
+    role,
+    isSuperAdmin: role === "admin" && adminRole === "super_admin",
+    name: role === "admin" ? nameOf(name) : null,
+  };
 });
 
 /** The signed-in role, or null when nobody is. A Super Admin reads as "admin" here. */
