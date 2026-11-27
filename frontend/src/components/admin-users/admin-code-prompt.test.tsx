@@ -34,7 +34,7 @@ describe("the email-code prompt before a sensitive change", () => {
   beforeEach(() => {
     vi.mocked(requestConfirmation)
       .mockReset()
-      .mockResolvedValue({ kind: "sent", message: "Kode dikirim ke email kamu." });
+      .mockResolvedValue({ kind: "sent", message: "Kode dikirim ke email kamu.", validMinutes: 10 });
     vi.mocked(verifyConfirmation).mockReset();
   });
 
@@ -77,6 +77,20 @@ describe("the email-code prompt before a sensitive change", () => {
 
     await waitFor(() => expect(requestConfirmation).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(code()).toBe(""));
+  });
+
+  it("says how long the code lasts as the backend answered, and how long one confirmation lasts", async () => {
+    vi.mocked(requestConfirmation).mockResolvedValue({
+      kind: "sent",
+      message: "Kode dikirim ke email kamu.",
+      validMinutes: 7,
+    });
+    renderPrompt();
+
+    expect(await screen.findByText(/Kode berlaku 7 menit\./)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Setelah dikonfirmasi, perubahan berikutnya tidak perlu kode selama 15 menit\./),
+    ).toBeInTheDocument();
   });
 
   it("hands over the time the right code confirms the session until", async () => {

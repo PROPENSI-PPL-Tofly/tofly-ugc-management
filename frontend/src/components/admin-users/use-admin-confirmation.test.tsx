@@ -24,6 +24,7 @@ function codeIsSent(expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
   vi.mocked(requestConfirmation).mockResolvedValue({
     kind: "sent",
     message: "Kode dikirim ke email kamu.",
+    validMinutes: 10,
   });
   vi.mocked(verifyConfirmation).mockResolvedValue({ kind: "confirmed", expiresAt });
 }

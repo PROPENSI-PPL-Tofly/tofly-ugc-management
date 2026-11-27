@@ -30,7 +30,7 @@ describe("Tambah Admin's save", () => {
     vi.mocked(createAdmin).mockReset().mockResolvedValue({ ok: true });
     vi.mocked(requestConfirmation)
       .mockReset()
-      .mockResolvedValue({ kind: "sent", message: "Kode dikirim ke email kamu." });
+      .mockResolvedValue({ kind: "sent", message: "Kode dikirim ke email kamu.", validMinutes: 10 });
     vi.mocked(verifyConfirmation)
       .mockReset()
       .mockResolvedValue({ kind: "confirmed", expiresAt: new Date(Date.now() + 900_000).toISOString() });
