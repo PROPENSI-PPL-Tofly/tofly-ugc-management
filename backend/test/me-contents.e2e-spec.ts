@@ -147,9 +147,10 @@ describe('GET /me/contents (e2e)', () => {
     expect(response.body).toMatchObject({
       page: 1,
       pageSize: 10,
-      total: 7,
+      total: 8,
       totalPages: 1,
-      tabCounts: { all: 7, to_do: 5, waiting_admin: 1, done: 1 },
+      // PBI-14 AC 5: the creator's own pending proposal waits for the admin, so Menunggu Admin.
+      tabCounts: { all: 8, to_do: 5, waiting_admin: 2, done: 1 },
     });
     expect(
       response.body.items.map(
@@ -162,6 +163,7 @@ describe('GET /me/contents (e2e)', () => {
     ).toEqual([
       ['Overdue', iso(-2), ['submit_draft']],
       ['Tomorrow', iso(1), ['submit_draft']],
+      ['Pending proposal', iso(5), ['cancel_proposal']],
       ['Revision', iso(12), ['resubmit_draft']],
       ['In review', iso(20), []],
       ['Approved', iso(30), ['submit_video']],
@@ -172,19 +174,19 @@ describe('GET /me/contents (e2e)', () => {
       response.body.items.map(
         (item: { revisionNotes: string | null }) => item.revisionNotes,
       ),
-    ).toEqual([null, null, 'Perjelas intro', null, null, null, null]);
+    ).toEqual([null, null, null, 'Perjelas intro', null, null, null, null]);
   });
 
   it('turns the order around for the furthest deadline first', async () => {
     const response = await list(dina, '?sort=deadline_desc&pageSize=2');
 
     expect(names(response)).toEqual(['Far away', 'Approved']);
-    expect(response.body).toMatchObject({ total: 7, totalPages: 4 });
+    expect(response.body).toMatchObject({ total: 8, totalPages: 4 });
   });
 
   it.each([
     ['to_do', ['Overdue', 'Tomorrow', 'Revision', 'Approved', 'Far away']],
-    ['waiting_admin', ['In review']],
+    ['waiting_admin', ['Pending proposal', 'In review']],
     ['done', ['Submitted long ago']],
   ])('lists only the %s tab, keeping every counter', async (tab, expected) => {
     const response = await list(dina, `?tab=${tab}`);
@@ -192,9 +194,9 @@ describe('GET /me/contents (e2e)', () => {
     expect(response.status).toBe(200);
     expect(names(response)).toEqual(expected);
     expect(response.body.tabCounts).toEqual({
-      all: 7,
+      all: 8,
       to_do: 5,
-      waiting_admin: 1,
+      waiting_admin: 2,
       done: 1,
     });
   });
@@ -307,7 +309,6 @@ describe('GET /me/contents (e2e)', () => {
 
   it.each([
     ['a status Task Saya does not know', '?status=draft_revised'],
-    ['a pending proposal', '?status=pending'],
     ['the admin’s tab name', '?tab=needs_approval'],
     ['the page’s short sort name', '?sort=asc'],
     ['a period that ends before it starts', `?deadlineFrom=${iso(5)}&deadlineTo=${iso(1)}`],
@@ -315,6 +316,14 @@ describe('GET /me/contents (e2e)', () => {
     const response = await list(dina, query);
 
     expect(response.status).toBe(400);
+  });
+
+  // PBI-14 AC 5: the creator can filter for their own pending proposals.
+  it('lists only the pending proposals when asked for that status', async () => {
+    const response = await list(dina, '?status=pending');
+
+    expect(response.status).toBe(200);
+    expect(names(response)).toEqual(['Pending proposal']);
   });
 
   it('returns only the fields a row needs', async () => {
@@ -339,7 +348,7 @@ describe('GET /me/contents (e2e)', () => {
     expect(response.body.items[0]).not.toHaveProperty('approval_bypassed');
   });
 
-  it("never shows one creator another creator's contents or a pending proposal", async () => {
+  it("never shows one creator another creator's contents or proposal", async () => {
     const dinaAll = await list(dina, '?pageSize=50');
     const rakaAll = await list(raka, '?pageSize=50');
 
@@ -347,7 +356,8 @@ describe('GET /me/contents (e2e)', () => {
       (item: { name: string }) => item.name,
     );
     expect(dinaNames).not.toContain('Raka only');
-    expect(dinaNames).not.toContain('Pending proposal');
+    // Her own pending proposal is hers to see (PBI-14 AC 5), and no one else's.
+    expect(dinaNames).toContain('Pending proposal');
     expect(
       rakaAll.body.items.map((item: { name: string }) => item.name),
     ).toEqual(['Raka only']);
