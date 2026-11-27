@@ -31,10 +31,11 @@ export const MY_TASKS_BASE = "/creator/tasks";
 export const MY_TASKS_PAGE_SIZE = 10;
 
 /**
- * The statuses a creator can see, matching GET /me/contents?status. Pending is not one of them:
- * a proposal is not assigned work until an admin accepts it.
+ * The statuses a creator can see, matching GET /me/contents?status. A pending proposal is one of
+ * them since PBI-14 (14.3): it waits on the admin's decision, under Menunggu Admin.
  */
 export const TASK_STATUS_FILTERS = [
+  "pending",
   "scheduled",
   "draft_review",
   "draft_revision",
@@ -44,9 +45,14 @@ export const TASK_STATUS_FILTERS = [
 
 export type TaskStatusFilter = (typeof TASK_STATUS_FILTERS)[number];
 
-/** How a status reads on Task Saya: the same label the admin sees. */
+/** Where Task Saya words a status for the creator, unlike the admin's label (PBI-14, 14.3). */
+const CREATOR_STATUS_LABELS: Partial<Record<ContentStatus, string>> = {
+  pending: "Menunggu Persetujuan",
+};
+
+/** How a status reads on Task Saya: the admin's label, unless the creator's own words differ. */
 export function taskStatusLabel(status: ContentStatus): string {
-  return CONTENT_STATUS_LABELS[status];
+  return CREATOR_STATUS_LABELS[status] ?? CONTENT_STATUS_LABELS[status];
 }
 
 export type MyTaskTab = "all" | "action" | "waiting" | "done";
@@ -72,7 +78,8 @@ export const MY_TASK_TABS: readonly MyTaskTabDef[] = [
     urgent: true,
     counter: true,
   },
-  { key: "waiting", label: "Menunggu Admin", statuses: ["draft_review"], urgent: false, counter: true },
+  // A proposal waits on the admin's decision as a draft in review does (PBI-14, 14.3).
+  { key: "waiting", label: "Menunggu Admin", statuses: ["pending", "draft_review"], urgent: false, counter: true },
   { key: "done", label: "Selesai", statuses: ["link_submitted"], urgent: false, counter: false },
 ];
 

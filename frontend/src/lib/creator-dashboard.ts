@@ -15,8 +15,13 @@ import {
 } from "./my-tasks";
 import { taskViewHref } from "./task-view";
 
-/** Everything not finished yet: the statuses a deadline is still open in. */
-export const OPEN_STATUSES = TASK_STATUS_FILTERS.filter((status) => status !== "link_submitted");
+/**
+ * Everything not finished yet: the statuses a deadline is still open in. A pending proposal is
+ * not assigned work, so its proposed deadline is never listed as one (PBI-14, 14.3).
+ */
+export const OPEN_STATUSES = TASK_STATUS_FILTERS.filter(
+  (status) => status !== "link_submitted" && status !== "pending",
+);
 
 /** How many rows each deadline list shows; the rest are one link away on Task Saya. */
 export const AGENDA_ROWS = 5;

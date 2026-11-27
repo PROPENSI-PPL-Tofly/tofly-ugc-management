@@ -179,11 +179,11 @@ describe("Tugas Saya page", () => {
   it("lists without a status it does not know, and says so", async () => {
     mockedFetch.mockResolvedValue(answer());
 
-    await renderPage({ status: "pending" });
+    await renderPage({ status: "proposed" });
 
     expect(mockedFetch).toHaveBeenCalledWith(DEFAULT_MY_TASKS_PARAMS, TODAY);
     expect(screen.getByRole("status")).toHaveTextContent(
-        "Status “pending” tidak dikenal dan diabaikan.",
+        "Status “proposed” tidak dikenal dan diabaikan.",
     );
   });
 
@@ -191,14 +191,14 @@ describe("Tugas Saya page", () => {
   it("names every status it does not know, and keeps the ones it does", async () => {
     mockedFetch.mockResolvedValue(answer());
 
-    await renderPage({ status: "pending,scheduled,bogus" });
+    await renderPage({ status: "proposed,scheduled,bogus" });
 
     expect(mockedFetch).toHaveBeenCalledWith(
         { ...DEFAULT_MY_TASKS_PARAMS, status: ["scheduled"] },
         TODAY,
     );
     const notice = screen.getByRole("status");
-    expect(notice).toHaveTextContent("Status “pending”, “bogus” tidak dikenal dan diabaikan.");
+    expect(notice).toHaveTextContent("Status “proposed”, “bogus” tidak dikenal dan diabaikan.");
     expect(notice).not.toHaveTextContent("semua tugas");
   });
 
