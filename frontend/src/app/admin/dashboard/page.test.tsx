@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { ExecutiveDashboardError, type ExecutiveDashboard } from "@/lib/executive-dashboard";
-import { fetchExecutiveDashboard } from "@/lib/executive-dashboard.server";
+import { ExecutiveDashboardError } from "@/lib/executive-dashboard";
+import { fetchExecutiveDashboard, type ExecutiveAnswer } from "@/lib/executive-dashboard.server";
 import ExecutiveDashboardPage from "./page";
 
 vi.mock("@/lib/executive-dashboard.server", () => ({ fetchExecutiveDashboard: vi.fn() }));
@@ -27,7 +27,7 @@ vi.mock("recharts", async (importOriginal) => {
 
 const mockedFetch = vi.mocked(fetchExecutiveDashboard);
 
-const ANSWER: ExecutiveDashboard = {
+const ANSWER: ExecutiveAnswer = {
   months: [
     {
       month: "2026-11",
@@ -37,7 +37,29 @@ const ANSWER: ExecutiveDashboard = {
     },
   ],
   creators: [],
+  kpis: {
+    current: {
+      totalSpending: 1_000_000,
+      unpaidAmount: 0,
+      totalViews: 150,
+      costPer1000Views: 6_666_666.7,
+      onTimeRate: 66.7,
+      engagementRate: null,
+      linksAwaitingData: 3,
+    },
+    previous: {
+      totalSpending: 0,
+      unpaidAmount: 0,
+      totalViews: 100,
+      costPer1000Views: null,
+      onTimeRate: 50,
+      engagementRate: null,
+    },
+  },
+  period: { from: "Jun 2026", to: "Nov 2026" },
 };
+
+const KPI_LABELS = ["Total Spending", "Belum Dibayar", "Total Views", "Biaya per 1.000 Views", "On-time Rate", "Engagement Rate"];
 
 async function renderPage(params: Record<string, string> = {}) {
   return render(<>{await ExecutiveDashboardPage({ searchParams: Promise.resolve(params) })}</>);
@@ -70,6 +92,23 @@ describe("Executive dashboard page", () => {
     }
   });
 
+  // Prototype (Sprint 4, PBI-24): the months shown and 3 / 6 / 12 Bulan, then six KPI cards.
+  it("shows the months shown, the range choice and the six KPI cards above the charts", async () => {
+    mockedFetch.mockResolvedValue(ANSWER);
+
+    await renderPage({ sort: "spending", order: "asc" });
+
+    expect(screen.getByText("Jun 2026 – Nov 2026")).toBeInTheDocument();
+    const range = screen.getByRole("group", { name: "Rentang" });
+    expect(within(range).getByRole("link", { name: "3 Bulan" })).toHaveAttribute(
+      "href",
+      "/admin/dashboard?range=3&sort=spending&order=asc",
+    );
+    expect(within(range).getByRole("link", { name: "6 Bulan" })).toHaveAttribute("aria-current", "page");
+    for (const label of KPI_LABELS) expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.getByText("3 link belum ada data")).toBeInTheDocument();
+  });
+
   it("offers a retry of the same view when the answer cannot be used, never charts of zeros", async () => {
     mockedFetch.mockRejectedValue(new ExecutiveDashboardError(502));
 
@@ -78,5 +117,12 @@ describe("Executive dashboard page", () => {
     expect(screen.getByText("Dashboard tidak bisa dimuat.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Coba lagi|Muat ulang/ })).toHaveAttribute("href", "/admin/dashboard?range=3");
     expect(screen.queryByRole("heading", { name: "Spending per Bulan" })).not.toBeInTheDocument();
+    // Every KPI card says it failed, still under its label, and offers the same view again.
+    expect(screen.getAllByText("Gagal dimuat.")).toHaveLength(KPI_LABELS.length);
+    for (const label of KPI_LABELS) expect(screen.getByText(label)).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Rentang" })).getByRole("link", { name: "3 Bulan" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });

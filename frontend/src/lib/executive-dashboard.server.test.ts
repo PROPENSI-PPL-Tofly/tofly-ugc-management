@@ -6,12 +6,12 @@ vi.mock("./backend.server", () => ({ backendGet: vi.fn() }));
 
 const mockedGet = vi.mocked(backendGet);
 
-function month(label: string) {
+/** One month of each of #265's three charts. */
+function chartMonth(label: string, pairs: [string, number][]) {
   return {
     month: label,
-    spending: { fixedRate: 1, additionalContent: 2, performanceBonus: 3 },
-    views: { instagram: 4, tiktok: 5 },
-    delivery: { onTime: 6, late: 7, notSent: 8 },
+    parts: pairs.map(([key, value]) => ({ key, label: key, value })),
+    total: pairs.reduce((sum, [, value]) => sum + value, 0),
   };
 }
 
@@ -23,8 +23,19 @@ function labels(count: number): string[] {
   });
 }
 
+/** GET /admin/dashboard as the backend (#265) answers it. */
 function answer(months: string[] = labels(6)): unknown {
-  return { months: months.map(month), creators: [] };
+  return {
+    range: { from: `${months[0]}-01`, to: `${months.at(-1)}-30`, previousFrom: "", previousTo: "" },
+    kpis: [{ key: "totalSpending", value: 6, previous: 3 }],
+    charts: [
+      { key: "spending", months: months.map((m) => chartMonth(m, [["fixedRate", 1], ["additionalContent", 2], ["performanceBonus", 3]])) },
+      { key: "views", months: months.map((m) => chartMonth(m, [["instagram", 4], ["tiktok", 5]])) },
+      { key: "timeliness", months: months.map((m) => chartMonth(m, [["on_time", 6], ["late", 7], ["not_sent", 8]])) },
+    ],
+    creators: [],
+    missingViewLinks: 2,
+  };
 }
 
 beforeEach(() => {
@@ -37,7 +48,8 @@ describe("fetchExecutiveDashboard", () => {
 
     await fetchExecutiveDashboard({ months: 12, sort: "name", order: "asc" });
 
-    expect(mockedGet).toHaveBeenCalledWith(`${EXECUTIVE_DASHBOARD_PATH}?months=12`);
+    expect(mockedGet).toHaveBeenCalledWith(`${EXECUTIVE_DASHBOARD_PATH}?range=12`);
+    expect(EXECUTIVE_DASHBOARD_PATH).toBe("/admin/dashboard");
   });
 
   it("hands back the months and creators it read", async () => {
@@ -48,6 +60,16 @@ describe("fetchExecutiveDashboard", () => {
     expect(dashboard.months.map((entry) => entry.month)).toEqual(labels(6));
     expect(dashboard.months[0].delivery).toEqual({ onTime: 6, late: 7, notSent: 8 });
     expect(dashboard.creators).toEqual([]);
+  });
+
+  it("hands the KPI cards their block and the header the months shown, from the same answer", async () => {
+    mockedGet.mockResolvedValue(Response.json(answer()));
+
+    const dashboard = await fetchExecutiveDashboard({ months: 6, sort: "views", order: "desc" });
+
+    expect(dashboard.kpis).toEqual({ current: { totalSpending: 6, linksAwaitingData: 2 }, previous: { totalSpending: 3 } });
+    expect(dashboard.period).toEqual({ from: "Jun 2026", to: "Nov 2026" });
+    expect(mockedGet).toHaveBeenCalledTimes(1);
   });
 
   it.each([

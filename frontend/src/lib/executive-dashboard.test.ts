@@ -8,6 +8,7 @@ import {
   monthLabel,
   nextCreatorSort,
   parseDashboardParams,
+  reshapeExecutiveAnswer,
   sortCreators,
   spendingRows,
   toDashboardApiQuery,
@@ -104,7 +105,7 @@ describe("the dashboard's state in the address", () => {
   });
 
   it("asks the API for the range alone; the table sorts the rows it already has", () => {
-    expect(toDashboardApiQuery({ months: 12, sort: "name", order: "asc" }).toString()).toBe("months=12");
+    expect(toDashboardApiQuery({ months: 12, sort: "name", order: "asc" }).toString()).toBe("range=12");
   });
 });
 
@@ -273,5 +274,162 @@ describe("ordering Performa Creator", () => {
 
   it("offers every column of the table", () => {
     expect(CREATOR_SORT_KEYS).toEqual(["name", "spending", "content", "onTime", "views", "costPer1000"]);
+  });
+});
+
+/** GET /admin/dashboard as 24.1 (#265) writes it: KPI cards, three generic charts, creator rows. */
+function backendAnswer(): Record<string, unknown> {
+  const parts = (pairs: [string, number][]) => pairs.map(([key, value]) => ({ key, label: key, value }));
+  const card = (key: string, value: number | null, previous: number | null) => ({
+    key,
+    label: key,
+    value,
+    previous,
+    change: null,
+    direction: "flat",
+    good: true,
+    formula: "",
+  });
+  return {
+    range: { from: "2026-10-01", to: "2026-11-30", previousFrom: "2026-08-01", previousTo: "2026-09-30" },
+    kpis: [
+      card("totalSpending", 9_000_000, 8_000_000),
+      card("unpaid", 1_000_000, 0),
+      card("totalViews", 5_000, 4_000),
+      card("costPer1000Views", 1_800_000, 2_000_000),
+      card("onTimeRate", 75, 80),
+      card("engagementRate", null, 4.5),
+    ],
+    charts: [
+      {
+        key: "spending",
+        months: [
+          { month: "2026-10", parts: parts([["fixedRate", 5], ["additionalContent", 2], ["performanceBonus", 1]]), total: 8 },
+          { month: "2026-11", parts: parts([["fixedRate", 0], ["additionalContent", 0], ["performanceBonus", 0]]), total: 0 },
+        ],
+      },
+      {
+        key: "views",
+        months: [
+          { month: "2026-10", parts: parts([["instagram", 30], ["tiktok", 20]]), total: 50 },
+          { month: "2026-11", parts: parts([["instagram", 0], ["tiktok", 7]]), total: 7 },
+        ],
+      },
+      {
+        key: "timeliness",
+        months: [
+          { month: "2026-10", parts: parts([["on_time", 3], ["late", 1], ["not_sent", 0]]), total: 4 },
+          { month: "2026-11", parts: parts([["on_time", 0], ["late", 0], ["not_sent", 2]]), total: 2 },
+        ],
+      },
+    ],
+    creators: [
+      {
+        creatorId: CREATOR_A,
+        name: "Ana",
+        spending: 9_000_000,
+        sent: 4,
+        quota: 6,
+        onTimeRate: 75,
+        views: 5_000,
+        costPer1000Views: 1_800_000,
+      },
+    ],
+    missingViewLinks: 3,
+  };
+}
+
+describe("reshapeExecutiveAnswer", () => {
+  it("lines the three charts up month by month for the charts' own check", () => {
+    const { charts } = reshapeExecutiveAnswer(backendAnswer());
+    const dashboard = toExecutiveDashboard(charts);
+
+    expect(dashboard.months).toEqual([
+      {
+        month: "2026-10",
+        spending: { fixedRate: 5, additionalContent: 2, performanceBonus: 1 },
+        views: { instagram: 30, tiktok: 20 },
+        delivery: { onTime: 3, late: 1, notSent: 0 },
+      },
+      {
+        month: "2026-11",
+        spending: { fixedRate: 0, additionalContent: 0, performanceBonus: 0 },
+        views: { instagram: 0, tiktok: 7 },
+        delivery: { onTime: 0, late: 0, notSent: 2 },
+      },
+    ]);
+  });
+
+  it("renames the creator rows to the table's fields", () => {
+    const dashboard = toExecutiveDashboard(reshapeExecutiveAnswer(backendAnswer()).charts);
+
+    expect(dashboard.creators).toEqual([
+      {
+        creatorId: CREATOR_A,
+        creatorName: "Ana",
+        spending: 9_000_000,
+        contentSent: 4,
+        contentQuota: 6,
+        onTimeRate: 75,
+        views: 5_000,
+        costPer1000Views: 1_800_000,
+      },
+    ]);
+  });
+
+  it("hands the KPI cards both ranges' figures and the links still waiting for numbers", () => {
+    expect(reshapeExecutiveAnswer(backendAnswer()).kpis).toEqual({
+      current: {
+        totalSpending: 9_000_000,
+        unpaidAmount: 1_000_000,
+        totalViews: 5_000,
+        costPer1000Views: 1_800_000,
+        onTimeRate: 75,
+        engagementRate: null,
+        linksAwaitingData: 3,
+      },
+      previous: {
+        totalSpending: 8_000_000,
+        unpaidAmount: 0,
+        totalViews: 4_000,
+        costPer1000Views: 2_000_000,
+        onTimeRate: 80,
+        engagementRate: 4.5,
+      },
+    });
+  });
+
+  it("names the months shown for the range header", () => {
+    expect(reshapeExecutiveAnswer(backendAnswer()).period).toEqual({ from: "Okt 2026", to: "Nov 2026" });
+  });
+
+  it("leaves a card the answer did not send out, so only that card fails", () => {
+    const body = backendAnswer();
+    body.kpis = (body.kpis as { key: string }[]).filter((card) => card.key !== "unpaid");
+
+    const { kpis } = reshapeExecutiveAnswer(body) as { kpis: { current: object; previous: object } };
+
+    expect(kpis.current).not.toHaveProperty("unpaidAmount");
+    expect(kpis.previous).not.toHaveProperty("unpaidAmount");
+  });
+
+  it("fails the charts when one chart is missing a month the others have", () => {
+    const body = backendAnswer();
+    const views = (body.charts as { key: string; months: unknown[] }[])[1];
+    views.months = views.months.slice(0, 1);
+
+    expect(() => toExecutiveDashboard(reshapeExecutiveAnswer(body).charts)).toThrow(ExecutiveDashboardError);
+  });
+
+  it.each([
+    ["not an object", "<html>"],
+    ["without charts or creators", {}],
+    ["with charts and creators that are not lists", { charts: "x", creators: "x", kpis: "x", range: null }],
+    ["with malformed months and parts", { charts: [{ key: "spending", months: [null, { month: "2026-11", parts: "x" }] }, "x"], creators: [null] }],
+  ])("gives the checks nothing usable when the answer is %s", (_, body) => {
+    const reshaped = reshapeExecutiveAnswer(body);
+
+    expect(() => toExecutiveDashboard(reshaped.charts)).toThrow(ExecutiveDashboardError);
+    expect(reshaped.period).toBeNull();
   });
 });
