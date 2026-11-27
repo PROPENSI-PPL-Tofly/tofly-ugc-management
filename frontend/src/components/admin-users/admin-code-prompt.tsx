@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { CodeBoxes, CODE_LENGTH } from "@/components/auth/code-boxes";
 import { useCountdown } from "@/components/auth/use-countdown";
+import { useFirstBoxFocus } from "@/components/auth/use-first-box-focus";
 import { Button } from "@/components/ui/button";
 import { ALERT } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
@@ -50,14 +51,8 @@ export function AdminCodePrompt({
   const [busy, setBusy] = useState(true);
   const { secondsLeft, restart } = useCountdown(RESEND_AFTER_SECONDS);
   const asked = useRef(false);
-  const boxesRef = useRef<HTMLDivElement>(null);
-
-  // As the sign-in screen does: once the boxes are there and unlocked (after the send, a check or
-  // a resend), the cursor goes back to the first one, since a disabled box cannot hold focus.
-  const sent = request?.kind === "sent";
-  useEffect(() => {
-    if (sent && !busy) boxesRef.current?.querySelector("input")?.focus();
-  }, [sent, busy]);
+  // As on the sign-in screen, the cursor returns to the first box after the send, a check or a resend.
+  const boxesRef = useFirstBoxFocus(request?.kind === "sent" && !busy);
 
   /** A wrong code or a new one starts from empty boxes, so nothing is typed over old digits. */
   function startOver(next: string | null) {

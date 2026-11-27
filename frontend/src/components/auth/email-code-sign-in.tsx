@@ -13,6 +13,7 @@ import {
 } from "@/lib/email-sign-in-api";
 import { CODE_LENGTH, CodeBoxes } from "./code-boxes";
 import { useCountdown } from "./use-countdown";
+import { useFirstBoxFocus } from "./use-first-box-focus";
 
 /** AC: "Kirim Ulang" unlocks this long after a code was sent. */
 export const RESEND_AFTER_SECONDS = 60;
@@ -182,18 +183,8 @@ function CodeStep({
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState<"verify" | "resend" | null>(null);
   const inFlight = useRef(false);
-  const boxesRef = useRef<HTMLDivElement>(null);
+  const boxesRef = useFirstBoxFocus(busy === null);
   const { secondsLeft, restart } = useCountdown(RESEND_AFTER_SECONDS);
-
-  function focusFirstBox() {
-    boxesRef.current?.querySelector("input")?.focus();
-  }
-
-  // On arrival, and each time the boxes unlock after a check or a resend: they cannot take focus
-  // while disabled, so this waits for the render that enables them.
-  useEffect(() => {
-    if (busy === null) focusFirstBox();
-  }, [busy]);
 
   function startOver(problem: string | null) {
     setAlert(problem);
