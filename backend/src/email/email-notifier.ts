@@ -107,11 +107,16 @@ export class EmailNotifier {
    */
   private async deliver({ eventKey, template, recipient, payload }: LoggedEmail): Promise<boolean> {
     let sent = false;
+    const clock = { expired: false };
     try {
-      const rendered = this.templates.render(template, payload);
-      await this.withinTimeout(
-        this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered }),
-      );
+      // Rendering counts against the same 10 seconds: the Paid email reads its PDF first (11.4).
+      const sending = (async () => {
+        const rendered = await this.templates.render(template, payload);
+        // Too late: the email is marked failed and the 08:00 run will send it (AC 8).
+        if (clock.expired) return;
+        await this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered });
+      })();
+      await this.withinTimeout(sending, clock);
       sent = true;
       await this.markSent(eventKey, recipient);
       return true;
@@ -146,10 +151,16 @@ export class EmailNotifier {
     return kind;
   }
 
-  private async withinTimeout(sending: Promise<void>): Promise<void> {
+  private async withinTimeout(
+    sending: Promise<void>,
+    clock: { expired: boolean },
+  ): Promise<void> {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new EmailTimeout()), EMAIL_TIMEOUT_MS);
+      timer = setTimeout(() => {
+        clock.expired = true;
+        reject(new EmailTimeout());
+      }, EMAIL_TIMEOUT_MS);
     });
     try {
       await Promise.race([sending, timeout]);
