@@ -21,4 +21,12 @@ describe("next.config", () => {
       value: "credentialless",
     });
   });
+
+  // ZAP 90004, its other half: no window opened from elsewhere keeps a handle on a Tofly page.
+  // Google sign-in is a full-page redirect, never a popup, so nothing relies on that handle.
+  it("keeps every document in its own browsing context group", async () => {
+    const [rule] = (await nextConfig.headers?.()) ?? [];
+
+    expect(rule.headers).toContainEqual({ key: "Cross-Origin-Opener-Policy", value: "same-origin" });
+  });
 });
