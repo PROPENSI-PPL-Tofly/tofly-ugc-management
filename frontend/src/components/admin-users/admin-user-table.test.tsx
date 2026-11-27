@@ -40,6 +40,27 @@ describe("Pengguna Admin's table", () => {
 
   // PBI-23 does not backfill a name: the email is the name the list can honestly show, and the
   // pages that print an admin's name (23.10, 23.11) read it the same way.
+  // QA: below lg the six columns stayed squeezed into a phone's width, so an email broke one
+  // letter per line. Each row becomes a card there, and every cell names its column itself.
+  it("lets each row read as a card on a phone, with every cell naming its column", () => {
+    render(<AdminUserTable users={[adminUser()]} total={1} />);
+
+    const [, row] = within(screen.getByRole("table")).getAllByRole("row");
+    expect(row).toHaveClass("max-lg:block");
+    expect(within(row).getAllByRole("cell").map((cell) => cell.dataset.label)).toEqual([
+      "Nama",
+      "Email",
+      "Peran",
+      "Status",
+      "Terakhir masuk",
+      "Ditambahkan",
+      "Aksi",
+    ]);
+    for (const cell of within(row).getAllByRole("cell")) {
+      expect(cell).toHaveClass("max-lg:flex", "max-lg:before:content-[attr(data-label)]");
+    }
+  });
+
   it("reads a nameless admin by their email, and a Super Admin by their role", () => {
     render(
       <AdminUserTable
