@@ -36,6 +36,7 @@ interface ActivityFields {
   finalizedBy: string | null;
   paymentProof: { uploadedBy: string } | null;
   adjustments: { actorId?: string; actorName?: string }[];
+  rateChanges?: { actorName?: string }[];
   comments?: { authorName: string; authorRole: string }[];
 }
 
@@ -153,6 +154,15 @@ describe('Admin names in history (e2e)', () => {
         actor_user_id: adminId,
       },
     });
+    // Ubah Data changed the fixed rate while it ran (PBI-16), so Aktivitas tells that too.
+    await prisma.invoice_rate_changes.create({
+      data: {
+        invoice_id: invoice.id,
+        old_rate: 1_000_000,
+        new_rate: 1_200_000,
+        actor_user_id: adminId,
+      },
+    });
     await prisma.invoices.update({
       where: { id: invoice.id },
       data: {
@@ -201,6 +211,10 @@ describe('Admin names in history (e2e)', () => {
     expect(view.adjustments).toEqual([
       expect.objectContaining({ actorId: adminId, actorName: ADMIN_NAME }),
     ]);
+    // QA: a fixed-rate change named the Admin by email although the account had a name.
+    expect(view.rateChanges).toEqual([
+      expect.objectContaining({ actorName: ADMIN_NAME }),
+    ]);
     await expect(timelineActor()).resolves.toEqual({
       name: ADMIN_NAME,
       role: 'admin',
@@ -215,13 +229,14 @@ describe('Admin names in history (e2e)', () => {
     expect(view.finalizedBy).toBe(ADMIN_EMAIL);
     expect(view.paymentProof?.uploadedBy).toBe(ADMIN_EMAIL);
     expect(view.adjustments[0].actorName).toBe(ADMIN_EMAIL);
+    expect(view.rateChanges?.[0].actorName).toBe(ADMIN_EMAIL);
     await expect(timelineActor()).resolves.toEqual({
       name: ADMIN_EMAIL,
       role: 'admin',
     });
   });
 
-  it("shows the creator who finalized, sent the proof and commented on their invoice", async () => {
+  it('shows the creator who finalized, sent the proof and commented on their invoice', async () => {
     const { invoice } = await creatorRead();
 
     expect(invoice.finalizedBy).toBe(ADMIN_NAME);
