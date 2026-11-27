@@ -50,10 +50,24 @@ export function AdminCodePrompt({
   const [busy, setBusy] = useState(true);
   const { secondsLeft, restart } = useCountdown(RESEND_AFTER_SECONDS);
   const asked = useRef(false);
+  const boxesRef = useRef<HTMLDivElement>(null);
+
+  // As the sign-in screen does: once the boxes are there and unlocked (after the send, a check or
+  // a resend), the cursor goes back to the first one, since a disabled box cannot hold focus.
+  const sent = request?.kind === "sent";
+  useEffect(() => {
+    if (sent && !busy) boxesRef.current?.querySelector("input")?.focus();
+  }, [sent, busy]);
+
+  /** A wrong code or a new one starts from empty boxes, so nothing is typed over old digits. */
+  function startOver(next: string | null) {
+    setProblem(next);
+    setCode("");
+  }
 
   const ask = useCallback(async () => {
     setBusy(true);
-    setProblem(null);
+    startOver(null);
 
     try {
       const outcome = await requestConfirmation();
@@ -102,13 +116,13 @@ export function AdminCodePrompt({
       }
 
       if (outcome.kind === "wrong") {
-        setProblem(
+        startOver(
           outcome.attemptsLeft === undefined
             ? "Kode salah."
             : `Kode salah. Sisa ${outcome.attemptsLeft} percobaan.`,
         );
       } else if (outcome.kind === "expired") {
-        setProblem(EXPIRED);
+        startOver(EXPIRED);
       } else {
         setProblem(CHECK_FAILED);
       }
@@ -152,7 +166,7 @@ export function AdminCodePrompt({
         ) : null}
 
         {request?.kind === "sent" ? (
-          <div className="mt-4 flex flex-col gap-3">
+          <div ref={boxesRef} className="mt-4 flex flex-col gap-3">
             <CodeBoxes
               value={code}
               onChange={setCode}
