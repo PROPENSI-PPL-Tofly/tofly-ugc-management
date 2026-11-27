@@ -1,4 +1,11 @@
-import { contractLastDay, contractLastDayLabel, nearestDeadlineLabel, STAT_CARDS, statCardHref } from "./creator-dashboard";
+import {
+  contractLastDay,
+  contractLastDayLabel,
+  nearestDeadlineLabel,
+  OPEN_STATUSES,
+  STAT_CARDS,
+  statCardHref,
+} from "./creator-dashboard";
 import { aCreatorInvoice } from "./creator-invoice.builder";
 import { TASK_STATUS_FILTERS } from "./my-tasks";
 
@@ -155,5 +162,13 @@ describe("nearestDeadlineLabel", () => {
     ["a deadline that is not a calendar day", "segera"],
   ])("shows a dash for %s", (_label, deadline) => {
     expect(nearestDeadlineLabel(deadline, NOON)).toBe("—");
+  });
+});
+
+// PBI-14 (14.3): Task Saya now lists a pending proposal, but it is not work with a deadline yet,
+// so the dashboard's overdue and upcoming lists still leave it out.
+describe("OPEN_STATUSES", () => {
+  it("is every unfinished status of assigned work, never a pending proposal", () => {
+    expect(OPEN_STATUSES).toEqual(["scheduled", "draft_review", "draft_revision", "draft_approved"]);
   });
 });

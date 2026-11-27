@@ -27,7 +27,8 @@ describe("MY_TASK_TABS", () => {
     ).toEqual([
       ["all", "Semua", null, false, false],
       ["action", "Perlu Dikerjakan", ["scheduled", "draft_revision", "draft_approved"], true, true],
-      ["waiting", "Menunggu Admin", ["draft_review"], false, true],
+      // PBI-14 (14.3): a proposal waits on the admin's decision, so it is listed here too.
+      ["waiting", "Menunggu Admin", ["pending", "draft_review"], false, true],
       ["done", "Selesai", ["link_submitted"], false, false],
     ]);
   });
@@ -44,15 +45,16 @@ describe("MY_TASK_TABS", () => {
 });
 
 describe("myStatusOptionsFor", () => {
-  it("offers only the statuses a tab can hold, never a pending proposal", () => {
+  it("offers only the statuses a tab can hold, a pending proposal on Semua and Menunggu Admin", () => {
     expect(myStatusOptionsFor("all")).toEqual([
+      "pending",
       "scheduled",
       "draft_review",
       "draft_revision",
       "draft_approved",
       "link_submitted",
     ]);
-    expect(myStatusOptionsFor("waiting")).toEqual(["draft_review"]);
+    expect(myStatusOptionsFor("waiting")).toEqual(["pending", "draft_review"]);
     expect(myStatusOptionsFor("done")).toEqual(["link_submitted"]);
   });
 
@@ -125,7 +127,7 @@ describe("parseMyTasksParams", () => {
     ["an unknown period", { period: "week" }, { period: "all" }],
     ["a day that does not exist", { from: "2026-02-30" }, { from: "" }],
     ["an unknown type", { type: "optional,specific" }, { type: ["specific"] }],
-    ["a pending proposal", { status: "pending,scheduled" }, { status: ["scheduled"] }],
+    ["a status that does not exist", { status: "proposed,scheduled" }, { status: ["scheduled"] }],
   ])("falls back on %s", (_label, params, expected) => {
     expect(parseMyTasksParams(params)).toMatchObject(expected);
   });
@@ -136,6 +138,12 @@ describe("parseMyTasksParams", () => {
     expect(
       parseMyTasksParams({ tab: "action", status: "draft_review,link_submitted" }).status,
     ).toEqual(["draft_review"]);
+  });
+
+  // PBI-14 (14.3): a proposal is not work to do yet, so Perlu Dikerjakan never lists it.
+  it("keeps a pending proposal on Menunggu Admin and drops it from Perlu Dikerjakan", () => {
+    expect(parseMyTasksParams({ tab: "waiting", status: "pending" }).status).toEqual(["pending"]);
+    expect(parseMyTasksParams({ tab: "action", status: "pending" }).status).toEqual([]);
   });
 
   it("drops a status the open tab cannot hold", () => {
@@ -151,10 +159,7 @@ describe("parseMyTasksParams", () => {
 
 describe("unknownStatuses", () => {
   it("names every status the page could not read, so it can say why it was ignored", () => {
-    expect(unknownStatuses({ status: "pending,scheduled,draft_revised" })).toEqual([
-      "pending",
-      "draft_revised",
-    ]);
+    expect(unknownStatuses({ status: "pending,scheduled,draft_revised" })).toEqual(["draft_revised"]);
     expect(unknownStatuses({})).toEqual([]);
   });
 });
@@ -240,6 +245,7 @@ describe("myTabOf", () => {
     ["scheduled", "action"],
     ["draft_revision", "action"],
     ["draft_approved", "action"],
+    ["pending", "waiting"],
     ["draft_review", "waiting"],
     ["link_submitted", "done"],
   ] as const)("finds %s on the %s tab", (status, tab) => {

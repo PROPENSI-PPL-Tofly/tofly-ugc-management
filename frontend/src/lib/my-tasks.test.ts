@@ -288,6 +288,8 @@ describe("fetchMyTasks with a page size", () => {
 
 describe("taskStatusLabel", () => {
   it.each([
+    // PBI-14 (14.3): the creator's own words for a proposal the admin has not decided yet.
+    ["pending", "Menunggu Persetujuan"],
     ["scheduled", "Scheduled"],
     ["draft_review", "Draft Menunggu Review"],
     ["draft_revision", "Draft Perlu Revisi"],
