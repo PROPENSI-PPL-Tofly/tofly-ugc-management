@@ -7,7 +7,12 @@
 // against CreatorInvoice. Translating the admin's InvoiceRow into it here keeps those components
 // role-blind instead of teaching each one a second input.
 
-import { ADMIN_STEP_TEXT, type ActivityText, type CreatorInvoice } from "./creator-invoice";
+import {
+  ADMIN_STEP_TEXT,
+  CANCELLED_TOTAL_LABEL,
+  type ActivityText,
+  type CreatorInvoice,
+} from "./creator-invoice";
 import { formatDate } from "./format";
 import type { InvoiceRow, InvoiceStatus } from "./invoice";
 import type { InvoiceBreakdown } from "./invoice-breakdown";
@@ -57,6 +62,7 @@ export function adminInvoiceView(row: InvoiceRow, breakdown: InvoiceBreakdown): 
 /** The total's name for the admin, as the prototype gives it: a running total until frozen. */
 export function adminTotalLabel(status: InvoiceStatus): string {
   if (status === "accruing") return "Total Sementara";
+  if (status === "cancelled") return CANCELLED_TOTAL_LABEL;
   return status === "paid" ? "Total Dibayarkan" : "Total Final";
 }
 
