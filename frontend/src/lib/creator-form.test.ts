@@ -149,7 +149,7 @@ describe("validateCreatorForm", () => {
 
     const errors = validateCreatorForm(VALID_INPUT, today, ["bagas@example.com"]);
 
-    expect(errors.email).toBe("Email sudah terdaftar");
+    expect(errors.email).toBe("Email sudah dipakai");
   });
 });
 
@@ -322,6 +322,19 @@ describe("validateCreatorForm contract end and limits", () => {
     expect(errors.instagramUsername).toBe("Username maksimal 100 karakter");
     expect(errors.tiktokUsername).toBe("Username maksimal 100 karakter");
     expect(errors.email).toBe("Email maksimal 254 karakter");
+  });
+
+  // QA (OWASP A05): the same handle rule the API keeps, checked before the request.
+  it.each(["bad user!", "salsa amelia", "<b>salsa</b>"])("refuses the username %j", (username) => {
+    const errors = validateCreatorForm({ ...INPUT, tiktokUsername: username }, TODAY);
+
+    expect(errors.tiktokUsername).toBe("Username hanya boleh huruf, angka, titik, dan garis bawah");
+  });
+
+  it.each(["salsa.amelia_", "@salsa.amelia", "", "  "])("accepts the username %j", (username) => {
+    const errors = validateCreatorForm({ ...INPUT, instagramUsername: username }, TODAY);
+
+    expect(errors.instagramUsername).toBeUndefined();
   });
 
   it("accepts a name of exactly 100 characters", () => {

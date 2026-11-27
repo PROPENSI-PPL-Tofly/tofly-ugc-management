@@ -34,14 +34,12 @@ export interface CreatorEditNotifier {
     /** YYYY-MM-DD */
     endDate: string;
   }): Promise<void>;
-  quotaChanged(input: { creatorId: string; contractId: string; quota: number }): Promise<void>;
+  quotaChanged(input: {
+    creatorId: string;
+    contractId: string;
+    quota: number;
+  }): Promise<void>;
 }
 
 /** Nest injection token for CreatorEditNotifier. */
 export const CREATOR_EDIT_NOTIFIER = Symbol('CREATOR_EDIT_NOTIFIER');
-
-/** Stands in until PBI-11's CreatorEmails answers these two events. */
-export const silentCreatorEditNotifier: CreatorEditNotifier = {
-  contractEndChanged: () => Promise.resolve(),
-  quotaChanged: () => Promise.resolve(),
-};

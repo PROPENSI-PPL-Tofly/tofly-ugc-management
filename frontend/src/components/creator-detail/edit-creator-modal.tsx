@@ -85,6 +85,7 @@ export function EditCreatorModal({
   const [form, setForm] = useState<CreatorEditInput>(initial);
   const [confirming, setConfirming] = useState(false);
   const countId = useId();
+  const endShownId = useId();
 
   const locks = editLocks(usernameLocks, period);
   const next = nextPeriod(period, periods);
@@ -170,10 +171,21 @@ export function EditCreatorModal({
               reason={locks.contractEnd}
             />
           ) : (
-            <Field label="Akhir Kontrak" error={fieldError("contractEnd")}>
+            <Field
+              label="Akhir Kontrak"
+              error={fieldError("contractEnd")}
+              // The native picker shows the browser's own format; the day is spelled beneath it
+              // the way Mulai Kontrak reads.
+              note={
+                <span id={endShownId} className="text-xs text-muted">
+                  {form.contractEnd ? formatDate(form.contractEnd) : ""}
+                </span>
+              }
+            >
               <input
                 type="date"
                 className={FIELD}
+                aria-describedby={endShownId}
                 required
                 min={current.endDate}
                 max={next ? dayBefore(next.startDate) : undefined}

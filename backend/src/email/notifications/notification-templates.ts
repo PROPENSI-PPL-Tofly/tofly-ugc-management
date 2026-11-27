@@ -71,6 +71,10 @@ export interface NotificationData {
     lastDay: Day;
     invoice: 'paid' | 'cancelled';
   };
+  /** PBI-16: the running period's new end; what was scheduled stays. */
+  contract_end_changed: Recipient & PeriodFacts & { endDate: Day };
+  /** PBI-16: the running period's new number of contents. */
+  quota_changed: Recipient & PeriodFacts & { quota: number };
   // AC 2: the 08:00 WIB reminder on H-1 for content with no link yet.
   deadline_reminder: ScheduledContent;
   // Admin emails (AC 5)
@@ -270,6 +274,26 @@ export const NOTIFICATION_TEMPLATES: Templates = {
         : 'Invoice periode ini dibatalkan (Cancelled).',
     ],
     button: () => ({ label: 'Lihat Pembayaran', path: PAYMENTS }),
+  },
+
+  contract_end_changed: {
+    audience: 'creator',
+    subject: (data) => `Akhir kontrak kamu kini ${day(data.endDate)}`,
+    lines: (data) => [
+      `Periode kontrak ${data.periodNumber} kamu kini berakhir ${day(data.endDate)}.`,
+      'Konten dan deadline yang sudah dijadwalkan tetap sama.',
+    ],
+    button: () => ({ label: 'Buka Dashboard', path: '/creator/dashboard' }),
+  },
+
+  quota_changed: {
+    audience: 'creator',
+    subject: (data) => `Jumlah konten kontrak kamu kini ${data.quota}`,
+    lines: (data) => [
+      `Jumlah konten periode kontrak ${data.periodNumber} kamu kini ${data.quota} konten.`,
+      'Konten tambahan muncul di Tugas Saya begitu dijadwalkan.',
+    ],
+    button: () => ({ label: 'Buka Tugas Saya', path: '/creator/tasks' }),
   },
 
   deadline_reminder: contentEmail('Besok deadline: ', (data) => [

@@ -700,13 +700,13 @@ describe("AddCreatorModal", () => {
           onClose={() => {}}
           onSubmit={() => {}}
           serverErrors={{
-            email: "Email sudah terdaftar",
+            email: "Email sudah dipakai",
             contractEnd: "Tanggal berakhir tidak boleh sebelum hari ini",
           }}
         />,
       );
 
-      expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+      expect(screen.getByText("Email sudah dipakai")).toBeInTheDocument();
       expect(screen.getByText("Tanggal berakhir tidak boleh sebelum hari ini")).toBeInTheDocument();
     });
 
@@ -715,27 +715,27 @@ describe("AddCreatorModal", () => {
         <AddCreatorModal
           onClose={() => {}}
           onSubmit={() => {}}
-          serverErrors={{ email: "Email sudah terdaftar", name: "Nama terlalu panjang" }}
+          serverErrors={{ email: "Email sudah dipakai", name: "Nama terlalu panjang" }}
         />,
       );
 
       fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "baru@example.com" } });
 
-      expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
+      expect(screen.queryByText("Email sudah dipakai")).not.toBeInTheDocument();
       expect(screen.getByText("Nama terlalu panjang")).toBeInTheDocument();
     });
 
     it("shows a fresh set of server messages even for a field edited before", () => {
       const { rerender } = render(
-        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah dipakai" }} />,
       );
       fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "lagi@example.com" } });
 
       rerender(
-        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah dipakai" }} />,
       );
 
-      expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+      expect(screen.getByText("Email sudah dipakai")).toBeInTheDocument();
     });
 
     it("shows the server's schedule message as an alert", () => {

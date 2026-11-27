@@ -1,7 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { silentCreatorEditNotifier } from './creator-edit-ports.js';
-import { CreatorEditService, type CreatorEditClient } from './creator-edit.service.js';
+import {
+  CreatorEditService,
+  type CreatorEditClient,
+} from './creator-edit.service.js';
 import type { CreatorEdit } from './creator-edit.js';
 
 // 10:00 WIB on 25 November 2026.
@@ -17,7 +19,12 @@ function day(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
 }
 
-function period(id: string, start: string, end: string, overrides: object = {}) {
+function period(
+  id: string,
+  start: string,
+  end: string,
+  overrides: object = {},
+) {
   return {
     id,
     start_date: day(start),
@@ -49,7 +56,9 @@ function creatorRow(overrides: object = {}) {
     users: { email: 'salsa@example.com', is_admin: false },
     social_accounts: [INSTAGRAM],
     contracts: [
-      period(PAST_ID, '2026-03-01', '2026-08-31', { invoice: { status: 'paid' } }),
+      period(PAST_ID, '2026-03-01', '2026-08-31', {
+        invoice: { status: 'paid' },
+      }),
       period(RUNNING_ID, '2026-09-01', '2026-12-15'),
       period(NEXT_ID, '2027-01-01', '2027-03-31'),
     ],
@@ -58,7 +67,9 @@ function creatorRow(overrides: object = {}) {
 }
 
 function running(overrides: object) {
-  return creatorRow({ contracts: [period(RUNNING_ID, '2026-09-01', '2026-12-15', overrides)] });
+  return creatorRow({
+    contracts: [period(RUNNING_ID, '2026-09-01', '2026-12-15', overrides)],
+  });
 }
 
 function setup(creator: unknown = creatorRow(), linkPlatforms: string[] = []) {
@@ -77,7 +88,9 @@ function setup(creator: unknown = creatorRow(), linkPlatforms: string[] = []) {
       deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     content_links: {
-      findMany: vi.fn().mockResolvedValue(linkPlatforms.map((platform) => ({ platform }))),
+      findMany: vi
+        .fn()
+        .mockResolvedValue(linkPlatforms.map((platform) => ({ platform }))),
     },
     contracts: { update: vi.fn().mockResolvedValue({}) },
     invoices: { upsert: vi.fn().mockResolvedValue({ id: 'invoice-2' }) },
@@ -85,11 +98,13 @@ function setup(creator: unknown = creatorRow(), linkPlatforms: string[] = []) {
   };
   const committed = vi.fn();
   const prisma = {
-    $transaction: vi.fn(async (work: (client: typeof tx) => Promise<unknown>) => {
-      const result = await work(tx);
-      committed();
-      return result;
-    }),
+    $transaction: vi.fn(
+      async (work: (client: typeof tx) => Promise<unknown>) => {
+        const result = await work(tx);
+        committed();
+        return result;
+      },
+    ),
   };
   const audit = { recordBy: vi.fn().mockResolvedValue(undefined) };
   const notifier = {
@@ -110,7 +125,11 @@ function edit(overrides: Partial<CreatorEdit> = {}): CreatorEdit {
   return { usernames: {}, terms: {}, ...overrides };
 }
 
-function save({ service }: Setup, overrides: Partial<CreatorEdit>, admin: string | undefined = ADMIN_ID) {
+function save(
+  { service }: Setup,
+  overrides: Partial<CreatorEdit>,
+  admin: string | undefined = ADMIN_ID,
+) {
   return service.edit(CREATOR_ID, edit(overrides), NOW, admin);
 }
 
@@ -134,7 +153,9 @@ function expectNothingWritten({ tx, audit, notifier }: Setup): void {
   }
 }
 
-async function refusal(work: Promise<unknown>): Promise<{ status: number; body: unknown }> {
+async function refusal(
+  work: Promise<unknown>,
+): Promise<{ status: number; body: unknown }> {
   const error = await work.then(
     () => {
       throw new Error('expected a rejection');
@@ -150,14 +171,19 @@ describe('CreatorEditService.edit', () => {
   // hand-in and an early end never read a period another is changing.
   it('locks the creator and then their contracts before reading them', async () => {
     const s = setup();
-    await save(s, { name: { first_name: 'Salsa', middle_name: null, last_name: 'Putri' } });
+    await save(s, {
+      name: { first_name: 'Salsa', middle_name: null, last_name: 'Putri' },
+    });
 
     const locks = s.tx.$queryRaw.mock.calls.map((call: unknown[]) => {
       const query = call[0] as Prisma.Sql;
       return { sql: query.sql, values: query.values };
     });
     expect(locks).toEqual([
-      { sql: 'SELECT id FROM creators WHERE id = ?::uuid FOR UPDATE', values: [CREATOR_ID] },
+      {
+        sql: 'SELECT id FROM creators WHERE id = ?::uuid FOR UPDATE',
+        values: [CREATOR_ID],
+      },
       {
         sql: 'SELECT id FROM contracts WHERE creator_id = ?::uuid ORDER BY id FOR UPDATE',
         values: [CREATOR_ID],
@@ -211,7 +237,9 @@ describe('CreatorEditService.edit', () => {
 
   it('answers 404 for a creator that does not exist', async () => {
     const s = setup(null);
-    await expect(save(s, { email: 'x@example.com' })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(save(s, { email: 'x@example.com' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(await refusal(save(s, {}))).toEqual({
       status: 404,
       body: { code: 'CREATOR_NOT_FOUND', message: 'Creator tidak ditemukan' },
@@ -221,7 +249,9 @@ describe('CreatorEditService.edit', () => {
   // OWASP A01: another creator's contract reads like one that does not exist.
   it('answers 404 for a contract that is not this creator’s', async () => {
     const s = setup();
-    expect(await refusal(save(s, { contractId: ADMIN_ID, terms: { quota: 7 } }))).toEqual({
+    expect(
+      await refusal(save(s, { contractId: ADMIN_ID, terms: { quota: 7 } })),
+    ).toEqual({
       status: 404,
       body: { code: 'PERIOD_NOT_FOUND', message: 'Periode tidak ditemukan' },
     });
@@ -251,14 +281,21 @@ describe('CreatorEditService.edit', () => {
   it('lets locked fields through when they are sent back as they were', async () => {
     const s = setup(
       creatorRow({
-        social_accounts: [{ ...INSTAGRAM, is_connected: true, platform_user_id: 'ig-1' }],
+        social_accounts: [
+          { ...INSTAGRAM, is_connected: true, platform_user_id: 'ig-1' },
+        ],
       }),
     );
     await expect(
       save(s, {
         usernames: { instagram: 'salsa.ig' },
         contractId: PAST_ID,
-        terms: { fixedRate: 4_000_000, quota: 6, contractEnd: day('2026-08-31'), contractType: 'regular' },
+        terms: {
+          fixedRate: 4_000_000,
+          quota: 6,
+          contractEnd: day('2026-08-31'),
+          contractType: 'regular',
+        },
       }),
     ).resolves.toEqual({ id: CREATOR_ID, changed: ['contractType'] });
   });
@@ -266,8 +303,15 @@ describe('CreatorEditService.edit', () => {
   describe('name', () => {
     it('saves it and records the old and new name', async () => {
       const s = setup();
-      const name = { first_name: 'Salsa', middle_name: 'Putri', last_name: 'Amelia' };
-      await expect(save(s, { name })).resolves.toEqual({ id: CREATOR_ID, changed: ['name'] });
+      const name = {
+        first_name: 'Salsa',
+        middle_name: 'Putri',
+        last_name: 'Amelia',
+      };
+      await expect(save(s, { name })).resolves.toEqual({
+        id: CREATOR_ID,
+        changed: ['name'],
+      });
 
       expect(s.tx.creators.update).toHaveBeenCalledExactlyOnceWith({
         where: { id: CREATOR_ID },
@@ -317,13 +361,16 @@ describe('CreatorEditService.edit', () => {
     it('answers an address already taken under the email field', async () => {
       const s = setup();
       s.tx.users.update.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('taken', { code: 'P2002', clientVersion: 'x' }),
+        new Prisma.PrismaClientKnownRequestError('taken', {
+          code: 'P2002',
+          clientVersion: 'x',
+        }),
       );
       expect(await refusal(save(s, { email: 'taken@example.com' }))).toEqual({
         status: 422,
         body: {
           message: 'Data creator tidak valid',
-          errors: { email: 'Email sudah terdaftar' },
+          errors: { email: 'Email sudah dipakai' },
         },
       });
       expect(s.tx.app_sessions.deleteMany).not.toHaveBeenCalled();
@@ -332,16 +379,23 @@ describe('CreatorEditService.edit', () => {
 
     it.each([
       new Error('connection lost'),
-      new Prisma.PrismaClientKnownRequestError('gone', { code: 'P2025', clientVersion: 'x' }),
+      new Prisma.PrismaClientKnownRequestError('gone', {
+        code: 'P2025',
+        clientVersion: 'x',
+      }),
     ])('passes any other failure on: %s', async (failure) => {
       const s = setup();
       s.tx.users.update.mockRejectedValue(failure);
-      await expect(save(s, { email: 'baru@example.com' })).rejects.toBe(failure);
+      await expect(save(s, { email: 'baru@example.com' })).rejects.toBe(
+        failure,
+      );
     });
 
     // OWASP A01: an Admin must not take over an admin account by editing the creator behind it.
     it('refuses to change the address of an account that is also an Admin', async () => {
-      const s = setup(creatorRow({ users: { email: 'salsa@example.com', is_admin: true } }));
+      const s = setup(
+        creatorRow({ users: { email: 'salsa@example.com', is_admin: true } }),
+      );
       expect(await refusal(save(s, { email: 'baru@example.com' }))).toEqual({
         status: 422,
         body: {
@@ -363,7 +417,11 @@ describe('CreatorEditService.edit', () => {
       await save(s, { usernames: { instagram: 'salsa.baru' } });
 
       expect(s.tx.social_accounts.updateMany).toHaveBeenCalledExactlyOnceWith({
-        where: { creator_id: CREATOR_ID, platform: 'instagram', ...NOT_CONNECTED },
+        where: {
+          creator_id: CREATOR_ID,
+          platform: 'instagram',
+          ...NOT_CONNECTED,
+        },
         data: { username: 'salsa.baru', updated_at: NOW },
       });
       expect(s.audit.recordBy).toHaveBeenCalledExactlyOnceWith(
@@ -378,13 +436,17 @@ describe('CreatorEditService.edit', () => {
 
     it('adds one that was not', async () => {
       const s = setup();
-      await expect(save(s, { usernames: { tiktok: 'salsa.tt' } })).resolves.toEqual({
+      await expect(
+        save(s, { usernames: { tiktok: 'salsa.tt' } }),
+      ).resolves.toEqual({
         id: CREATOR_ID,
         changed: ['tiktokUsername'],
       });
 
       expect(s.tx.social_accounts.createMany).toHaveBeenCalledExactlyOnceWith({
-        data: [{ creator_id: CREATOR_ID, platform: 'tiktok', username: 'salsa.tt' }],
+        data: [
+          { creator_id: CREATOR_ID, platform: 'tiktok', username: 'salsa.tt' },
+        ],
         skipDuplicates: true,
       });
       expect(s.audit.recordBy).toHaveBeenCalledExactlyOnceWith(
@@ -402,7 +464,11 @@ describe('CreatorEditService.edit', () => {
       await save(s, { usernames: { instagram: '' } });
 
       expect(s.tx.social_accounts.deleteMany).toHaveBeenCalledExactlyOnceWith({
-        where: { creator_id: CREATOR_ID, platform: 'instagram', ...NOT_CONNECTED },
+        where: {
+          creator_id: CREATOR_ID,
+          platform: 'instagram',
+          ...NOT_CONNECTED,
+        },
       });
       expect(s.audit.recordBy).toHaveBeenCalledExactlyOnceWith(
         s.tx,
@@ -414,22 +480,28 @@ describe('CreatorEditService.edit', () => {
     it('refuses one whose account is connected', async () => {
       const s = setup(
         creatorRow({
-          social_accounts: [{ ...INSTAGRAM, is_connected: true, platform_user_id: 'ig-1' }],
+          social_accounts: [
+            { ...INSTAGRAM, is_connected: true, platform_user_id: 'ig-1' },
+          ],
         }),
       );
-      expect(await refusal(save(s, { usernames: { instagram: 'x' } }))).toEqual({
-        status: 409,
-        body: {
-          code: 'USERNAME_LOCKED',
-          message: 'Username Instagram mengikuti akun yang terhubung',
+      expect(await refusal(save(s, { usernames: { instagram: 'x' } }))).toEqual(
+        {
+          status: 409,
+          body: {
+            code: 'USERNAME_LOCKED',
+            message: 'Username Instagram mengikuti akun yang terhubung',
+          },
         },
-      });
+      );
       expectNothingWritten(s);
     });
 
     it('refuses one with a link submitted on its platform, in any of the creator’s periods', async () => {
       const s = setup(creatorRow(), ['tiktok']);
-      expect(await refusal(save(s, { usernames: { tiktok: 'x' } }))).toMatchObject({
+      expect(
+        await refusal(save(s, { usernames: { tiktok: 'x' } })),
+      ).toMatchObject({
         status: 409,
         body: { code: 'USERNAME_LOCKED' },
       });
@@ -454,21 +526,29 @@ describe('CreatorEditService.edit', () => {
           ],
         }),
       );
-      await expect(save(s, { usernames: { tiktok: 'x' } })).resolves.toMatchObject({
+      await expect(
+        save(s, { usernames: { tiktok: 'x' } }),
+      ).resolves.toMatchObject({
         changed: ['tiktokUsername'],
       });
     });
 
     it('lets an Admin’s creator change anything but the address', async () => {
-      const s = setup(creatorRow({ users: { email: 'salsa@example.com', is_admin: true } }));
-      await expect(save(s, { usernames: { instagram: 'x' } })).resolves.toMatchObject({
+      const s = setup(
+        creatorRow({ users: { email: 'salsa@example.com', is_admin: true } }),
+      );
+      await expect(
+        save(s, { usernames: { instagram: 'x' } }),
+      ).resolves.toMatchObject({
         changed: ['instagramUsername'],
       });
     });
 
     it('leaves the other platform’s username editable', async () => {
       const s = setup(creatorRow(), ['tiktok']);
-      await expect(save(s, { usernames: { instagram: 'x' } })).resolves.toMatchObject({
+      await expect(
+        save(s, { usernames: { instagram: 'x' } }),
+      ).resolves.toMatchObject({
         changed: ['instagramUsername'],
       });
     });
@@ -484,19 +564,22 @@ describe('CreatorEditService.edit', () => {
       ['updateMany', { instagram: 'x' }],
       ['deleteMany', { instagram: '' }],
       ['createMany', { tiktok: 'x' }],
-    ] as const)('refuses when %s finds the account connected meanwhile', async (write, usernames) => {
-      const s = setup();
-      s.tx.social_accounts[write].mockResolvedValue({ count: 0 });
-      const work = save(s, { usernames });
-      await expect(work).rejects.toBeInstanceOf(ConflictException);
-      expect(await refusal(work)).toMatchObject({
-        body: {
-          code: 'USERNAME_LOCKED',
-          message: expect.stringContaining('mengikuti akun yang terhubung'),
-        },
-      });
-      expect(s.committed).not.toHaveBeenCalled();
-    });
+    ] as const)(
+      'refuses when %s finds the account connected meanwhile',
+      async (write, usernames) => {
+        const s = setup();
+        s.tx.social_accounts[write].mockResolvedValue({ count: 0 });
+        const work = save(s, { usernames });
+        await expect(work).rejects.toBeInstanceOf(ConflictException);
+        expect(await refusal(work)).toMatchObject({
+          body: {
+            code: 'USERNAME_LOCKED',
+            message: expect.stringContaining('mengikuti akun yang terhubung'),
+          },
+        });
+        expect(s.committed).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('contract type', () => {
@@ -527,7 +610,10 @@ describe('CreatorEditService.edit', () => {
 
     it('saves it and adds it to the invoice’s history', async () => {
       const s = setup();
-      await expect(save(s, CHANGE)).resolves.toEqual({ id: CREATOR_ID, changed: ['fixedRate'] });
+      await expect(save(s, CHANGE)).resolves.toEqual({
+        id: CREATOR_ID,
+        changed: ['fixedRate'],
+      });
 
       expect(s.tx.contracts.update).toHaveBeenCalledExactlyOnceWith({
         where: { id: RUNNING_ID },
@@ -562,31 +648,44 @@ describe('CreatorEditService.edit', () => {
     it('records no actor behind the local stand-in', async () => {
       const s = setup();
       await s.service.edit(CREATOR_ID, edit(CHANGE), NOW);
-      expect(s.tx.invoice_rate_changes.create.mock.calls[0][0].data.actor_user_id).toBeNull();
-      expect(s.audit.recordBy).toHaveBeenCalledWith(s.tx, undefined, expect.anything());
+      expect(
+        s.tx.invoice_rate_changes.create.mock.calls[0][0].data.actor_user_id,
+      ).toBeNull();
+      expect(s.audit.recordBy).toHaveBeenCalledWith(
+        s.tx,
+        undefined,
+        expect.anything(),
+      );
     });
 
     it('treats a contract without an invoice row as running', async () => {
       const s = setup(running({ invoice: null }));
-      await expect(save(s, CHANGE)).resolves.toMatchObject({ changed: ['fixedRate'] });
+      await expect(save(s, CHANGE)).resolves.toMatchObject({
+        changed: ['fixedRate'],
+      });
     });
 
     it('changes on an ended period whose invoice still runs', async () => {
       const s = setup(running({ end_date: day('2026-11-01') }));
-      await expect(save(s, CHANGE)).resolves.toMatchObject({ changed: ['fixedRate'] });
+      await expect(save(s, CHANGE)).resolves.toMatchObject({
+        changed: ['fixedRate'],
+      });
     });
 
-    it.each(['finalized', 'creator_acked', 'payment_uploaded', 'paid', 'cancelled'])(
-      'is refused once the invoice is %s',
-      async (status) => {
-        const s = setup(running({ invoice: { status } }));
-        expect(await refusal(save(s, CHANGE))).toMatchObject({
-          status: 409,
-          body: { code: 'FIXED_RATE_LOCKED' },
-        });
-        expectNothingWritten(s);
-      },
-    );
+    it.each([
+      'finalized',
+      'creator_acked',
+      'payment_uploaded',
+      'paid',
+      'cancelled',
+    ])('is refused once the invoice is %s', async (status) => {
+      const s = setup(running({ invoice: { status } }));
+      expect(await refusal(save(s, CHANGE))).toMatchObject({
+        status: 409,
+        body: { code: 'FIXED_RATE_LOCKED' },
+      });
+      expectNothingWritten(s);
+    });
   });
 
   describe('end date and quota', () => {
@@ -604,7 +703,11 @@ describe('CreatorEditService.edit', () => {
 
       expect(s.tx.contracts.update).toHaveBeenCalledExactlyOnceWith({
         where: { id: RUNNING_ID },
-        data: { end_date: day('2026-12-31'), content_quota: 8, updated_at: NOW },
+        data: {
+          end_date: day('2026-12-31'),
+          content_quota: 8,
+          updated_at: NOW,
+        },
       });
       expect(s.audit.recordBy).toHaveBeenCalledExactlyOnceWith(
         s.tx,
@@ -639,7 +742,10 @@ describe('CreatorEditService.edit', () => {
       expect(s.notifier.quotaChanged).toHaveBeenCalledOnce();
 
       const other = setup();
-      await save(other, { contractId: RUNNING_ID, terms: { contractEnd: day('2026-12-16') } });
+      await save(other, {
+        contractId: RUNNING_ID,
+        terms: { contractEnd: day('2026-12-16') },
+      });
       expect(other.notifier.contractEndChanged).toHaveBeenCalledOnce();
       expect(other.notifier.quotaChanged).not.toHaveBeenCalled();
     });
@@ -649,14 +755,17 @@ describe('CreatorEditService.edit', () => {
       [PAST_ID, { contractEnd: day('2026-12-01') }],
       [NEXT_ID, { quota: 9 }],
       [NEXT_ID, { contractEnd: day('2027-12-01') }],
-    ])('is refused on a period that is not active (%s, %j)', async (contractId, terms) => {
-      const s = setup();
-      expect(await refusal(save(s, { contractId, terms }))).toMatchObject({
-        status: 409,
-        body: { code: 'PERIOD_NOT_ACTIVE' },
-      });
-      expectNothingWritten(s);
-    });
+    ])(
+      'is refused on a period that is not active (%s, %j)',
+      async (contractId, terms) => {
+        const s = setup();
+        expect(await refusal(save(s, { contractId, terms }))).toMatchObject({
+          status: 409,
+          body: { code: 'PERIOD_NOT_ACTIVE' },
+        });
+        expectNothingWritten(s);
+      },
+    );
 
     it('names both problems under their fields', async () => {
       const s = setup();
@@ -672,7 +781,8 @@ describe('CreatorEditService.edit', () => {
         body: {
           message: 'Data creator tidak valid',
           errors: {
-            contractEnd: 'Paling lambat 31 Des 2026, sehari sebelum Periode 3 mulai',
+            contractEnd:
+              'Paling lambat 31 Des 2026, sehari sebelum Periode 3 mulai',
             quota: 'Minimal 5, sesuai konten Evergreen yang sudah ada',
           },
         },
@@ -688,7 +798,12 @@ describe('CreatorEditService.edit', () => {
       contractId: RUNNING_ID,
       terms: { contractType: 'regular' },
     });
-    expect(s.audit.recordBy.mock.calls.map((call) => [call[2].action, call[2].target.label])).toEqual([
+    expect(
+      s.audit.recordBy.mock.calls.map((call) => [
+        call[2].action,
+        call[2].target.label,
+      ]),
+    ).toEqual([
       ['creator_changed', 'Rani'],
       ['period_changed', 'Rani · Periode 2'],
     ]);
@@ -698,19 +813,10 @@ describe('CreatorEditService.edit', () => {
   it('fails with the audit log', async () => {
     const s = setup();
     s.audit.recordBy.mockRejectedValue(new Error('audit down'));
-    await expect(save(s, { contractId: RUNNING_ID, terms: { quota: 8 } })).rejects.toThrow('audit down');
+    await expect(
+      save(s, { contractId: RUNNING_ID, terms: { quota: 8 } }),
+    ).rejects.toThrow('audit down');
     expect(s.committed).not.toHaveBeenCalled();
     expect(s.notifier.quotaChanged).not.toHaveBeenCalled();
-  });
-});
-
-describe('the stand-in until the edit emails are merged', () => {
-  it('sends nothing', async () => {
-    await expect(
-      silentCreatorEditNotifier.contractEndChanged({ creatorId: 'a', contractId: 'b', endDate: 'c' }),
-    ).resolves.toBeUndefined();
-    await expect(
-      silentCreatorEditNotifier.quotaChanged({ creatorId: 'a', contractId: 'b', quota: 1 }),
-    ).resolves.toBeUndefined();
   });
 });

@@ -25,6 +25,8 @@ export type InvoicePdfs = Pick<InvoicePdfService, 'forContract'>;
 const READS: Partial<Record<NotificationTemplate, 'period' | 'invoice'>> = {
   payment_proof_uploaded: 'period',
   period_added: 'period',
+  contract_end_changed: 'period',
+  quota_changed: 'period',
   invoice_acknowledged: 'period',
   invoice_finalized: 'invoice',
   invoice_paid: 'invoice',

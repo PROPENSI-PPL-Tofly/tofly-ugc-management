@@ -28,7 +28,12 @@ interface CreatorRow {
 /** The creator with every contract and its invoice, for the access rule (PBI-11 AC 3). */
 const CREATOR_WITH_CONTRACTS = {
   ...CREATOR_SELECT,
-  contracts: { select: { end_date: true, invoice: { select: { status: true, paid_at: true } } } },
+  contracts: {
+    select: {
+      end_date: true,
+      invoice: { select: { status: true, paid_at: true } },
+    },
+  },
 } as const;
 
 interface CreatorWithContracts extends CreatorRow {
@@ -85,7 +90,8 @@ export class CreatorEmails implements CreatorNotifier {
   constructor(
     @Inject(PrismaService) private readonly prisma: CreatorEmailClient,
     // Only that the email was tried matters here: its answer is the run's business, not the service's.
-    @Inject(EmailNotifier) private readonly notifier: { notify(event: EmailEvent): Promise<unknown> },
+    @Inject(EmailNotifier)
+    private readonly notifier: { notify(event: EmailEvent): Promise<unknown> },
     @Inject(EMAIL_LOG) private readonly log: Pick<Logger, 'warn'>,
   ) {}
 
@@ -119,15 +125,33 @@ export class CreatorEmails implements CreatorNotifier {
     });
   }
 
-  revisionRequested({ contentId, submissionId }: { contentId: string; submissionId: string }) {
+  revisionRequested({
+    contentId,
+    submissionId,
+  }: {
+    contentId: string;
+    submissionId: string;
+  }) {
     return this.byContent(contentId, 'revision_requested', submissionId);
   }
 
-  followUpAdded({ contentId, followUpId }: { contentId: string; followUpId: string }) {
+  followUpAdded({
+    contentId,
+    followUpId,
+  }: {
+    contentId: string;
+    followUpId: string;
+  }) {
     return this.byContent(contentId, 'follow_up_added', followUpId);
   }
 
-  draftApproved({ contentId, submissionId }: { contentId: string; submissionId: string }) {
+  draftApproved({
+    contentId,
+    submissionId,
+  }: {
+    contentId: string;
+    submissionId: string;
+  }) {
     return this.byContent(contentId, 'draft_approved', submissionId);
   }
 
@@ -135,9 +159,15 @@ export class CreatorEmails implements CreatorNotifier {
    * Keyed by the edit's history event, not the new date: 10 → 12 → 10 → 12 is three emails, while
    * a retry of the same edit is still one (review on #254).
    */
-  contentRescheduled(input: { contentId: string; deadline: string; editId: string }) {
+  contentRescheduled(input: {
+    contentId: string;
+    deadline: string;
+    editId: string;
+  }) {
     const { contentId, deadline, editId } = input;
-    return this.byContent(contentId, 'content_rescheduled', editId, { deadline });
+    return this.byContent(contentId, 'content_rescheduled', editId, {
+      deadline,
+    });
   }
 
   contentDeleted(input: {
@@ -191,6 +221,34 @@ export class CreatorEmails implements CreatorNotifier {
     });
   }
 
+  // PBI-16: keyed by the new value, so a retried save is one email and a second, different
+  // change is another. The template reads the period's number from the contract.
+  contractEndChanged(input: {
+    creatorId: string;
+    contractId: string;
+    endDate: string;
+  }): Promise<void> {
+    const { creatorId, contractId, endDate } = input;
+    return this.byCreator(creatorId, {
+      eventKey: `contract_end_changed:${contractId}:${endDate}`,
+      template: 'contract_end_changed',
+      data: { contractId, endDate },
+    });
+  }
+
+  quotaChanged(input: {
+    creatorId: string;
+    contractId: string;
+    quota: number;
+  }): Promise<void> {
+    const { creatorId, contractId, quota } = input;
+    return this.byCreator(creatorId, {
+      eventKey: `quota_changed:${contractId}:${quota}`,
+      template: 'quota_changed',
+      data: { contractId, quota },
+    });
+  }
+
   /** AC 1: Admin approved the creator's proposal. */
   proposalApproved({ contentId }: { contentId: string }): Promise<void> {
     return this.byContent(contentId, 'proposal_approved', contentId);
@@ -221,7 +279,11 @@ export class CreatorEmails implements CreatorNotifier {
    * AC 1 and AC 3: the Paid email. On the creator's last invoice it names the day access closes,
    * by the same rule sign-in follows; otherwise that day is null.
    */
-  invoicePaid(input: { creatorId: string; contractId: string; paidAt: Date }): Promise<void> {
+  invoicePaid(input: {
+    creatorId: string;
+    contractId: string;
+    paidAt: Date;
+  }): Promise<void> {
     const { creatorId, contractId, paidAt } = input;
     return this.reach('invoice_paid', async () => {
       const creator = await this.prisma.creators.findUnique({
@@ -248,7 +310,10 @@ export class CreatorEmails implements CreatorNotifier {
   }
 
   /** An invoice event: the creator is the one whose contract the invoice belongs to. */
-  private byContract(contractId: string, event: Omit<EmailEvent, 'to'>): Promise<void> {
+  private byContract(
+    contractId: string,
+    event: Omit<EmailEvent, 'to'>,
+  ): Promise<void> {
     return this.reach(event.template, async () => {
       const contract = await this.prisma.contracts.findUnique({
         where: { id: contractId },
@@ -258,7 +323,10 @@ export class CreatorEmails implements CreatorNotifier {
     });
   }
 
-  private byCreator(creatorId: string, event: Omit<EmailEvent, 'to'>): Promise<void> {
+  private byCreator(
+    creatorId: string,
+    event: Omit<EmailEvent, 'to'>,
+  ): Promise<void> {
     return this.reach(event.template, async () => ({
       creator: await this.prisma.creators.findUnique({
         where: { id: creatorId },
@@ -293,7 +361,10 @@ export class CreatorEmails implements CreatorNotifier {
   }
 
   /** Finds the recipient, then sends; a failed read is logged, never thrown (AC 9). */
-  private async reach(template: string, find: () => Promise<Addressed | null>): Promise<void> {
+  private async reach(
+    template: string,
+    find: () => Promise<Addressed | null>,
+  ): Promise<void> {
     let found: Addressed | null;
     try {
       found = await find();

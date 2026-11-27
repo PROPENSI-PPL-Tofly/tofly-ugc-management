@@ -11,7 +11,6 @@ import { ContractPeriodsService } from './contract-periods.service.js';
 import {
   CREATOR_EDIT_AUDIT,
   CREATOR_EDIT_NOTIFIER,
-  silentCreatorEditNotifier,
 } from './creator-edit-ports.js';
 import { CreatorEditService } from './creator-edit.service.js';
 import { CreatorOnboardingService } from './creator-onboarding.service.js';
@@ -19,9 +18,14 @@ import { CreatorsController } from './creators.controller.js';
 import { CreatorsService } from './creators.service.js';
 
 @Module({
-  // A new account, a new period and an early end email the creator (PBI-11).
+  // A new account, a new period, an early end and an Ubah Data change of the end date or quota
+  // email the creator (PBI-11, PBI-16).
   imports: [EmailModule],
-  controllers: [CreatorsController, ContractPeriodsController, ContractEndController],
+  controllers: [
+    CreatorsController,
+    ContractPeriodsController,
+    ContractEndController,
+  ],
   providers: [
     CreatorsService,
     CreatorOnboardingService,
@@ -31,8 +35,7 @@ import { CreatorsService } from './creators.service.js';
     { provide: CONTRACT_END_AUDIT, useExisting: AuditLogger },
     CreatorEditService,
     { provide: CREATOR_EDIT_AUDIT, useExisting: AuditLogger },
-    // PBI-11, 11.2: becomes useExisting: CreatorEmails when it answers these two events.
-    { provide: CREATOR_EDIT_NOTIFIER, useValue: silentCreatorEditNotifier },
+    { provide: CREATOR_EDIT_NOTIFIER, useExisting: CreatorEmails },
     { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
   ],
 })

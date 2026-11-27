@@ -131,7 +131,7 @@ describe('CreatorOnboardingService (e2e)', () => {
 
     expect(error).toBeInstanceOf(UnprocessableEntityException);
     expect((error as UnprocessableEntityException).getResponse()).toMatchObject(
-      { errors: { email: 'Email sudah terdaftar' } },
+      { errors: { email: 'Email sudah dipakai' } },
     );
     await expect(
       prisma.creators.count({ where: { first_name: { startsWith: MARKER } } }),
