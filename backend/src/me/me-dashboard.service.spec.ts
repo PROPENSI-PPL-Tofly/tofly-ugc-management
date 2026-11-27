@@ -52,6 +52,24 @@ describe('MeDashboardService', () => {
       where: { id: 'ana' },
       select: expect.objectContaining({ contracts: expect.anything() }),
     });
+    // `contracts: true` brings no contents, and the progress card reads them (500 over HTTP).
+    expect(prisma.creators.findUnique.mock.calls[0][0].select.contracts).toEqual({
+      select: {
+        id: true,
+        start_date: true,
+        end_date: true,
+        content_quota: true,
+        contents: {
+          select: {
+            deadline: true,
+            video_submitted_at: true,
+            type: true,
+            status: true,
+            _count: { select: { submissions: true } },
+          },
+        },
+      },
+    });
     expect(invoicesService.forCreator).toHaveBeenCalledWith('ana', TODAY);
     expect(result).toEqual({
       period: { startDate: '2026-01-01', endDate: '2026-12-31' },
