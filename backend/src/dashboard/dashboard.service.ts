@@ -7,6 +7,7 @@ import { contentOutcome } from '../creators/creator-metrics.js';
 import {
   checkDashboardRange,
   dashboardRange,
+  monthsBetween,
   type DashboardRangeMonths,
 } from './dashboard-range.js';
 import { buildCharts } from './dashboard-series.js';
@@ -104,7 +105,13 @@ export class DashboardService {
     return {
       range,
       kpis: computeKpis(inputs(current, today), inputs(previous, today)),
-      charts: buildCharts(current.invoices, current.links, current.contents, today),
+      charts: buildCharts(
+        current.invoices,
+        current.links,
+        current.contents,
+        today,
+        monthsBetween(range.from, range.to),
+      ),
       creators: creatorRows(
         current.creators.map((creator) => ({
           creatorId: creator.creatorId,

@@ -97,6 +97,7 @@ function card(key: KpiKey, current: KpiInputs, previous: KpiInputs): KpiCard {
     key,
     label: LABELS[key],
     value: now,
+    previous: before,
     change,
     direction,
     good,

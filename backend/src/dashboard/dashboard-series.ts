@@ -161,8 +161,10 @@ export function buildCharts(
   links: readonly SeriesLink[],
   contents: readonly SeriesContent[],
   today: Date,
+  /** The range's months, oldest first: each one gets a bar, at zero when nothing happened. */
+  range?: readonly string[],
 ): ExecutiveChart[] {
-  return [
+  const charts: ExecutiveChart[] = [
     {
       key: 'spending',
       title: 'Spending per Bulan',
@@ -182,4 +184,21 @@ export function buildCharts(
       months: timelinessMonths(contents, today),
     },
   ];
+  return range === undefined ? charts : charts.map((chart) => fillMonths(chart, range));
+}
+
+/** The chart with one entry per month of the range, in order; a missing month is all zeros. */
+function fillMonths(chart: ExecutiveChart, range: readonly string[]): ExecutiveChart {
+  const known = new Map(chart.months.map((month) => [month.month, month]));
+  return {
+    ...chart,
+    months: range.map(
+      (month) =>
+        known.get(month) ?? {
+          month,
+          parts: chart.legend.map((part) => ({ key: part.key, label: part.label, value: 0 })),
+          total: 0,
+        },
+    ),
+  };
 }

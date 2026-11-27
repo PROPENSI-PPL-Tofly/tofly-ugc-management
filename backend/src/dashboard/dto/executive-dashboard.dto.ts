@@ -20,6 +20,8 @@ export interface KpiCard {
   label: string;
   /** null is shown as "—" when there is nothing to divide by. */
   value: number | null;
+  /** The same figure for the previous range, so a rate's move can be shown in points. */
+  previous: number | null;
   /** Ratio against the previous range; null when that range had no value. */
   change: number | null;
   direction: ChangeDirection;

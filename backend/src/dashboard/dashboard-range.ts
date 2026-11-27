@@ -20,10 +20,21 @@ export interface ExecutiveRange {
 
 export function checkDashboardRange(value: unknown): DashboardRangeMonths {
   if (value === undefined) return DEFAULT_DASHBOARD_RANGE;
-  if (!(DASHBOARD_RANGES as readonly unknown[]).includes(value)) {
+  // ?range=6 arrives as the text "6"; only the exact written forms of 3, 6 and 12 are read.
+  const months = DASHBOARD_RANGES.find((range) => value === range || value === String(range));
+  if (months === undefined) {
     reject(`range must be one of ${DASHBOARD_RANGES.join(', ')}`);
   }
-  return value as DashboardRangeMonths;
+  return months as DashboardRangeMonths;
+}
+
+/** Every calendar month from `from` to `to` (ISO days), oldest first, as "YYYY-MM". */
+export function monthsBetween(from: string, to: string): string[] {
+  const months: string[] = [];
+  for (let month = from.slice(0, 7); month <= to.slice(0, 7); month = day(firstOfMonth(month, 1)).slice(0, 7)) {
+    months.push(month);
+  }
+  return months;
 }
 
 /** The first day of a month, as a Date, `delta` months from the named month. */

@@ -109,9 +109,9 @@ describe('DashboardService', () => {
     const result = await service.executive(TODAY, 3);
 
     expect(result.charts.map((chart) => chart.key)).toEqual(['spending', 'views', 'timeliness']);
-    expect(result.charts[0].months[0].total).toBe(2_000_000);
-    expect(result.charts[1].months[0].total).toBe(100);
-    expect(result.charts[2].months[0].total).toBe(1);
+    expect(result.charts[0].months.at(-1)!.total).toBe(2_000_000);
+    expect(result.charts[1].months.at(-1)!.total).toBe(100);
+    expect(result.charts[2].months.at(-1)!.total).toBe(1);
     expect(result.creators).toEqual([
       {
         creatorId: 'ana',
