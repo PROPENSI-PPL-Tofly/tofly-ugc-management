@@ -26,11 +26,30 @@ interface ContractRow {
   }[];
 }
 
+/** Each contract with the contents its progress is counted from (the same fields Task Saya reads). */
+const CONTRACT_SELECT = {
+  select: {
+    id: true,
+    start_date: true,
+    end_date: true,
+    content_quota: true,
+    contents: {
+      select: {
+        deadline: true,
+        video_submitted_at: true,
+        type: true,
+        status: true,
+        _count: { select: { submissions: true } },
+      },
+    },
+  },
+} as const;
+
 type Client = {
   creators: {
     findUnique: (args: {
       where: { id: string };
-      select: { contracts: unknown };
+      select: { contracts: typeof CONTRACT_SELECT };
     }) => Promise<{ contracts: ContractRow[] } | null>;
   };
 };
@@ -63,7 +82,7 @@ export class MeDashboardService {
     const [row, views] = await Promise.all([
       this.prisma.creators.findUnique({
         where: { id: creatorId },
-        select: { contracts: true },
+        select: { contracts: CONTRACT_SELECT },
       }),
       this.invoices.forCreator(creatorId, today),
     ]);
