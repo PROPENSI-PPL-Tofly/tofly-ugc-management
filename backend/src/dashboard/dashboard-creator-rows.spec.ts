@@ -28,6 +28,28 @@ describe("the executive dashboard's creator rows", () => {
     ).toEqual(['ana']);
   });
 
+  // A renewal inside the range is a second contract of the same creator: still one row, its
+  // quotas added up, since "sent" already counts the content of both (seen on Salsa locally).
+  it('gives a creator with two contracts in the range one row, with both quotas', () => {
+    const renewal: CreatorInput = {
+      ...ana,
+      contract: { quota: 6, startDate: '2027-01-01', endDate: '2027-06-30' },
+    };
+
+    const rows = creatorRows(
+      [ana, renewal, budi],
+      [{ creatorId: 'ana', spending: 1_000_000 }],
+      [{ creatorId: 'ana', views: 1_000, dataState: 'synced', platform: 'instagram' }],
+      [{ creatorId: 'ana', deadline: '2026-11-05', videoSubmittedAt: '2026-11-04', isProposal: false }],
+      'views',
+      'desc',
+      TODAY,
+    );
+
+    expect(rows.map((row) => row.creatorId)).toEqual(['ana', 'budi']);
+    expect(rows[0]).toMatchObject({ quota: 11, sent: 1, spending: 1_000_000, views: 1_000 });
+  });
+
   it('reads spending, sent against quota, on-time rate, views and cost per 1k', () => {
     const [row] = creatorRows(
       [ana],
