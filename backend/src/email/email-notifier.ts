@@ -30,8 +30,11 @@ export interface EmailEvent {
   data: Record<string, unknown>;
 }
 
-/** The mail server took longer than EMAIL_TIMEOUT_MS. */
+/** The mail server took longer than EMAIL_TIMEOUT_MS: it may still send it, so never retried. */
 class EmailTimeout extends Error {}
+
+/** The template took the whole EMAIL_TIMEOUT_MS: the mail server was never asked, so retried. */
+class RenderTimeout extends Error {}
 
 /** An SMTP error code such as ESOCKET, EAUTH or ETIMEDOUT: letters, digits and underscores only. */
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{1,31}$/;
@@ -107,7 +110,7 @@ export class EmailNotifier {
    */
   private async deliver({ eventKey, template, recipient, payload }: LoggedEmail): Promise<boolean> {
     let sent = false;
-    const clock = { expired: false };
+    const clock = { expired: false, asked: false };
     try {
       // Rendering counts against the same 10 seconds: the Paid email reads its PDF first (11.4).
       const sending = (async () => {
@@ -117,6 +120,8 @@ export class EmailNotifier {
         // Review on #253 (Kak Satria, AC 8): from here the mail server may accept it, so a row
         // whose sent mark is lost stays sending and is closed by the 08:00 run, never sent again.
         await this.store.startSending(eventKey, recipient, this.clock());
+        if (clock.expired) return;
+        clock.asked = true;
         await this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered });
       })();
       await this.withinTimeout(sending, clock);
@@ -156,13 +161,13 @@ export class EmailNotifier {
 
   private async withinTimeout(
     sending: Promise<void>,
-    clock: { expired: boolean },
+    clock: { expired: boolean; asked: boolean },
   ): Promise<void> {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
         clock.expired = true;
-        reject(new EmailTimeout());
+        reject(clock.asked ? new EmailTimeout() : new RenderTimeout());
       }, EMAIL_TIMEOUT_MS);
     });
     try {

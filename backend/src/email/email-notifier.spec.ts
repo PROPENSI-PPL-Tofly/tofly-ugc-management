@@ -205,7 +205,23 @@ describe('EmailNotifier', () => {
     expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
   });
 
-  it('keeps calling a send that runs out of time after the mail server was asked EmailTimeout', async () => {
+  it('sends nothing when the sending mark lands after the 10 seconds ran out', async () => {
+    vi.useFakeTimers();
+    const { store, sender, notifier } = setup();
+    let marked: () => void = () => {};
+    store.startSending.mockReturnValue(new Promise<void>((resolve) => (marked = resolve)));
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+    await expect(done).resolves.toBe(false);
+    marked();
+    await vi.runAllTimersAsync();
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RenderTimeout', NOW);
+  });
+
+  it('still calls a send that runs out of time after the mail server was asked EmailTimeout', async () => {
     vi.useFakeTimers();
     const { store, notifier } = setup({ send: () => new Promise(() => {}) });
 
