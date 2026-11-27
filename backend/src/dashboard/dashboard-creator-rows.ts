@@ -46,20 +46,23 @@ function row(
   today: Date,
 ): CreatorRow {
   const mine = contents.filter((item) => item.creatorId === creator.creatorId);
-  const resolved = mine.filter((item) => !item.isProposal && item.videoSubmittedAt !== null);
-  const onTime = resolved.filter((item) => {
-    const outcome = contentOutcome(
-      {
-        deadline: atMidnight(item.deadline),
-        videoSubmittedAt: atMidnight(item.videoSubmittedAt!),
-        isProposal: false,
-        type: 'evergreen',
-        submissionCount: 0,
-      },
-      today,
+  // Fallen due (sent, or missed): the same rule as the KPI and Creator Database; open is left out.
+  const outcomes = mine
+    .filter((item) => !item.isProposal)
+    .map((item) =>
+      contentOutcome(
+        {
+          deadline: atMidnight(item.deadline),
+          videoSubmittedAt: item.videoSubmittedAt === null ? null : atMidnight(item.videoSubmittedAt),
+          isProposal: false,
+          type: 'evergreen',
+          submissionCount: 0,
+        },
+        today,
+      ),
     );
-    return outcome === 'on_time';
-  }).length;
+  const resolved = outcomes.filter((outcome) => outcome !== 'open');
+  const onTime = resolved.filter((outcome) => outcome === 'on_time').length;
   const views = links
     .filter(
       (item) =>

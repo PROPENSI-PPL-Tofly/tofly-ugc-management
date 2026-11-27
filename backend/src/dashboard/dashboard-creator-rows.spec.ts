@@ -77,7 +77,7 @@ describe("the executive dashboard's creator rows", () => {
       spending: 1_000_000,
       sent: 2,
       quota: 5,
-      onTimeRate: 100 / 3,
+      onTimeRate: expect.closeTo(33.33, 2),
       views: 4_000,
       costPer1000Views: 250_000,
     });

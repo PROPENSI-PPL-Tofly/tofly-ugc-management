@@ -36,6 +36,23 @@ function atMidnight(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
 }
 
+function outcomeOf(
+  content: { deadline: string; videoSubmittedAt: string | null },
+  today: Date,
+) {
+  return contentOutcome(
+    {
+      deadline: atMidnight(content.deadline),
+      videoSubmittedAt:
+        content.videoSubmittedAt === null ? null : atMidnight(content.videoSubmittedAt),
+      isProposal: false,
+      type: 'evergreen',
+      submissionCount: 0,
+    },
+    today,
+  );
+}
+
 function inputs(rows: RangeRows, today: Date): KpiInputs {
   const measured = rows.links.filter(
     (link) => link.platform !== null && link.views !== null && MEASURED.includes(link.dataState),
@@ -45,22 +62,13 @@ function inputs(rows: RangeRows, today: Date): KpiInputs {
     (sum, link) => sum + (link.likes ?? 0) + (link.comments ?? 0) + (link.shares ?? 0),
     0,
   );
-  const due = rows.contents.filter((content) => !content.isProposal);
-  const onTime = due.filter((content) => {
-    if (content.videoSubmittedAt === null) return false;
-    return (
-      contentOutcome(
-        {
-          deadline: atMidnight(content.deadline),
-          videoSubmittedAt: atMidnight(content.videoSubmittedAt),
-          isProposal: false,
-          type: 'evergreen',
-          submissionCount: 0,
-        },
-        today,
-      ) === 'on_time'
-    );
-  }).length;
+  // Content that has fallen due: sent, or with its deadline behind us. What is still open this
+  // month is not due yet, the same rule as Creator Database (computePerformance).
+  const outcomes = rows.contents
+    .filter((content) => !content.isProposal)
+    .map((content) => outcomeOf(content, today));
+  const due = outcomes.filter((outcome) => outcome !== 'open');
+  const onTime = due.filter((outcome) => outcome === 'on_time').length;
 
   return {
     spending: rows.invoices.reduce((sum, invoice) => sum + invoice.total, 0),
