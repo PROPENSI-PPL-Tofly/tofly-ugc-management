@@ -9,7 +9,7 @@ export const RATE_CHANGES = {
     old_rate: true,
     new_rate: true,
     created_at: true,
-    users: { select: { email: true } },
+    users: { select: { email: true, name: true } },
   },
   orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
 } satisfies Prisma.invoices$rate_changesArgs;
@@ -42,6 +42,11 @@ export function rateChangeDto(row: RateChangeRow): RateChangeDto {
 }
 
 /** Named field by field, so a field added for the admin is not shown to the creator. */
-export function forCreator({ id, oldRate, newRate, createdAt }: RateChangeDto): CreatorRateChangeDto {
+export function forCreator({
+  id,
+  oldRate,
+  newRate,
+  createdAt,
+}: RateChangeDto): CreatorRateChangeDto {
   return { id, oldRate, newRate, createdAt };
 }
