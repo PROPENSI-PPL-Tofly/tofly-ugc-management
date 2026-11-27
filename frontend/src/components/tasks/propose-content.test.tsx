@@ -178,6 +178,21 @@ describe("ProposeContent, sending", () => {
     await act(async () => finish({ ok: true }));
   });
 
+  it("stays open when ✕ is pressed while it sends", async () => {
+    let finish: (value: { ok: true }) => void = () => undefined;
+    submit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const dialog = open();
+    fill(dialog, VALID);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim Pengajuan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tutup dialog" }));
+
+    expect(screen.getByRole("dialog", { name: "Ajukan Konten" })).toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await act(async () => finish({ ok: true }));
+  });
+
   it("keeps the form open with the API's message under its field", async () => {
     submit.mockResolvedValue({ ok: false, message: "", errors: { deadline: "Deadline sudah lewat" } });
     const dialog = open();
