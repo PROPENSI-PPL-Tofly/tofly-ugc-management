@@ -117,6 +117,9 @@ export async function reactivateAdmin(id: string): Promise<AdminSaveOutcome> {
 /** One confirmation covers the role change and the deactivation for this long (AC 11). */
 export const CONFIRMATION_MINUTES = 15;
 
+/** How long an emailed code itself lasts, when the backend's answer does not say. */
+export const CODE_MINUTES = 10;
+
 /** The changes the backend holds until the email code was entered. */
 export type SensitiveAction =
   | "role_change"
@@ -125,7 +128,7 @@ export type SensitiveAction =
   | "reactivate_super_admin";
 
 export type ConfirmationRequest =
-  | { kind: "sent"; message: string }
+  | { kind: "sent"; message: string; validMinutes: number }
   | { kind: "limited"; message: string }
   | { kind: "failed"; message: string };
 
@@ -149,7 +152,15 @@ export async function requestConfirmation(): Promise<ConfirmationRequest> {
   const body = (await readBody(response)) as ConfirmationBody | null;
 
   if (response.ok) {
-    return { kind: "sent", message: "Kode dikirim ke email kamu." };
+    const minutes = body?.validMinutes;
+    return {
+      kind: "sent",
+      message: "Kode dikirim ke email kamu.",
+      validMinutes:
+        typeof minutes === "number" && Number.isInteger(minutes) && minutes > 0
+          ? minutes
+          : CODE_MINUTES,
+    };
   }
 
   if (response.status === 429) {

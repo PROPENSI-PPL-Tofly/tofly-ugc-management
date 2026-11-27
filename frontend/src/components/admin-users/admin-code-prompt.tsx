@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ALERT } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import {
+  CODE_MINUTES,
   CONFIRMATION_MINUTES,
   requestConfirmation,
   verifyConfirmation,
@@ -144,7 +145,11 @@ export function AdminCodePrompt({
     >
       <form id={formId} onSubmit={(event) => void submit(event)}>
         <p className="text-[13px] text-ink-2">
-          {ACTION_NAME[action]} perlu kode dari email kamu. Kode berlaku {CONFIRMATION_MINUTES}{" "}
+          {ACTION_NAME[action]} perlu kode dari email kamu. Kode berlaku{" "}
+          {request?.kind === "sent" ? request.validMinutes : CODE_MINUTES} menit.
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          Setelah dikonfirmasi, perubahan berikutnya tidak perlu kode selama {CONFIRMATION_MINUTES}{" "}
           menit.
         </p>
 
