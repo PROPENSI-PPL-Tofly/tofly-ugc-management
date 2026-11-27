@@ -538,3 +538,62 @@ describe("submitRevision with the rich text note (34.2)", () => {
     expect(revise).toHaveBeenCalledWith(SUBMISSION, "<p><strong>Perbaiki</strong> intro</p>");
   });
 });
+
+// PBI-14 (14.3): the creator's one move on a pending proposal is to withdraw it, from the panel too.
+describe("actionsFor (creator, a pending proposal)", () => {
+  const PROPOSAL = facts({
+    status: "pending",
+    waitingOn: "admin",
+    latestSubmissionId: null,
+    creatorActions: ["cancel_proposal"],
+  });
+
+  it("offers Batalkan Pengajuan, asking the host to confirm it", () => {
+    const onCancelProposal = vi.fn();
+    const [command, ...rest] = actionsFor({
+      role: "creator",
+      detail: PROPOSAL,
+      state: idle,
+      ports: ports({ onCancelProposal }),
+    });
+
+    expect(rest).toEqual([]);
+    expect([command.kind, command.label, command.variant]).toEqual([
+      "cancel_proposal",
+      "Batalkan Pengajuan",
+      "danger-outline",
+    ]);
+    expect(command.canRun()).toBe(true);
+    void command.run();
+    expect(onCancelProposal).toHaveBeenCalledExactlyOnceWith(PROPOSAL);
+  });
+
+  it("locks it while a decision is in flight", () => {
+    const [command] = actionsFor({
+      role: "creator",
+      detail: PROPOSAL,
+      state: () => ({ busy: true, note: "" }),
+      ports: ports({ onCancelProposal: vi.fn() }),
+    });
+
+    expect(command.canRun()).toBe(false);
+  });
+
+  // A panel opened where nobody can withdraw it (Pembayaran) shows no button that does nothing.
+  it("offers nothing when the host cannot withdraw it", () => {
+    expect(actionsFor({ role: "creator", detail: PROPOSAL, state: idle, ports: ports() })).toEqual([]);
+  });
+
+  it("never hands a withdrawal to the hand-in handler", () => {
+    const onCreatorAction = vi.fn();
+    const [command] = actionsFor({
+      role: "creator",
+      detail: PROPOSAL,
+      state: idle,
+      ports: ports({ onCreatorAction, onCancelProposal: vi.fn() }),
+    });
+
+    void command.run();
+    expect(onCreatorAction).not.toHaveBeenCalled();
+  });
+});
