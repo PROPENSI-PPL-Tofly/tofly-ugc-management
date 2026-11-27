@@ -38,7 +38,7 @@ describe("Admin area", () => {
   });
 
   it("shows its pages to a signed-in admin", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false, name: null });
 
     await renderLayout();
 
@@ -49,7 +49,7 @@ describe("Admin area", () => {
 
   // The Super Admin is still an admin: every admin page stays theirs (PBI-23, 23.1).
   it("shows its pages to a signed-in super admin too", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
 
     await renderLayout();
 
@@ -58,7 +58,7 @@ describe("Admin area", () => {
   });
 
   it("tells its pages when the admin is a Super Admin", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
 
     await renderLayout();
 
@@ -67,7 +67,7 @@ describe("Admin area", () => {
 
   // PBI-23 AC: one buffer, read once, holds every date picker under the admin area.
   it("hands every admin page the buffer the API stores", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false, name: null });
     vi.mocked(fetchDeadlineBuffer).mockResolvedValueOnce(9);
 
     render(
@@ -81,7 +81,7 @@ describe("Admin area", () => {
   });
 
   it("reads no buffer for a visitor it turns away", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "creator", isSuperAdmin: false });
+    vi.mocked(currentSession).mockResolvedValue({ role: "creator", isSuperAdmin: false, name: null });
     vi.mocked(fetchDeadlineBuffer).mockClear();
 
     await renderLayout();
@@ -108,7 +108,7 @@ describe("Admin area", () => {
 
   // TC-09-06: no admin menu, no data, and a way back to the creator's own page.
   it("tells a signed-in creator the page is not theirs, without rendering it", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "creator", isSuperAdmin: false });
+    vi.mocked(currentSession).mockResolvedValue({ role: "creator", isSuperAdmin: false, name: null });
 
     await renderLayout();
 
