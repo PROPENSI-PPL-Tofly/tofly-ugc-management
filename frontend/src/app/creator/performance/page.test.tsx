@@ -12,7 +12,15 @@ vi.mock("@/lib/connected-accounts.server", () => ({ fetchMyConnectedAccounts: vi
 vi.mock("@/lib/connected-account-actions.server", () => ({ disconnectAccount: vi.fn() }));
 vi.mock("@/lib/performance-links.server", () => ({ fetchMyPerformanceLinks: vi.fn() }));
 
+const { redirect } = vi.hoisted(() => ({
+  // As Next does it: redirect() ends the render by throwing.
+  redirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT ${path}`);
+  }),
+}));
+
 vi.mock("next/navigation", () => ({
+  redirect,
   usePathname: () => "/creator/performance",
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
@@ -122,6 +130,23 @@ describe("Creator Performa page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Sesi kamu sudah berakhir.");
     expect(screen.getByRole("link", { name: "Masuk" })).toHaveAttribute("href", "/login");
     expect(screen.queryByRole("heading", { name: "Akun Terhubung" })).not.toBeInTheDocument();
+  });
+
+  // PBI-37 (AC 13), OWASP A01: Pembayaran is the one page left while only an invoice waits.
+  it("sends a creator who only waits for payment to Pembayaran", async () => {
+    mockedFetch.mockRejectedValue(new ConnectedAccountsError(403, "PAYMENTS_ONLY"));
+
+    await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT /creator/payments");
+  });
+
+  it("does not redirect another refusal", async () => {
+    redirect.mockClear();
+    mockedFetch.mockRejectedValue(new ConnectedAccountsError(403, "SOMETHING_ELSE"));
+
+    await renderPage();
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Akun terhubung tidak bisa dimuat.");
   });
 
   // Never an empty panel that would claim nothing is connected.
