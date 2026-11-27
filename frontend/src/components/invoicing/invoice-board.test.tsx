@@ -182,7 +182,7 @@ describe("InvoiceBoard", () => {
       return {
         ok: true,
         blob: vi.fn().mockResolvedValue(new Blob(["PK"])),
-        headers: { get: () => "attachment; filename*=UTF-8''Rekap_Invoice_20260720.zip" },
+        headers: { get: () => "attachment; filename*=UTF-8''Rekap_Invoice_20260720.xlsx" },
       } as unknown as Response;
     }
 
@@ -197,7 +197,7 @@ describe("InvoiceBoard", () => {
       expect(screen.getByRole("button", { name: "Unduh Terpilih (2)" })).toBeEnabled();
     });
 
-    it("downloads the ZIP and names the Running invoice that was skipped", async () => {
+    it("downloads the xlsx and names the Running invoice that was skipped", async () => {
       download.mockResolvedValue(okResponse());
       render(<InvoiceBoard rows={[ROW, PAID]} />);
 
@@ -207,12 +207,12 @@ describe("InvoiceBoard", () => {
 
       expect(
         await screen.findByText(
-          "1 invoice dilewati karena masih Berjalan atau Cancelled: Rangga Pratama (Berjalan).",
+          "1 invoice dilewati karena masih Berjalan atau Cancelled: Rangga Pratama (Periode 1, Berjalan).",
         ),
       ).toBeInTheDocument();
       // Only the Paid invoice went into the file, so the toast counts one.
       expect(
-        screen.getByText("Rekap_Invoice_20260720.zip diunduh (1 invoice)."),
+        screen.getByText("Rekap_Invoice_20260720.xlsx diunduh (1 invoice)."),
       ).toBeInTheDocument();
       expect(download).toHaveBeenCalledWith("/api/invoices/bulk-export", {
         method: "POST",
@@ -230,11 +230,27 @@ describe("InvoiceBoard", () => {
       fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (1)" }));
 
       expect(
-        await screen.findByText("Rekap_Invoice_20260720.zip diunduh (1 invoice)."),
+        await screen.findByText("Rekap_Invoice_20260720.xlsx diunduh (1 invoice)."),
       ).toBeInTheDocument();
       expect(
         screen.queryByRole("status", { name: "Pemberitahuan ekspor" }),
       ).toBeNull();
+      expect(screen.getByRole("button", { name: "Unduh Terpilih" })).toBeDisabled();
+    });
+
+    it("downloads nothing when every ticked invoice is skipped, and names them", async () => {
+      render(<InvoiceBoard rows={[ROW, PAID]} />);
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Rangga Pratama" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unduh Terpilih (1)" }));
+
+      expect(await screen.findByText("Tidak ada invoice yang bisa diunduh.")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "1 invoice dilewati karena masih Berjalan atau Cancelled: Rangga Pratama (Periode 1, Berjalan).",
+        ),
+      ).toBeInTheDocument();
+      expect(download).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: "Unduh Terpilih" })).toBeDisabled();
     });
 

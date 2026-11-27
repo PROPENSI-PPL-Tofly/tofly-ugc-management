@@ -44,8 +44,9 @@ describe("bulk selection (31.5)", () => {
     expect(
       skippedInvoices(rows, [ROW.contractId, "final-id", "cancel-id"]),
     ).toEqual([
-      { title: "Rangga Pratama · Periode 2", label: "Berjalan" },
-      { title: "Dimas", label: "Cancelled" },
+      // The prototype's "Nama (Periode X, Status)": a creator's two periods stay apart.
+      { title: "Rangga Pratama", label: "Periode 2, Berjalan" },
+      { title: "Dimas", label: "Periode 1, Cancelled" },
     ]);
   });
 
