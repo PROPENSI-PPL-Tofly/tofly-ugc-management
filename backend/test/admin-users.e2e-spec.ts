@@ -409,6 +409,23 @@ describe('/admin-users (e2e)', () => {
         .expect(422);
     });
 
+    it('tells the list until when this session stays confirmed, and no other session', async () => {
+      const cookie = await signIn(app, { userId: superId, role: 'admin' });
+      const otherCookie = await signIn(app, { userId: superId, role: 'admin' });
+
+      const before = await as(app, cookie).get('/admin-users').expect(200);
+      expect(before.body.confirmedUntil).toBeNull();
+
+      await confirm(cookie, email('super'));
+
+      const after = await as(app, cookie).get('/admin-users').expect(200);
+      const until = Date.parse(after.body.confirmedUntil);
+      expect(until - Date.now()).toBeGreaterThan(14 * 60_000);
+      expect(until - Date.now()).toBeLessThanOrEqual(15 * 60_000);
+      const other = await as(app, otherCookie).get('/admin-users').expect(200);
+      expect(other.body.confirmedUntil).toBeNull();
+    });
+
     it('confirms only the session that entered the code', async () => {
       const otherCookie = await signIn(app, { userId: superId, role: 'admin' });
       const admin = await makeUser('other-session');
