@@ -153,21 +153,21 @@ describe('GET /auth/session', () => {
     [
       'a Super Admin',
       ADMIN,
-      { ...ADMIN, adminRole: 'super_admin' } as Principal,
-      { role: 'admin', adminRole: 'super_admin' },
+      { ...ADMIN, adminRole: 'super_admin', name: 'Rina Wijaya' } as Principal,
+      { role: 'admin', adminRole: 'super_admin', name: 'Rina Wijaya' },
     ],
     [
       'an Admin',
       ADMIN,
       { ...ADMIN, adminRole: 'admin' } as Principal,
-      { role: 'admin', adminRole: 'admin' },
+      { role: 'admin', adminRole: 'admin', name: null },
     ],
     // Fails closed: an Admin the whitelist gives no role reads as a plain Admin.
     [
       'an Admin with no role read',
       ADMIN,
       ADMIN,
-      { role: 'admin', adminRole: 'admin' },
+      { role: 'admin', adminRole: 'admin', name: null },
     ],
     ['a creator', CREATOR, CREATOR, { role: 'creator' }],
   ])(
