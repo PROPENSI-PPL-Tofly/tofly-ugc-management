@@ -268,8 +268,27 @@ describe("EmailCodeSignIn: entering the code", () => {
     expect(screen.getByRole("button", { name: "Memeriksa…" })).toBeDisabled();
   });
 
+  // PBI-23 AC 9 / PBI-37 AC 14 (QA): an address without access is never sent a code, and the
+  // screen must not say so (that would tell anyone which addresses have accounts). The code step
+  // therefore always says where to turn when no code arrives.
+  it("says where to turn when no code arrives, for every address alike", async () => {
+    render(<EmailCodeSignIn />);
+    await reachCodeStep();
+
+    expect(
+      screen.getByText(
+        "Kode tidak sampai? Bisa jadi akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it.each([
     [{ kind: "wrong", attemptsLeft: 3 }, "Kode salah. Sisa 3 percobaan."],
+    // Out of tries: what to do next, and who to ask when no code ever arrives.
+    [
+      { kind: "wrong", attemptsLeft: 0 },
+      "Kode salah dan percobaan sudah habis. Kirim ulang kode, atau hubungi tim Tofly kalau kode tidak pernah sampai.",
+    ],
     [{ kind: "wrong" }, "Kode salah."],
     [{ kind: "invalid" }, "Masukkan 6 digit kode."],
     [{ kind: "expired" }, "Kode sudah kedaluwarsa. Kirim ulang kode."],
