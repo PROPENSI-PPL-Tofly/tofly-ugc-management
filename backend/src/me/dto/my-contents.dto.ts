@@ -14,7 +14,7 @@ export interface MyContentItem {
   brief: string;
   /** ISO calendar day. */
   deadline: string;
-  /** Raw workflow status, never a pending proposal; the frontend owns its label. */
+  /** Raw workflow status, the creator's own pending proposal included; the frontend owns its label. */
   status: MyTaskStatus;
   /** Overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
   tags: ContentTag[];

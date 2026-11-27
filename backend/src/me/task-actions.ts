@@ -5,7 +5,12 @@
 import type { content_status } from '@prisma/client';
 import { canTransition } from '../contents/content-lifecycle.js';
 
-export type TaskAction = 'submit_draft' | 'resubmit_draft' | 'submit_video';
+export type TaskAction =
+  | 'submit_draft'
+  | 'resubmit_draft'
+  | 'submit_video'
+  // PBI-14 AC 5: the one thing a creator can do with their own pending proposal.
+  | 'cancel_proposal';
 
 /** H-1: from the day before the deadline, a video link may skip the approval of a draft in review. */
 export const GRACE_DAYS = 1;
@@ -46,6 +51,11 @@ export function canSubmitVideo(
   return status === 'draft_approved' || inGraceWindow(deadline, today);
 }
 
+/** Whether the creator may withdraw the content: only a proposal nobody has decided on. */
+export function canCancelProposal(status: content_status): boolean {
+  return status === 'pending';
+}
+
 /** The buttons a Task Saya row shows, in display order; empty means no button. */
 export function taskActions(
   status: content_status,
@@ -60,4 +70,18 @@ export function taskActions(
     actions.push('submit_video');
   }
   return actions;
+}
+
+/**
+ * The buttons of a Task Saya row: what taskActions hands in, and withdrawing a pending proposal
+ * (PBI-14 AC 5). The Content Detail panel reads taskActions alone, so it never shows a button it
+ * has no handler for.
+ */
+export function taskRowActions(
+  status: content_status,
+  deadline: string,
+  today: string,
+): TaskAction[] {
+  const actions = taskActions(status, deadline, today);
+  return canCancelProposal(status) ? [...actions, 'cancel_proposal'] : actions;
 }

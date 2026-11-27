@@ -4,7 +4,7 @@
 // values a creator's content can actually hold.
 
 import {
-  COMMITTED_STATUSES,
+  CONTENT_STATUSES,
   type ContentStatus,
 } from '../contents/content-lifecycle.js';
 import {
@@ -33,15 +33,11 @@ export type MyStatusTab = Exclude<MyTaskTab, 'all'>;
 
 const MY_STATUS_TABS: readonly MyStatusTab[] = ['to_do', 'waiting_admin', 'done'];
 
-/** A status a creator can see: anything but a proposal nobody has accepted yet. */
-export type MyTaskStatus = (typeof COMMITTED_STATUSES)[number];
-
-/** Keeps only what is assigned work, so a pending proposal never reaches a creator's tab. */
-function committed(statuses: readonly ContentStatus[]): MyTaskStatus[] {
-  return statuses.filter((status): status is MyTaskStatus =>
-    isOneOf(COMMITTED_STATUSES, status),
-  );
-}
+/**
+ * A status a creator can see: every status their own content can hold, the proposal they made
+ * included (PBI-14 AC 5). Only the admin's views of other creators' work leave a status out.
+ */
+export type MyTaskStatus = ContentStatus;
 
 /**
  * Whose turn a content is by its status, read off the admin's tabs so the two sides cannot
@@ -50,10 +46,11 @@ function committed(statuses: readonly ContentStatus[]): MyTaskStatus[] {
  * the creator's to finish too, and the service lists it under Perlu Dikerjakan.
  */
 export const MY_TASK_TAB_STATUSES: Record<MyTaskTab, readonly MyTaskStatus[]> = {
-  all: COMMITTED_STATUSES,
-  to_do: committed(TAB_STATUSES.waiting_creator),
-  waiting_admin: committed(TAB_STATUSES.needs_approval),
-  done: committed(TAB_STATUSES.done),
+  all: CONTENT_STATUSES,
+  to_do: TAB_STATUSES.waiting_creator,
+  // A pending proposal waits for the admin like a draft in review (PBI-14 AC 5).
+  waiting_admin: TAB_STATUSES.needs_approval,
+  done: TAB_STATUSES.done,
 };
 
 /**
@@ -100,12 +97,12 @@ export interface MyTaskFilters {
 const MY_TASK_SORTS: readonly DeadlineSort[] = ['deadline_asc', 'deadline_desc'];
 
 function isMyTaskStatus(value: unknown): value is MyTaskStatus {
-  return isOneOf(COMMITTED_STATUSES, value);
+  return isOneOf(CONTENT_STATUSES, value);
 }
 
 /**
- * Validates the raw query values once and answers 400 for anything Task Saya cannot hold, a
- * pending proposal included, so no unchecked text reaches a query or a comparison (OWASP A03).
+ * Validates the raw query values once and answers 400 for anything Task Saya cannot hold, so no
+ * unchecked text reaches a query or a comparison (OWASP A03).
  * The nearest deadline comes first by default: it is what a creator has to deliver next.
  */
 export function checkMyTaskQuery(query: MyTaskQuery): MyTaskFilters {
@@ -122,7 +119,7 @@ export function checkMyTaskQuery(query: MyTaskQuery): MyTaskFilters {
       'status',
       query.status,
       isMyTaskStatus,
-      `status must be one of ${COMMITTED_STATUSES.join(', ')}`,
+      `status must be one of ${CONTENT_STATUSES.join(', ')}`,
     ),
     overdue: overdueOrNot(query.overdue),
     ...deadlineRange(query.deadlineFrom, query.deadlineTo),
