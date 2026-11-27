@@ -105,14 +105,23 @@ export const USERNAME_FIELDS: Record<social_platform, string> = {
 };
 
 /** One username field, trimmed; blank when the admin has none to give. */
+/**
+ * A handle as Instagram and TikTok write them: letters, digits, dots and underscores. Anything
+ * else (a space, "!", markup) is no handle, so it is refused instead of stored (OWASP A05).
+ */
+export const USERNAME_FORMAT = /^[A-Za-z0-9._]+$/;
+
 export function checkUsername(
   field: string,
   value: unknown,
   errors: NewCreatorErrors,
 ): string {
-  const username = trimmed(value);
+  // A handle is often typed with its "@"; the platform's own name for it has none.
+  const username = trimmed(value).replace(/^@/, '');
   if (username.length > MAX_USERNAME_LENGTH) {
     errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+  } else if (username !== '' && !USERNAME_FORMAT.test(username)) {
+    errors[field] = 'Username hanya boleh huruf, angka, titik, dan garis bawah';
   }
   return username;
 }
