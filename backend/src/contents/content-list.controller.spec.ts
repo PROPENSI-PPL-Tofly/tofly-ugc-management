@@ -68,6 +68,7 @@ describe('ContentListController', () => {
           type: 'specific',
           deadline: '2026-10-21',
           status: 'draft_review',
+          closedAt: null,
           tags: ['overdue'],
           revisionCount: 1,
           platforms: [],

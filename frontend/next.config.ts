@@ -31,6 +31,13 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          // A document embeds no cross-origin resource that has not agreed to it. "credentialless"
+          // rather than "require-corp": the storage bucket's signed images send no CORP header,
+          // and loading them without cookies is all they need.
+          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+          // No window opened from another site keeps a handle on a Tofly page. Google sign-in
+          // is a full-page redirect, never a popup, so nothing needs that handle.
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],
       },
     ];

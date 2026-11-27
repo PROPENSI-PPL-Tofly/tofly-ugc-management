@@ -7,8 +7,9 @@
 // belong to a period through their contract, never through their deadline, so a deadline moved
 // across a period's edge cannot make a content count under the wrong contract.
 
-import type { content_status, Prisma } from '@prisma/client';
+import type { content_status, contract_end_reason, Prisma } from '@prisma/client';
 import { contentTags } from '../contents/content-tags.js';
+import type { InvoiceLifecycleStatus } from '../invoices/invoice-lifecycle.js';
 import {
   computePerformance,
   computeProgress,
@@ -53,6 +54,13 @@ export interface DetailContractRow {
   content_quota: number;
   fixed_rate: Prisma.Decimal;
   contract_type: ContractType;
+  /** PBI-37: set once the period was ended early; end_date is then its last day. */
+  original_end_date: Date | null;
+  end_reason: contract_end_reason | null;
+  end_note: string | null;
+  ended_at: Date | null;
+  /** Null before the invoice's first row: it is running. */
+  invoice: { status: InvoiceLifecycleStatus } | null;
   /** Deadline first. */
   contents: DetailContentRow[];
 }
@@ -68,6 +76,7 @@ function toMetricsContent(row: DetailContentRow): MetricsContent {
     videoSubmittedAt: row.video_submitted_at,
     // A pending proposal is not a commitment until an admin accepts it.
     isProposal: row.status === 'pending',
+    type: row.type,
     submissionCount: row._count.submissions,
   };
 }
@@ -82,12 +91,20 @@ function toMetricsContract(row: DetailContractRow): MetricsContract {
 }
 
 /** The same count Tambah Konten checks a new Evergreen slot against (evergreen-slot.ts). */
-function remainingEvergreenQuota(row: DetailContractRow): number {
-  const evergreen = row.contents.filter(
-    (content) => content.type === 'evergreen',
-  ).length;
+function countEvergreen(row: DetailContractRow): number {
+  return row.contents.filter((content) => content.type === 'evergreen').length;
+}
 
-  return Math.max(0, row.content_quota - evergreen);
+/** How the period was ended early (PBI-37), or null when it runs as agreed. */
+function earlyEndOf(row: DetailContractRow): ContractPeriod['earlyEnd'] {
+  // The database records an early end whole or not at all (contracts_early_end_check).
+  if (row.original_end_date === null) return null;
+  return {
+    originalEndDate: calendarDay(row.original_end_date),
+    reason: row.end_reason!,
+    note: row.end_note!,
+    endedAt: row.ended_at!.toISOString(),
+  };
 }
 
 /** Every contract as a period, in the order given (oldest first), numbered from 1. */
@@ -100,7 +117,8 @@ export function toContractPeriods(
 
   return rows.map((row, index): ContractPeriod => {
     const metrics = contracts[index];
-    const progress = computeProgress(metrics.contents);
+    const progress = computeProgress(metrics.contents, row.content_quota);
+    const evergreenCount = countEvergreen(row);
 
     return {
       id: row.id,
@@ -111,7 +129,9 @@ export function toContractPeriods(
       contentQuota: row.content_quota,
       // numeric(14, 2) holds at most 14 significant digits, within what a JS number keeps exact.
       fixedRate: row.fixed_rate.toNumber(),
-      remainingEvergreenQuota: remainingEvergreenQuota(row),
+      evergreenCount,
+      remainingEvergreenQuota: Math.max(0, row.content_quota - evergreenCount),
+      invoiceStatus: row.invoice?.status ?? 'running',
       type: row.contract_type,
       // A contract is never 'none'; that status only describes a creator without one.
       status: contractStatus(metrics, today) as ContractPeriod['status'],
@@ -120,6 +140,8 @@ export function toContractPeriods(
       isCurrent: metrics === current,
       progress,
       performance: computePerformance(metrics, today),
+      earlyEnd: earlyEndOf(row),
+      earlyEndReason: row.end_reason,
     };
   });
 }

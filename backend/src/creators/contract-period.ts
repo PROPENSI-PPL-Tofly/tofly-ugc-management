@@ -2,15 +2,10 @@
 // Tambah Creator rules, may not overlap another period, and may only be changed before it starts.
 // No Nest wiring or Prisma here, so each rule is tested without a database.
 import { UnprocessableEntityException } from '@nestjs/common';
-import {
-  earliestDeadline,
-  jakartaMidnight,
-  latestDeadline,
-  readableDay,
-} from './evergreen.js';
+import { DeadlineWindow } from '../deadline-buffer/deadline-window.js';
+import { jakartaMidnight, readableDay } from './evergreen.js';
 import {
   checkContractTerms,
-  DEFAULT_BUFFER_DAYS,
   type ContractTerms,
   type NewCreatorErrors,
 } from './new-creator.js';
@@ -19,11 +14,15 @@ import {
  * Validates the "Perpanjang Kontrak" body (and an edit of a period that has not started) by the
  * same rules and field names as Tambah Creator, answering anything invalid with one 422.
  */
-export function checkNewPeriod(input: unknown, now: Date): ContractTerms {
+export function checkNewPeriod(
+  input: unknown,
+  now: Date,
+  bufferDays: number,
+): ContractTerms {
   // As in checkNewCreator: a missing or null body reads as a blank form, not a TypeError.
   const body: Record<string, unknown> = { ...(input as object) };
   const errors: NewCreatorErrors = {};
-  const terms = checkContractTerms(body, now, errors);
+  const terms = checkContractTerms(body, now, bufferDays, errors);
 
   if (Object.keys(errors).length > 0) {
     throw new UnprocessableEntityException({
@@ -107,13 +106,14 @@ export function specificOutsidePeriod(
   { contractStart, contractEnd }: PeriodDates,
   specifics: readonly ScheduledSpecific[],
   now: Date,
+  bufferDays: number,
 ): string | undefined {
-  const earliest = earliestDeadline(
-    isoDay(contractStart),
-    isoDay(jakartaMidnight(now)),
-    DEFAULT_BUFFER_DAYS,
-  );
-  const latest = latestDeadline(isoDay(contractEnd));
+  const { earliest, latest } = DeadlineWindow.of({
+    contractStart: isoDay(contractStart),
+    contractEnd: isoDay(contractEnd),
+    today: isoDay(jakartaMidnight(now)),
+    bufferDays,
+  });
   const outside = specifics.find(({ deadline }) => {
     const due = isoDay(deadline);
     return due < earliest || due > latest;

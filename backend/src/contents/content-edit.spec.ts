@@ -37,6 +37,7 @@ function content(overrides: Partial<EditableContent> = {}): EditableContent {
     brief: 'Tunjukkan fitur kirim kilat.',
     deadline: new Date('2026-11-20T00:00:00Z'),
     status: 'scheduled',
+    closed_at: null,
     _count: { submissions: 0 },
     contracts: {
       start_date: new Date('2026-10-01T00:00:00Z'),
@@ -252,14 +253,27 @@ describe('editWindow', () => {
       contractStart: '2026-10-01',
       contractEnd: '2026-12-31',
       invoiceStatus: 'running',
+      closed: false,
       ...overrides,
     };
   }
+
+  // PBI-37 (AC 7): a closed content leaves new scheduling, so Ubah and Hapus are hidden.
+  it('opens no window for content an early end closed', () => {
+    expect(editWindow(facts({ closed: true }), RULES)).toBeNull();
+  });
 
   it('opens the days an edited deadline may take: today plus the buffer up to H-5 (AC 3)', () => {
     expect(editWindow(facts(), RULES)).toEqual({
       earliestDeadline: '2026-11-10',
       latestDeadline: '2026-12-26',
+    });
+  });
+
+  it('closes the buffer before the contract end, with the same buffer (SCRUM-298, AC 22)', () => {
+    expect(editWindow(facts(), { ...RULES, bufferDays: 9 })).toEqual({
+      earliestDeadline: '2026-11-14',
+      latestDeadline: '2026-12-22',
     });
   });
 
@@ -412,6 +426,40 @@ describe('planContentEdit', () => {
     });
   });
 
+  // PBI-23 AC 22 (SCRUM-298): the stored buffer draws the latest line too, so H-5 is H-N.
+  it('closes the window the buffer before the contract end, naming H-N', () => {
+    const rules = { ...RULES, bufferDays: 9 };
+
+    expect(
+      planContentEdit(content(), { deadline: '2026-12-22' }, rules).data,
+    ).toEqual({ deadline: new Date('2026-12-22T00:00:00Z') });
+    expect(
+      refusalOf(() =>
+        planContentEdit(content(), { deadline: '2026-12-23' }, rules),
+      ),
+    ).toMatchObject({
+      body: {
+        errors: {
+          deadline: 'Deadline paling lambat 22 Des 2026 (H-9 akhir kontrak)',
+        },
+      },
+    });
+  });
+
+  // SCRUM-298: a larger buffer never recalculates or blocks what is already scheduled; only a
+  // deadline being moved is judged by it.
+  it('still edits a content whose stored deadline a larger buffer now puts past the latest line', () => {
+    const late = content({ deadline: new Date('2026-12-26T00:00:00Z') });
+
+    expect(
+      planContentEdit(
+        late,
+        { deadline: '2026-12-26', brief: 'x' },
+        { ...RULES, bufferDays: 14 },
+      ).changes,
+    ).toEqual({ brief: { from: 'Tunjukkan fitur kirim kilat.', to: 'x' } });
+  });
+
   it('refuses an empty brief for a Specific item, which needs one', () => {
     expect(
       refusalOf(() => planContentEdit(content(), { brief: '' }, RULES)),
@@ -528,5 +576,20 @@ describe('planContentEdit', () => {
     expect(
       planContentEdit(named, { deadline: '2026-11-25' }, RULES).data.name,
     ).toBe('Evg_1_Rangga Adi Pratama_25112026');
+  });
+});
+
+// PBI-37 (AC 7): content an early end closed cannot be rescheduled or deleted.
+describe('assertChangeable, a closed content', () => {
+  it('refuses it with CONTENT_CLOSED', () => {
+    expect(
+      refusalOf(() => assertChangeable(content({ closed_at: new Date('2026-11-24T03:00:00Z') }))),
+    ).toEqual({
+      status: 409,
+      body: {
+        code: 'CONTENT_CLOSED',
+        message: 'Konten ini ditutup karena kontrak diakhiri lebih awal',
+      },
+    });
   });
 });

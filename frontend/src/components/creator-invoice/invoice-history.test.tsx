@@ -11,6 +11,14 @@ const PAID = aCreatorInvoice({
 });
 
 describe("InvoiceHistory", () => {
+  // PBI-31: a paid invoice's row offers its invoice and receipt; a running one offers neither.
+  it("offers Unduh Invoice and Unduh Receipt on a paid invoice's row, and none on a running one", () => {
+    render(<InvoiceHistory invoices={[PAID, aCreatorInvoice({ contractId: "5a5a5a5a-0000-4000-8000-0000000000aa", status: "accruing" })]} onOpen={vi.fn()} />);
+
+    expect(screen.getAllByRole("button", { name: "Unduh Invoice" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Unduh Receipt" })).toHaveLength(1);
+  });
+
   it("lists each earlier invoice with its period, status and total", () => {
     render(<InvoiceHistory invoices={[PAID]} onOpen={vi.fn()} />);
 
@@ -36,6 +44,15 @@ describe("InvoiceHistory", () => {
     const [, row] = within(screen.getByRole("table", { name: "Riwayat Invoice" })).getAllByRole("row");
     expect(row).toHaveTextContent("Belum Dimulai");
     expect(row).not.toHaveTextContent("Berjalan");
+  });
+
+  // PBI-37: the creator's word for an invoice an early end cancelled, never the internal one.
+  it("calls a cancelled invoice Dibatalkan, not Cancelled", () => {
+    render(<InvoiceHistory invoices={[{ ...PAID, status: "cancelled" }]} onOpen={vi.fn()} />);
+
+    const [, row] = within(screen.getByRole("table", { name: "Riwayat Invoice" })).getAllByRole("row");
+    expect(row).toHaveTextContent("Dibatalkan");
+    expect(row).not.toHaveTextContent("Cancelled");
   });
 
   // Measured on this table's real markup in Edge at true 320–390 px: the table is 484 px wide,

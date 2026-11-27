@@ -34,6 +34,11 @@ export const EMPTY = "—";
 /** A calendar day with no time of day, the way the API sends a Postgres `date`. */
 const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Whether a value is written as the API writes a calendar day, "YYYY-MM-DD". */
+export function isPlainDay(value: string): boolean {
+  return PLAIN_DAY.test(value);
+}
+
 /**
  * The API sends plain calendar days. Parsing and formatting them as UTC keeps the day as
  * written; letting the browser read them in local time moves a date across midnight for
@@ -161,6 +166,50 @@ export function formatRupiah(amount: number): string {
   // ~20% slower on V8, which memoizes the locale formatter across toLocaleString calls
   // (bench case below, and docs/perf/profiling-notes.md). Measure before optimizing.
   return `${amount < 0 ? "-" : ""}Rp${Math.abs(amount).toLocaleString("id-ID")}`;
+}
+
+const ONE_DECIMAL = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
+const WHOLE = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
+
+/** Thousands, millions and billions as Indonesian writes them short, largest first. */
+const SHORT_UNITS = [
+  { size: 1_000_000_000, suffix: "M" },
+  { size: 1_000_000, suffix: "jt" },
+  { size: 1_000, suffix: "rb" },
+] as const;
+
+/**
+ * A count short: "200,5 rb", "3,4 jt", one decimal at most. A value that rounds up to a thousand
+ * of its unit is written in the next one ("1 jt", not "1.000 rb").
+ */
+export function formatCompact(value: number): string {
+  const sign = value < 0 ? "-" : "";
+  const size = Math.abs(value);
+  // Smallest unit first, so a value is written in the largest unit it reaches once rounded.
+  let shown = `${WHOLE.format(Math.round(size))}`;
+
+  for (const unit of [...SHORT_UNITS].reverse()) {
+    const rounded = Math.round((size / unit.size) * 10) / 10;
+    if (rounded >= 1) shown = `${ONE_DECIMAL.format(rounded)} ${unit.suffix}`;
+  }
+
+  return `${sign}${shown}`;
+}
+
+/** Rupiah short, the dashboard's way: "Rp12,4 jt" (PBI-24); the full value goes in the tooltip. */
+export function formatRupiahShort(amount: number): string {
+  const short = formatCompact(amount);
+  return short.startsWith("-") ? `-Rp${short.slice(1)}` : `Rp${short}`;
+}
+
+/** A whole count grouped with dots, "200.500"; no data is the dash, never 0. */
+export function formatCount(value: number | null): string {
+  return value === null ? EMPTY : WHOLE.format(value);
+}
+
+/** A share in percent with a decimal comma, "83,3%"; no data is the dash. */
+export function formatRate(value: number | null): string {
+  return value === null ? EMPTY : `${ONE_DECIMAL.format(value)}%`;
 }
 
 /** Money taken away, such as a penalty, written the one way the table and its popups share. */

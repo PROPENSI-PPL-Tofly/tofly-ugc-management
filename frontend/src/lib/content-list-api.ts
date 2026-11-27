@@ -73,6 +73,8 @@ export interface RawContentListItem {
   revisionCount: number;
   /** The platforms the content has a link for, Instagram first; empty before the first link. */
   platforms: Platform[];
+  /** When an early end closed the content (ISO time); null while it is open. */
+  closedAt?: string | null;
 }
 
 export interface RawContentList {

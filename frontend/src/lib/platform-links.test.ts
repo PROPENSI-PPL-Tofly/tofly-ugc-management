@@ -1,5 +1,4 @@
 import {
-  H5_BUFFER_DAYS,
   latestDeadline,
   linkEventTitle,
   PLATFORM_LABELS,
@@ -30,22 +29,27 @@ describe("linkEventTitle", () => {
 });
 
 describe("latestDeadline", () => {
-  it("holds the H-5 buffer the API holds", () => {
-    expect(H5_BUFFER_DAYS).toBe(5);
+  it("is five days before the contract's last day on the default buffer", () => {
+    expect(latestDeadline("2026-12-31", 5)).toBe("2026-12-26");
+    expect(latestDeadline("2026-06-30", 5)).toBe("2026-06-25");
   });
 
-  it("is five days before the contract's last day", () => {
-    expect(latestDeadline("2026-12-31")).toBe("2026-12-26");
-    expect(latestDeadline("2026-06-30")).toBe("2026-06-25");
+  // PBI-23 AC: the one buffer a Super Admin sets is also the H-n line.
+  it.each([
+    [1, "2026-12-30"],
+    [9, "2026-12-22"],
+    [14, "2026-12-17"],
+  ])("is the configured %i days before the contract's last day", (bufferDays, expected) => {
+    expect(latestDeadline("2026-12-31", bufferDays)).toBe(expected);
   });
 
   it("walks across a month end and a leap day without drifting", () => {
-    expect(latestDeadline("2026-03-03")).toBe("2026-02-26");
-    expect(latestDeadline("2028-03-01")).toBe("2028-02-25");
-    expect(latestDeadline("2027-01-01")).toBe("2026-12-27");
+    expect(latestDeadline("2026-03-03", 5)).toBe("2026-02-26");
+    expect(latestDeadline("2028-03-01", 5)).toBe("2028-02-25");
+    expect(latestDeadline("2027-01-01", 5)).toBe("2026-12-27");
   });
 
   it("gives the day before the contract end when it ends five days into a month", () => {
-    expect(latestDeadline("2026-09-05")).toBe("2026-08-31");
+    expect(latestDeadline("2026-09-05", 5)).toBe("2026-08-31");
   });
 });

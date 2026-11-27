@@ -1,6 +1,7 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppModule, validate } from './app.module.js';
+import { DailyEmailRunModule } from './email/daily-email-run.module.js';
 import { RejectNulCharactersInterceptor } from './reject-nul-characters.interceptor.js';
 
 describe('AppModule', () => {
@@ -13,6 +14,13 @@ describe('AppModule', () => {
       provide: APP_INTERCEPTOR,
       useClass: RejectNulCharactersInterceptor,
     });
+  });
+
+  // PBI-11 (11.3): the 08:00 email run is served by the app.
+  it('serves the daily email run', () => {
+    expect(Reflect.getMetadata(MODULE_METADATA.IMPORTS, AppModule)).toContain(
+      DailyEmailRunModule,
+    );
   });
 });
 

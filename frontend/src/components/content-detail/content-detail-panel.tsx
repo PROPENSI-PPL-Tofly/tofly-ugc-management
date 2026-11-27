@@ -34,12 +34,7 @@ import { FollowUpList } from "./follow-up-list";
 import { LoadError } from "@/components/ui/load-error";
 import { Modal } from "@/components/ui/modal";
 import { Pill, StatusDot } from "@/components/ui/pill";
-import {
-  CONTENT_STATUS_LABELS,
-  CONTENT_STATUS_TONES,
-  CONTENT_TYPE_LABELS,
-  CONTENT_TYPE_TONES,
-} from "@/lib/content-labels";
+import { CONTENT_TYPE_LABELS, CONTENT_TYPE_TONES, contentStatusDisplay } from "@/lib/content-labels";
 import {
   ContentDetailError,
   describeJourney,
@@ -263,19 +258,18 @@ function dueTone(status: ContentDetail["status"], days: number | null): string {
 }
 
 function HeaderMeta({ detail, now }: Readonly<{ detail: ContentDetail; now?: Date }>) {
-  // A finished content has no countdown left, however its deadline compares to today. The
-  // days are counted once, so the label and its colour can never disagree across midnight.
-  const finished = detail.status === "link_submitted";
+  // A finished or closed content has no countdown left, however its deadline compares to today.
+  // The days are counted once, so the label and its colour can never disagree across midnight.
+  const finished = detail.status === "link_submitted" || Boolean(detail.closedAt);
   const days = daysUntil(detail.deadline, now);
-  // The API can name a status newer than this build: its raw name then, never a blank.
-  const statusLabel: string = CONTENT_STATUS_LABELS[detail.status] ?? detail.status;
+  const status = contentStatusDisplay(detail);
 
   // Two lines rather than one long row: what the content is, then when it is due.
   return (
     <>
       <div data-meta-row className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1.5">
         <Pill tone={CONTENT_TYPE_TONES[detail.type]}>{CONTENT_TYPE_LABELS[detail.type]}</Pill>
-        <StatusDot tone={CONTENT_STATUS_TONES[detail.status] ?? "neutral"}>{statusLabel}</StatusDot>
+        <StatusDot tone={status.tone}>{status.label}</StatusDot>
         <ContentTags tags={detail.tags} />
       </div>
 
@@ -917,7 +911,7 @@ export function ContentDetailPanel({
               <LinkPerformanceSection
                 contentId={contentId}
                 links={loaded.links}
-                role={role}
+                role={role === "creator" ? "creator" : "admin"}
                 creatorFirstName={loaded.creatorName.split(" ")[0]}
                 onChanged={() => void readAgain()}
                 // Only the creator adds or changes a link, from its card; the form opens there.

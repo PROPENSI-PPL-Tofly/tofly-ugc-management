@@ -8,12 +8,7 @@ import { FilteredEmpty } from "@/components/filters/filter-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
 import { Pill, StatusDot } from "@/components/ui/pill";
-import {
-  CONTENT_STATUS_LABELS,
-  CONTENT_STATUS_TONES,
-  CONTENT_TYPE_LABELS,
-  CONTENT_TYPE_TONES,
-} from "@/lib/content-labels";
+import { CONTENT_TYPE_LABELS, CONTENT_TYPE_TONES, contentStatusDisplay } from "@/lib/content-labels";
 import { CONTENT_PLAN_EMPTY, type ContentPlanTab, type DeadlineSort } from "@/lib/content-plan";
 import type { CreatorContentRow } from "@/lib/creator-detail";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
@@ -106,8 +101,8 @@ export function CreatorContentTable({
               </td>
               <td data-label="Status" className={`${CELL} ${LABELLED}`}>
                 <span className="flex flex-wrap items-center gap-1.5">
-                  <StatusDot tone={CONTENT_STATUS_TONES[row.status]}>
-                    {CONTENT_STATUS_LABELS[row.status]}
+                  <StatusDot tone={contentStatusDisplay(row).tone}>
+                    {contentStatusDisplay(row).label}
                   </StatusDot>
                   <ContentTags tags={badgeTags(row.tags)} />
                 </span>

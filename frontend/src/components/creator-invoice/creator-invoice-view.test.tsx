@@ -352,6 +352,16 @@ describe("CreatorInvoiceView", () => {
       expect(screen.queryByRole("button", { name: /^aksi/ })).not.toBeInTheDocument();
     });
 
+    // PBI-37: an early end cancelled the invoice; there is nothing left for the creator to do.
+    it("says a cancelled invoice is Dibatalkan and offers no move", () => {
+      renderView({ status: "cancelled" }, action);
+
+      expect(screen.getByText("Dibatalkan")).toBeInTheDocument();
+      expect(screen.queryByText("Cancelled")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Giliran kamu" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^aksi/ })).not.toBeInTheDocument();
+    });
+
     it("offers no move on a running invoice", () => {
       renderView({}, action);
 
@@ -511,5 +521,23 @@ describe("CreatorInvoiceView", () => {
       expect(screen.getAllByText("Komentar baru")).toHaveLength(1);
       expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("CreatorInvoiceView for an invoice an early end cancelled", () => {
+  it("shows a red Dibatalkan and why, in place of the payment steps", () => {
+    renderView({ status: "cancelled" });
+
+    expect(screen.queryByRole("list", { name: "Progres invoice" })).toBeNull();
+    const notice = screen.getByRole("group", { name: "Status invoice" });
+    expect(within(notice).getByText("Dibatalkan")).toHaveClass("bg-red-wash");
+    expect(notice).toHaveTextContent("Kontrak diakhiri lebih awal dan invoice ini dibatalkan. Tidak ada yang dibayarkan.");
+    expect(screen.getByRole("group", { name: "Ringkasan invoice" })).toHaveTextContent("Dibatalkan, tidak dibayar");
+  });
+
+  it("says nothing of a bonus still to come", () => {
+    renderView({ status: "cancelled", bonusAmount: null });
+
+    expect(screen.queryByText(/Belum termasuk bonus performa/)).toBeNull();
   });
 });

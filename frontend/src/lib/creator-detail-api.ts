@@ -17,7 +17,9 @@ import {
   type CreatorPeriod,
   type CreatorProfile,
 } from "./creator-detail";
+import { readUsernameLocks } from "./creator-edit";
 import { EARLY_END_REASONS, type ContractPeriod, type EarlyEndReason } from "./creators";
+import { readEarlyEnd } from "./early-end-display";
 import type { RawInvoiceDetail } from "./invoice-api";
 import { jakartaDay } from "./format";
 import { readConnections } from "./social-connection";
@@ -41,7 +43,10 @@ export type RawCreatorPeriod = Pick<
   | "daysBetween"
   | "fixedRate"
   | "earlyEndReason"
+  | "earlyEnd"
   | "remainingEvergreenQuota"
+  | "evergreenCount"
+  | "invoiceStatus"
   | "progress"
   | "performance"
 > &
@@ -57,6 +62,8 @@ export interface RawCreatorDetail {
   socials: Partial<Record<"instagram" | "tiktok", string>>;
   // Sent by 19.3; read only through readConnections.
   socialConnections?: unknown;
+  // Sent by 16.1; read only through readUsernameLocks.
+  usernameLocks?: unknown;
   accessRevokeDate?: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
@@ -143,6 +150,7 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
   // The API counts the room left; it no longer lists a period's contents to count them here.
   // Kept within the quota, so a stray number never opens a slot the contract does not have.
   const remaining = Math.min(Math.max(period.remainingEvergreenQuota, 0), period.contentQuota);
+  const earlyEnd = readEarlyEnd(period.earlyEnd);
 
   return {
     contractId: period.id,
@@ -155,6 +163,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     // What Tambah Konten checks against the quota: full exactly when no room is left.
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
+    evergreenPlanned: period.evergreenCount,
+    invoiceStatus: period.invoiceStatus,
     daysBetween: period.daysBetween,
     fixedRate: period.fixedRate,
     // Only a reason the app knows reaches the renewal's warning; anything else reads as none.
@@ -163,6 +173,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
       : null,
     progress: period.progress,
     performance: period.performance,
+    // PBI-37: only a period the API says was ended early carries one (OWASP A06).
+    ...(earlyEnd && { earlyEnd }),
   };
 }
 
@@ -177,6 +189,7 @@ function toRow(item: RawContentListItem): CreatorContentRow {
     tags: item.tags,
     revisionCount: item.revisionCount,
     platforms: item.platforms,
+    closedAt: item.closedAt ?? null,
   };
 }
 
@@ -201,6 +214,7 @@ export function toCreatorDetailView(
   const open = openContractId(raw, state);
   // An empty table is still one page: the pagination stays on show and needs a page to name.
   const totalPages = Math.max(1, contents?.totalPages ?? 1);
+  const connections = readConnections(raw.socialConnections);
 
   return {
     creator: toProfile(raw),
@@ -223,6 +237,7 @@ export function toCreatorDetailView(
     earnings: invoice
       ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus }
       : null,
-    connections: readConnections(raw.socialConnections),
+    connections,
+    usernameLocks: readUsernameLocks(raw.usernameLocks, connections),
   };
 }

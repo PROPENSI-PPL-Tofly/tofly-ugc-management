@@ -87,6 +87,10 @@ export function CreatorContentBoard({
   }
 
 
+  // A period that has ended, or that an early end closed, is only to be read: nothing is left
+  // to allocate in it and nothing more can be added.
+  const readOnly = period.status === "expired" || period.earlyEnd !== undefined;
+
   return (
     <>
       <Panel>
@@ -99,7 +103,7 @@ export function CreatorContentBoard({
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Beside Tambah Konten, the action that fills the slots it counts. */}
-            {period.remainingEvergreenQuota > 0 ? (
+            {!readOnly && period.remainingEvergreenQuota > 0 ? (
               <p
                 role="note"
                 className="rounded-(--radius-control) border border-amber bg-amber-wash px-3 py-1.5 text-xs text-amber-ink"
@@ -107,8 +111,7 @@ export function CreatorContentBoard({
                 {period.remainingEvergreenQuota} slot Evergreen belum dialokasikan.
               </p>
             ) : null}
-            {/* A period that has ended is only to be read. */}
-            {period.status === "expired" ? null : (
+            {readOnly ? null : (
               <Button variant="accent" onClick={() => setAdding(true)}>
                 + Tambah Konten
               </Button>

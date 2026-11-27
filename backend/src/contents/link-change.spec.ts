@@ -50,10 +50,15 @@ function content(
     accounts?: social_platform[];
     /** The contract period's start day; by default one that started before CLOCK. */
     periodStart?: string;
+    /** PBI-37: when an early end closed the content; open by default. */
+    closedAt?: Date;
+    /** PBI-37: the last day of a contract ended early (its end_date); not ended early by default. */
+    endedEarlyOn?: string;
   } = {},
 ): LinkedContent {
   return {
     id: CONTENT_ID,
+    closed_at: overrides.closedAt ?? null,
     status: overrides.status ?? 'draft_approved',
     deadline: day(overrides.deadline ?? '2026-10-20'),
     video_submitted_at:
@@ -68,6 +73,8 @@ function content(
     })),
     contracts: {
       start_date: day(overrides.periodStart ?? '2026-09-01'),
+      end_date: day(overrides.endedEarlyOn ?? '2026-12-31'),
+      original_end_date: overrides.endedEarlyOn ? day('2026-12-31') : null,
       invoice:
         overrides.invoice === undefined || overrides.invoice === null
           ? null
@@ -200,6 +207,44 @@ describe('a contract period that has not started', () => {
       admin,
       LAST_MOMENT,
     );
+
+    expect(plan.result.status).toBe('link_submitted');
+  });
+});
+
+// PBI-37: content due after the last day of a contract ended early is closed; the creator can no
+// longer hand anything in for it.
+describe('a content closed by an early end', () => {
+  const CLOSED = new Date('2026-10-08T03:00:00.000Z');
+  const CONTENT_CLOSED = {
+    status: 409,
+    body: {
+      code: 'CONTENT_CLOSED',
+      message: 'Konten ini ditutup karena kontrak diakhiri lebih awal',
+    },
+  };
+  const REEL_LINK = [{ platform: 'instagram' as const, url: REEL }];
+
+  it("refuses a creator's links", () => {
+    expect(
+      refusal(() => new SubmitLinks(REEL_LINK).plan(content({ closedAt: CLOSED }), creator, CLOCK)),
+    ).toEqual(CONTENT_CLOSED);
+  });
+
+  it("refuses a creator's replacement link", () => {
+    expect(
+      refusal(() =>
+        new ReplaceLink({ platform: 'instagram', url: OTHER_REEL }, NO_PERFORMANCE_COLUMNS).plan(
+          linked({ closedAt: CLOSED }),
+          creator,
+          CLOCK,
+        ),
+      ),
+    ).toEqual(CONTENT_CLOSED);
+  });
+
+  it('leaves an admin able to record a link, as for the start date', () => {
+    const plan = new SubmitLinks(REEL_LINK).plan(content({ closedAt: CLOSED }), admin, CLOCK);
 
     expect(plan.result.status).toBe('link_submitted');
   });
@@ -660,5 +705,45 @@ describe('error types', () => {
     expect(missing).toThrow(NotFoundException);
     expect(taken).toThrow(ConflictException);
     expect(noAccount).toThrow(UnprocessableEntityException);
+  });
+});
+
+// PBI-37 (AC 8): after the last day of a contract ended early nothing more is handed in, so content
+// counts as delivered only with a link by the last day, and no penalty or bonus runs past it.
+describe('a contract ended early, after its last day', () => {
+  const ENDED_EARLY = {
+    status: 409,
+    body: {
+      code: 'CONTRACT_ENDED_EARLY',
+      message: 'Kontrak sudah diakhiri lebih awal. Tidak ada kiriman setelah hari terakhir',
+    },
+  };
+  const REEL_LINK = [{ platform: 'instagram' as const, url: REEL }];
+  const lastDay = (offset: number) => {
+    const day = new Date(`${CLOCK.today}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + offset);
+    return day.toISOString().slice(0, 10);
+  };
+
+  it("refuses a creator's links the day after the last day", () => {
+    expect(
+      refusal(() =>
+        new SubmitLinks(REEL_LINK).plan(content({ endedEarlyOn: lastDay(-1) }), creator, CLOCK),
+      ),
+    ).toEqual(ENDED_EARLY);
+  });
+
+  it("refuses an admin's links too: nothing past the last day counts", () => {
+    expect(
+      refusal(() =>
+        new SubmitLinks(REEL_LINK).plan(content({ endedEarlyOn: lastDay(-1) }), admin, CLOCK),
+      ),
+    ).toEqual(ENDED_EARLY);
+  });
+
+  it('takes links on the last day itself', () => {
+    const plan = new SubmitLinks(REEL_LINK).plan(content({ endedEarlyOn: CLOCK.today }), creator, CLOCK);
+
+    expect(plan.result.status).toBe('link_submitted');
   });
 });

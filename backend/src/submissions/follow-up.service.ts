@@ -1,20 +1,26 @@
+import { noCreatorEmail, type CreatorNotifier } from '../email/creator-notifier.js';
 import { ConflictException } from '@nestjs/common';
 import { unauthenticated } from '../auth/creator-request.js';
 import {
+  ADMIN_ACCOUNT_SELECT,
   adminActor,
   adminName,
+  type AdminAccount,
   type AdminActor,
 } from '../contents/content-event-actors.js';
 import { noteImageOf, type NoteImage } from './note-image.js';
 import { invalidRevisionImages } from './revise-submission.js';
 import { submissionNotFound } from './review-errors.js';
 
+/** The admin who writes a follow-up: the id to store, and what signs it. */
+const FOLLOW_UP_ADMIN_SELECT = { id: true, ...ADMIN_ACCOUNT_SELECT } as const;
+
 // A follow-up note under a revision note already sent (PBI-33, 33.1). It is its own row, so the
 // note the creator already read is never changed (AC 4), and it is kept only while that round is
 // open: the content waits on the creator's revision and this is still the latest draft (AC 3).
 // The timeline records it in the same transaction (AC 6).
 
-/** What the admin's form (33.2) reads back: the saved follow-up, signed by the admin's email. */
+/** What the admin's form (33.2) reads back: the saved follow-up, signed by the admin's name. */
 export interface FollowUpDto {
   id: string;
   note: string;
@@ -49,8 +55,8 @@ interface FollowUpTransaction {
   users: {
     findUnique(args: {
       where: { id: string };
-      select: { id: true; email: true };
-    }): Promise<{ id: string; email: string } | null>;
+      select: typeof FOLLOW_UP_ADMIN_SELECT;
+    }): Promise<(AdminAccount & { id: string }) | null>;
   };
   revision_followups: {
     create(args: {
@@ -121,7 +127,10 @@ function isOpen(round: RoundRow): boolean {
 }
 
 export class FollowUpService {
-  constructor(private readonly prisma: FollowUpClient) {}
+  constructor(
+    private readonly prisma: FollowUpClient,
+    private readonly notifier: Pick<CreatorNotifier, 'followUpAdded'> = noCreatorEmail,
+  ) {}
 
   async add(
     submissionId: string,
@@ -151,10 +160,10 @@ export class FollowUpService {
     if (!round) throw submissionNotFound();
     if (!isOpen(round)) throw roundClosed();
 
-    return this.prisma.$transaction(async (transaction) => {
+    const followUp = await this.prisma.$transaction(async (transaction) => {
       const admin = await transaction.users.findUnique({
         where: { id: adminUserId },
-        select: { id: true, email: true },
+        select: FOLLOW_UP_ADMIN_SELECT,
       });
       if (!admin) throw unauthenticated();
 
@@ -214,5 +223,8 @@ export class FollowUpService {
         actor: { name: adminName(admin) },
       };
     });
+    // PBI-11 (AC 1, AC 9): once the note is saved; the email never fails the follow-up.
+    await this.notifier.followUpAdded({ contentId: round.content_id, followUpId: followUp.id });
+    return followUp;
   }
 }

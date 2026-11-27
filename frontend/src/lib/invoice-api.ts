@@ -23,6 +23,9 @@ import {
 } from "./invoice";
 import { periodRange } from "./deadline-period";
 import { DATA_STATE_LABELS, type DataState } from "./link-performance";
+import { readActorName } from "./admin-actor";
+import type { AdjustmentLine } from "./invoice-adjustment";
+import { readRateChanges } from "./rate-change";
 import { paymentOf, type RawInvoicePayment } from "./invoice-payment-api";
 
 /** One content item's share of a component, with what its amount was worked out from. */
@@ -46,6 +49,8 @@ export interface RawAdjustment {
   amount: number;
   reason: string;
   actorId: string;
+  /** The Admin who recorded it (PBI-23, 23.10), on live reads; read through readActorName. */
+  actorName?: unknown;
   /** ISO instant. */
   createdAt: string;
 }
@@ -81,7 +86,11 @@ export interface RawInvoiceRow extends RawInvoicePayment {
   /** The manual adjustments recorded against this invoice, oldest first. */
   adjustments: RawAdjustment[];
   /** The frozen breakdown of a finalized invoice; null while it still runs. */
-  snapshot: { finalizedAt: string } | null;
+  snapshot: {
+    finalizedAt: string;
+    /** The total at Finalize (PBI-23, AC 25); absent from an older snapshot. Read by frozenTotal. */
+    finalizedTotal?: unknown;
+  } | null;
 }
 
 export interface RawInvoiceList {
@@ -105,10 +114,14 @@ export interface RawRateFormula {
 
 /** One creator's invoice as GET /invoices/:creatorId answers it, for the breakdown popups. */
 export interface RawInvoiceDetail extends RawInvoiceRow {
+  /** The Admin who finalized it (PBI-23, 23.10); null when not finalized or not recorded. */
+  finalizedBy?: string | null;
   /** 1 for the first contract, counting up with every renewal. */
   periodNumber: number;
   /** Null while no admin has saved a formula. */
   formula: RawRateFormula | null;
+  /** Sent by 16.1; read only through readRateChanges. */
+  rateChanges?: unknown;
 }
 
 /** The page's state as the query GET /invoices reads: the filters that are applied, the page and its size. */
@@ -145,6 +158,18 @@ function pendingBonus(bonus: RawInvoiceComponent, rawTotal: number): PendingBonu
   return { amount, totalAmount: Math.max(0, frozen), floored: frozen < 0 };
 }
 
+/** One adjustment for the page, for the Admin and the creator alike: named, never by the Admin's id. */
+export function toAdjustmentLine(raw: Omit<RawAdjustment, "actorId">): AdjustmentLine {
+  const actorName = readActorName(raw.actorName);
+  return {
+    id: raw.id,
+    amount: raw.amount,
+    reason: raw.reason,
+    createdAt: raw.createdAt,
+    ...(actorName && { actorName }),
+  };
+}
+
 function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
   const { fixedRate, additionalContent, performanceBonus, penalty } = raw.components;
 
@@ -169,12 +194,7 @@ function toInvoiceRow(raw: RawInvoiceRow): InvoiceRow {
     pendingBonus: isWaiting(performanceBonus) ? pendingBonus(performanceBonus, raw.rawTotal) : null,
     invoiceStatus: raw.invoiceStatus,
     // An answer that predates the field simply lists none.
-    adjustments: (raw.adjustments ?? []).map((adjustment) => ({
-      id: adjustment.id,
-      amount: adjustment.amount,
-      reason: adjustment.reason,
-      createdAt: adjustment.createdAt,
-    })),
+    adjustments: (raw.adjustments ?? []).map(toAdjustmentLine),
     frozenAt: raw.snapshot?.finalizedAt ?? null,
     ...paymentOf(raw),
   };
@@ -247,6 +267,11 @@ function tierRules(formula: RawRateFormula | null): BonusTierRule[] {
   });
 }
 
+/** The total Finalize froze, or undefined for anything that cannot be an amount owed. */
+function frozenTotal(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 /**
  * One creator's invoice as the breakdown popups read it. The amounts are the backend's: this
  * only renames, so a popup's total always matches the table cell that opened it.
@@ -256,9 +281,15 @@ export function toInvoiceBreakdown(raw: RawInvoiceDetail): InvoiceBreakdown {
   // The fixed rate pays the contract period, so its one line names the contract, not a content.
   const [period] = fixedRate.lines;
   const cap = raw.formula?.maxPenaltyDays ?? 0;
+  const finalizedBy = readActorName(raw.finalizedBy);
+  const finalizedTotal = frozenTotal(raw.snapshot?.finalizedTotal);
 
   return {
+    ...(finalizedBy && { finalizedBy }),
+    // A frozen Rp0 is a real total, so this asks for undefined rather than for a truthy value.
+    ...(finalizedTotal !== undefined && { finalizedTotal }),
     creatorName: raw.creatorName,
+    rateChanges: readRateChanges(raw.rateChanges),
     fixed: {
       period: {
         number: raw.periodNumber,

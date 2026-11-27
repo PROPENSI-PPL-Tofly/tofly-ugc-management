@@ -116,6 +116,20 @@ function unfold(name: string) {
 }
 
 describe("InvoiceRincian", () => {
+  // PBI-31: the invoice beside Tutup once the creator acknowledged it, the receipt once paid.
+  it.each(["accruing", "finalized"] as const)("offers no document for a %s invoice", (invoiceStatus) => {
+    setup({ row: { ...ROW, invoiceStatus } });
+
+    expect(screen.queryByRole("button", { name: /^Unduh/ })).toBeNull();
+  });
+
+  it("offers Unduh Invoice and Unduh Receipt in the footer of a paid invoice", () => {
+    setup({ row: { ...ROW, invoiceStatus: "paid" } });
+
+    expect(screen.getByRole("button", { name: "Unduh Invoice" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unduh Receipt" })).toBeInTheDocument();
+  });
+
   it("opens as a side panel titled Rincian Invoice, as the creator's page is", () => {
     setup();
 
@@ -279,10 +293,30 @@ describe("InvoiceRincian", () => {
 
     expect(screen.getByRole("tab", { name: "Aktivitas & Komentar (1)" })).toHaveAttribute("aria-selected", "true");
     const activity = within(screen.getByRole("list", { name: "Aktivitas invoice" }));
-    expect(activity.getByText("Invoice difinalisasi")).toBeInTheDocument();
+    expect(activity.getByText("Admin memfinalisasi invoice · Rp350.000")).toBeInTheDocument();
     expect(activity.getByText("30 Agu 2026")).toBeInTheDocument();
     expect(screen.getByText("Utas komentar")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Total invoice" })).toBeNull();
+  });
+
+  // PBI-23, 23.11
+  it("lists who added an adjustment in the activity and counts it on the tab", () => {
+    const adjustment = {
+      id: "22222222-2222-4222-8222-222222222222",
+      amount: 50000,
+      reason: "Reimbursement ongkir produk",
+      createdAt: "2026-08-31T03:00:00.000Z",
+      actorName: "Sinta Dewi",
+    };
+    setup({
+      row: { ...ROW, invoiceStatus: "finalized", frozenAt: "2026-08-30T03:00:00.000Z", adjustments: [adjustment] },
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Aktivitas & Komentar (2)" }));
+
+    const activity = within(screen.getByRole("list", { name: "Aktivitas invoice" }));
+    expect(activity.getByText("Sinta Dewi menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)")).toBeInTheDocument();
+    expect(activity.getByText("31 Agu 2026")).toBeInTheDocument();
   });
 
   it("says a running invoice has no activity yet, above its thread", () => {
@@ -448,5 +482,24 @@ describe("Bonus Performa, one line per link (PBI-28 AC 6)", () => {
 
     expect(lines[0]).toHaveTextContent("Dikunci pada 3 Nov 2026");
     expect(lines[1]).toHaveTextContent("Dikunci pada 3 Nov 2026");
+  });
+});
+
+// QA: a cancelled invoice drew the payment steps with none reached, as if it still had to walk them.
+describe("InvoiceRincian for an invoice an early end cancelled", () => {
+  it("shows a red Cancelled and why, in place of the payment steps", () => {
+    setup({ row: { ...ROW, invoiceStatus: "cancelled" } });
+
+    expect(screen.queryByRole("list", { name: "Progres invoice" })).toBeNull();
+    const notice = screen.getByRole("group", { name: "Status invoice" });
+    expect(within(notice).getByText("Cancelled")).toHaveClass("bg-red-wash");
+    expect(notice).toHaveTextContent("Kontrak diakhiri lebih awal dan invoice ini dibatalkan. Tidak ada yang dibayarkan.");
+    expect(screen.getByRole("group", { name: "Ringkasan invoice" })).toHaveTextContent("Dibatalkan, tidak dibayar");
+  });
+
+  it("says nothing of a bonus still to come", () => {
+    setup({ row: { ...ROW, invoiceStatus: "cancelled", bonusAmount: null } });
+
+    expect(screen.queryByText(/Belum termasuk bonus performa/)).toBeNull();
   });
 });

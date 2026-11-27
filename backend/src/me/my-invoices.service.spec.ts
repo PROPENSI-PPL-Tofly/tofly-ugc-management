@@ -75,6 +75,7 @@ function view(contractId: string, overrides: Partial<InvoiceView> = {}) {
     formula: null,
     acknowledgedAt: null,
     paidAt: null,
+    rateChanges: [],
     ...overrides,
   } as InvoiceView;
 }
@@ -117,6 +118,7 @@ describe('MyInvoicesService', () => {
       fileName: 'transfer.pdf',
       url: '/api/me/invoices/earlier/payment-proof',
       uploadedAt: '2026-10-07T03:00:00.000Z',
+      uploadedBy: 'Sinta Dewi',
     };
     proofs.forContracts.mockResolvedValue(new Map([['earlier', proof]]));
     comments.forContracts.mockResolvedValue(new Map([['earlier', [COMMENT]]]));
@@ -147,6 +149,23 @@ describe('MyInvoicesService', () => {
     ]);
   });
 
+  // OWASP A01: PBI-16's rate changes reach the creator without the admin behind them.
+  it('answers the fixed rate changes without naming the admin', async () => {
+    const change = {
+      id: 'change-1',
+      oldRate: 4_000_000,
+      newRate: 4_500_000,
+      createdAt: '2026-11-25T03:00:00.000Z',
+    };
+    const { service } = stubs([
+      view('current', { rateChanges: [{ ...change, actorName: 'rina@example.com' }] }),
+    ]);
+
+    const { items } = await service.list(CREATOR, TODAY);
+
+    expect(items[0].rateChanges).toEqual([change]);
+  });
+
   // OWASP Top 10:2025 A01 (Broken Access Control): which admin recorded an adjustment is the
   // admin side's record; the creator reads what and why, at the top level and in the snapshot.
   it('leaves out which admin recorded each adjustment, in the live list and in the snapshot', async () => {
@@ -165,6 +184,24 @@ describe('MyInvoicesService', () => {
       ...snapshot(),
       adjustments: [ADJUSTMENT_FOR_CREATOR],
     });
+    expect(JSON.stringify(item)).not.toContain(ADMIN);
+  });
+
+  // PBI-23 AC 25: invoice activity names the acting Admin for the creator too, never by id.
+  it('keeps the name of the admin who recorded an adjustment, without their id', async () => {
+    const { service } = stubs([
+      view('earlier', {
+        invoiceStatus: 'finalized',
+        adjustments: [{ ...ADJUSTMENT, actorName: 'Sinta Dewi' }],
+        snapshot: snapshot(),
+      }),
+    ]);
+
+    const [item] = (await service.list(CREATOR, TODAY)).items;
+
+    expect(item.adjustments).toEqual([
+      { ...ADJUSTMENT_FOR_CREATOR, actorName: 'Sinta Dewi' },
+    ]);
     expect(JSON.stringify(item)).not.toContain(ADMIN);
   });
 

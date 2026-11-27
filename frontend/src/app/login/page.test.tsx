@@ -95,14 +95,26 @@ describe("Login page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(message);
   });
 
+  // OWASP A07: every other way back to /login keeps its own words, never the no-access one.
+  it.each(["sign_in_failed", "cancelled", "session_expired"])(
+    "never says the account has no access after %s",
+    async (error) => {
+      await renderLogin({ error });
+
+      expect(screen.getByRole("alert")).not.toHaveTextContent("tidak punya akses");
+    },
+  );
+
   describe("a refused email (not_authorized)", () => {
-    it("says the email has no access and points to the Admin", async () => {
+    // PBI-23, and PBI-37 for a creator whose contract ended: the account has no access, worded
+    // the same whether it was closed or never added (OWASP A07). No reason or note, ever.
+    it("says the account has no access in PBI-23's words, and nothing more", async () => {
       await renderLogin({ error: "not_authorized" });
 
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent("Email ini tidak punya akses ke Tofly.");
-      expect(alert).toHaveTextContent("Hubungi Admin untuk meminta akses");
+      expect(alert.textContent).toBe("Akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.");
       expect(alert).not.toHaveTextContent("Gagal masuk dengan Google");
+      expect(document.body).not.toHaveTextContent(/Pelanggaran Kontrak|Fraud|Lainnya|lebih awal/);
     });
 
     it("keeps the Google button so another account can be picked", async () => {
@@ -144,7 +156,7 @@ describe("Login page", () => {
   });
 
   it.each([
-    ["an admin", "admin", "/admin/creators"],
+    ["an admin", "admin", "/admin/dashboard"],
     ["a creator", "creator", "/creator/dashboard"],
   ] as const)("sends %s who is already signed in to their own page", async (_label, role, path) => {
     vi.mocked(currentRole).mockResolvedValue(role);

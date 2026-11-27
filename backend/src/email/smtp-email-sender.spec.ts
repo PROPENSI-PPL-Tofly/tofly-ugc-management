@@ -61,6 +61,20 @@ describe('SmtpEmailSender', () => {
     });
   });
 
+  // PBI-11 AC 3: the Paid email carries the invoice PDF.
+  it('hands the attachments on to the transport as they are', async () => {
+    const mail = transport();
+    const pdf = {
+      filename: 'Invoice_RanggaPratama_Periode2.pdf',
+      content: Buffer.from('%PDF-1.7'),
+      contentType: 'application/pdf',
+    };
+
+    await new SmtpEmailSender(CONFIG, mail).send({ ...MESSAGE, attachments: [pdf] });
+
+    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: [pdf] }));
+  });
+
   // Logging a refused send is LoggingEmailSenderDecorator's job; this sender only delivers,
   // and has no logger to write a duplicate line (or the recipient's address) with.
   it('reports a refused send to the caller unchanged (AC 6)', async () => {

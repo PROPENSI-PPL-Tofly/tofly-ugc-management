@@ -31,6 +31,11 @@ describe("toInvoiceListQuery", () => {
     );
   });
 
+  // The backend filters the list (37.1), so the Cancelled pick must reach it in its own word.
+  it("asks the API for the cancelled invoices when Cancelled is picked", () => {
+    expect(toInvoiceListQuery({ ...STATE, status: "cancelled" }, TODAY).get("status")).toBe("cancelled");
+  });
+
   it("leaves out a filter that is not applied, and still names the page and its size", () => {
     expect(toInvoiceListQuery(DEFAULT_INVOICE_PARAMS, TODAY).toString()).toBe("page=1&pageSize=10");
   });
@@ -150,6 +155,37 @@ describe("toInvoiceList", () => {
         createdAt: "2026-10-18T03:00:00.000Z",
       },
     ]);
+  });
+
+  // PBI-23, 23.11: the Admin's reads name who recorded each adjustment.
+  describe("the Admin who recorded an adjustment", () => {
+    const adjustmentNamed = (actorName: unknown) => {
+      const adjustment = {
+        id: "22222222-2222-4222-8222-222222222222",
+        amount: -75000,
+        reason: "Koreksi kelebihan tagihan",
+        actorId: "33333333-3333-4333-8333-333333333333",
+        actorName,
+        createdAt: "2026-10-18T03:00:00.000Z",
+      };
+      return toInvoiceList({ ...RAW, items: [{ ...RAW_RANGGA, adjustments: [adjustment] }] }).rows[0].adjustments[0];
+    };
+
+    it("keeps the name, trimmed, and never the Admin's id", () => {
+      const line = adjustmentNamed("  Sinta Dewi  ");
+
+      expect(line).toHaveProperty("actorName", "Sinta Dewi");
+      expect(line).not.toHaveProperty("actorId");
+    });
+
+    it.each([
+      ["null", null],
+      ["missing, on an answer from before 23.10", undefined],
+      ["blank", "   "],
+      ["not text", 42],
+    ])("names no one when it is %s", (_label, actorName) => {
+      expect(adjustmentNamed(actorName)).not.toHaveProperty("actorName");
+    });
   });
 
   it("says the invoice is waiting for data while a fee or penalty is", () => {
@@ -605,6 +641,7 @@ describe("toInvoiceBreakdown", () => {
   it("reads a contract that has not started, with no formula saved, as nothing billed or stated yet", () => {
     expect(toInvoiceBreakdown(RAW_UPCOMING_NO_FORMULA)).toEqual({
       creatorName: "Farah Nur Aini",
+      rateChanges: [],
       fixed: {
         period: { number: 1, start: "2026-11-01", end: "2027-01-31", quotaDone: 0, quotaTotal: 3 },
         total: 0,
@@ -619,6 +656,48 @@ describe("toInvoiceBreakdown", () => {
         lockedOn: null,
       },
       penalty: { lines: [], total: 0 },
+    });
+  });
+
+  // PBI-23, 23.11
+  it("carries the Admin who finalized the invoice", () => {
+    expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, finalizedBy: "Sinta Dewi" }).finalizedBy).toBe(
+      "Sinta Dewi",
+    );
+  });
+
+  it.each([
+    ["null, on an invoice finalized before it was recorded", null],
+    ["missing, on an answer from before 23.10", undefined],
+    ["blank", "  "],
+  ])("names no finalizer when it is %s", (_label, finalizedBy) => {
+    expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, finalizedBy })).not.toHaveProperty("finalizedBy");
+  });
+
+  // PBI-23 AC 25: what Finalize froze, which a later adjustment never moves.
+  describe("the total kept from Finalize", () => {
+    const frozenWith = (finalizedTotal: unknown) => {
+      const snapshot = { finalizedAt: "2026-10-18T03:00:00.000Z", finalizedTotal };
+      return toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, snapshot });
+    };
+
+    it.each([1060000, 0, 1024999.5])("carries %s", (total) => {
+      expect(frozenWith(total)).toHaveProperty("finalizedTotal", total);
+    });
+
+    it.each([
+      ["missing, on a snapshot from before it was kept", undefined],
+      ["null", null],
+      ["negative", -1],
+      ["not a number", Number.NaN],
+      ["infinite", Number.POSITIVE_INFINITY],
+      ["text", "1060000"],
+    ])("reads none when it is %s", (_label, total) => {
+      expect(frozenWith(total)).not.toHaveProperty("finalizedTotal");
+    });
+
+    it("reads none on an invoice still running", () => {
+      expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, snapshot: null })).not.toHaveProperty("finalizedTotal");
     });
   });
 
@@ -678,5 +757,14 @@ describe("toInvoiceBreakdown", () => {
     });
 
     expect(bare.fixed.period).toMatchObject({ quotaDone: 0, quotaTotal: 0 });
+  });
+});
+
+// PBI-16 AC 9.
+describe("toInvoiceBreakdown with fixed rate changes", () => {
+  const change = { id: "c1", oldRate: 1, newRate: 2, actorName: "rina@example.com", createdAt: "2026-11-25T03:00:00Z" };
+
+  it("carries them for the Aktivitas", () => {
+    expect(toInvoiceBreakdown({ ...RAW_RANGGA_DETAIL, rateChanges: [change] }).rateChanges).toEqual([change]);
   });
 });

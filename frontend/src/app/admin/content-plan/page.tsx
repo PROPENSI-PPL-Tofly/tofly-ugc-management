@@ -16,6 +16,8 @@ import {
   type ContentPlanResponse,
 } from "@/lib/content-plan";
 import { ContentPlanViewToggle } from "@/components/content-plan/content-plan-view-toggle";
+import { DeadlineBufferButton } from "@/components/settings/deadline-buffer-button";
+import { isSuperAdmin } from "@/lib/session.server";
 import { CALENDAR_MAX_ITEMS, shownMonth } from "@/lib/content-plan-calendar";
 import {
   ContentPlanCalendarTooLargeError,
@@ -56,10 +58,13 @@ export default async function ContentPlanPage({
 
   // Each fetch fails for itself: a creator-name failure costs the filter's choices, while a
   // list failure costs the page. Promise.all would let either one take down both.
-  const [plan, names] = await Promise.allSettled([
+  const [plan, names, superAdmin] = await Promise.allSettled([
     isCalendar ? fetchContentPlanMonth(state, month) : fetchContentPlan(state),
     fetchContentPlanCreatorOptions(),
+    isSuperAdmin(),
   ]);
+  // PBI-23 AC: "Atur Buffer Deadline" is the Super Admin's alone; the API refuses anyone else.
+  const canSetBuffer = superAdmin.status === "fulfilled" && superAdmin.value;
   creators = names.status === "fulfilled" ? names.value : [];
 
   if (plan.status === "rejected") {
@@ -90,7 +95,12 @@ export default async function ContentPlanPage({
   return (
     <AppShell
       title="Content Plan"
-      action={<ContentPlanViewToggle state={state} />}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          {canSetBuffer ? <DeadlineBufferButton /> : null}
+          <ContentPlanViewToggle state={state} />
+        </div>
+      }
     >
       {pastEnd !== null ? (
         <p

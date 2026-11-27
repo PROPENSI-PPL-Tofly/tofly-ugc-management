@@ -1,9 +1,12 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
 import { DeadlineAgenda } from "@/components/dashboard/deadline-agenda";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { buttonClasses } from "@/components/ui/button-classes";
-import { nearestDeadlineLabel } from "@/lib/creator-dashboard";
+import { contractLastDay, contractLastDayLabel, nearestDeadlineLabel } from "@/lib/creator-dashboard";
 import { fetchCreatorDashboard, type CreatorDashboard } from "@/lib/creator-dashboard.server";
+import { CREATOR_INVOICES_PATH } from "@/lib/creator-invoice";
+import { fetchMyInvoices } from "@/lib/creator-invoice.server";
 import { jakartaDay } from "@/lib/format";
 import { MyTasksError } from "@/lib/my-tasks";
 
@@ -18,15 +21,29 @@ const BASE_PATH = "/creator/dashboard";
 type Loaded =
   | { kind: "ok"; dashboard: CreatorDashboard }
   | { kind: "signed_out" }
+  | { kind: "payments_only" }
   | { kind: "failed" };
 
 async function load(): Promise<Loaded> {
   try {
     return { kind: "ok", dashboard: await fetchCreatorDashboard() };
   } catch (error) {
-    return error instanceof MyTasksError && error.status === 401
-      ? { kind: "signed_out" }
-      : { kind: "failed" };
+    if (!(error instanceof MyTasksError)) return { kind: "failed" };
+    if (error.status === 401) return { kind: "signed_out" };
+    // PBI-37 (AC 13): the backend opens only Pembayaran while an invoice is all that is left.
+    return error.code === "PAYMENTS_ONLY" ? { kind: "payments_only" } : { kind: "failed" };
+  }
+}
+
+/**
+ * The contract's last day from the creator's own invoices (PBI-37, 37.3), or null when they cannot
+ * be read: that costs the dashboard this one line, never the cards (OWASP A10).
+ */
+async function loadLastDay(): Promise<string | null> {
+  try {
+    return contractLastDay(await fetchMyInvoices());
+  } catch {
+    return null;
   }
 }
 
@@ -63,13 +80,17 @@ function LoadFailed({ signedOut }: Readonly<{ signedOut: boolean }>) {
  * is nothing to do.
  */
 export default async function CreatorDashboardPage() {
-  const loaded = await load();
+  const [loaded, lastDay] = await Promise.all([load(), loadLastDay()]);
+  // Followed, never worked around: the backend decides; the page only goes where it allows
+  // (OWASP A01). Outside load()'s try, since redirect() works by throwing.
+  if (loaded.kind === "payments_only") redirect(CREATOR_INVOICES_PATH);
   const now = new Date();
 
   return (
     <AppShell role="creator" title="Dashboard">
       {loaded.kind === "ok" ? (
         <>
+          {lastDay ? <p className="mb-4 text-[13px] text-muted">{contractLastDayLabel(lastDay)}</p> : null}
           <StatCards
             counts={loaded.dashboard.counts}
             nearestDeadline={nearestDeadlineLabel(loaded.dashboard.nearestDeadline, now)}

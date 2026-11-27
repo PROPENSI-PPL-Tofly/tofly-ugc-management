@@ -144,10 +144,7 @@ describe('POST /creators (e2e)', () => {
 
   it('shows the new creator in the Creator Database listing', async () => {
     const email = `${MARKER}-listed@example.com`;
-    await admin
-      .post('/creators')
-      .send(body(email))
-      .expect(201);
+    await admin.post('/creators').send(body(email)).expect(201);
 
     const { body: listing } = await admin
       .get('/creators')
@@ -199,7 +196,9 @@ describe('POST /creators (e2e)', () => {
 
     await admin
       .post('/creators')
-      .send(body(email, { contractEnd: iso(11), quota: 1, deadlines: [iso(6)] }))
+      .send(
+        body(email, { contractEnd: iso(11), quota: 1, deadlines: [iso(6)] }),
+      )
       .expect(201);
   });
 
@@ -219,7 +218,12 @@ describe('POST /creators (e2e)', () => {
     const hundred = Array.from({ length: 100 }, () => iso(6));
     await admin
       .post('/creators')
-      .send(body(`${MARKER}-hundred@example.com`, { quota: 100, deadlines: hundred }))
+      .send(
+        body(`${MARKER}-hundred@example.com`, {
+          quota: 100,
+          deadlines: hundred,
+        }),
+      )
       .expect(201);
 
     const email = `${MARKER}-too-many@example.com`;
@@ -234,10 +238,7 @@ describe('POST /creators (e2e)', () => {
 
   it('answers an email already on the whitelist with 422 on the email field', async () => {
     const email = `${MARKER}-twice@example.com`;
-    await admin
-      .post('/creators')
-      .send(body(email))
-      .expect(201);
+    await admin.post('/creators').send(body(email)).expect(201);
 
     // users.email is citext, so a different case is the same login.
     const { body: rejected } = await admin
@@ -245,7 +246,7 @@ describe('POST /creators (e2e)', () => {
       .send(body(email.toUpperCase()))
       .expect(422);
 
-    expect(rejected.errors).toEqual({ email: 'Email sudah terdaftar' });
+    expect(rejected.errors).toEqual({ email: 'Email sudah dipakai' });
     await expect(
       prisma.creators.count({ where: { users: { email } } }),
     ).resolves.toBe(1);

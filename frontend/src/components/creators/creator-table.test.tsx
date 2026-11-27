@@ -65,6 +65,75 @@ describe("CreatorTable", () => {
     expect(within(row).getByText("Baik")).toBeInTheDocument();
   });
 
+  // PBI-37, 37.3 (AC 16): a contract the admin ended early, told from the API's earlyEnd alone.
+  describe("a contract ended early", () => {
+    const ENDED_EARLY = creator({
+      contract: {
+        ...creator().contract,
+        status: "expired",
+        endDate: "2026-11-20",
+        daysRemaining: -2,
+        earlyEnd: { originalEndDate: "2026-12-31", reason: "violation" },
+      },
+    });
+
+    it("says it ended early, on which day, what it was meant to run to and why", () => {
+      render(<CreatorTable creators={[ENDED_EARLY]} total={1} />);
+
+      const row = screen.getAllByRole("row")[1];
+      expect(within(row).getByText("Berakhir Lebih Awal")).toBeInTheDocument();
+      expect(within(row).getByText("Berakhir lebih awal pada 20 Nov 2026, semula 31 Des 2026.")).toBeInTheDocument();
+      expect(within(row).getByText("Alasan: Pelanggaran Kontrak")).toBeInTheDocument();
+    });
+
+    // OWASP A06: a contract that simply reached its end, or one still running, is not an early
+    // end, whatever its dates; only the API's earlyEnd says so.
+    it.each([
+      ["running", creator()],
+      [
+        "ended as agreed",
+        creator({ contract: { ...creator().contract, status: "expired", daysRemaining: -5, earlyEnd: null } }),
+      ],
+      ["read from an API before PBI-37", creator({ contract: { ...creator().contract, status: "expired" } })],
+    ])("says nothing of an early end for a contract %s", (_, summary) => {
+      render(<CreatorTable creators={[summary]} total={1} />);
+
+      expect(screen.queryByText("Berakhir Lebih Awal")).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Alasan:/)).not.toBeInTheDocument();
+    });
+
+    // OWASP A05: whatever arrives is text. A reason this app cannot name is never shown at all.
+    it("never renders markup that arrives in the early end", () => {
+      const hostile = creator({
+        contract: {
+          ...ENDED_EARLY.contract,
+          earlyEnd: {
+            originalEndDate: "2026-12-31",
+            reason: '<img src=x onerror="alert(1)">' as never,
+          },
+        },
+      });
+
+      const { container } = render(<CreatorTable creators={[hostile]} total={1} />);
+
+      expect(container.querySelector("img[src='x']")).toBeNull();
+      expect(screen.queryByText(/onerror/)).not.toBeInTheDocument();
+      expect(screen.getByText("Alasan: —")).toBeInTheDocument();
+    });
+
+    // OWASP A10: a broken earlyEnd costs the row its early-end lines, not the page.
+    it("still lists a creator whose early end arrived broken", () => {
+      const broken = creator({
+        contract: { ...ENDED_EARLY.contract, earlyEnd: { originalEndDate: "kapan-kapan" } as never },
+      });
+
+      render(<CreatorTable creators={[broken]} total={1} />);
+
+      expect(screen.getByText("Rangga Pratama")).toBeInTheDocument();
+      expect(screen.queryByText("Berakhir Lebih Awal")).not.toBeInTheDocument();
+    });
+  });
+
   it("labels the columns", () => {
     render(<CreatorTable creators={[creator()]} total={1} />);
 

@@ -99,7 +99,7 @@ describe('EmailSignInService', () => {
 
       await expect(service.verify(EMAIL, CODE, response)).resolves.toEqual({
         outcome: 'signed_in',
-        redirectTo: '/admin/creators',
+        redirectTo: '/admin/dashboard',
       });
     });
 
@@ -339,6 +339,7 @@ describe('EmailSignInService', () => {
           create,
           findUnique: vi.fn(),
           update: vi.fn(),
+          updateMany: vi.fn(),
           deleteMany: vi.fn(),
         },
         CONFIG,

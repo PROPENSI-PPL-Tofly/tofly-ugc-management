@@ -6,12 +6,14 @@ import { CreatorNav } from "./creator-nav";
 import { FRAME_THEMES } from "./frame-theme";
 import { LogoutButton } from "./logout-button";
 import { SessionActivity } from "./session-activity";
+import { RoleTag, SignedInName } from "./signed-in-as";
 
 // What a role's frame holds: its menu. How the frame is drawn is the role's FrameTheme; where
 // the wordmark leads is the role's home, which lib/session.ts owns, so sign-in and the
 // wordmark cannot disagree.
 const MENUS: Record<Role, ReactNode> = {
   admin: <AdminNav />,
+  super_admin: <AdminNav />,
   creator: <CreatorNav />,
 };
 
@@ -50,12 +52,10 @@ export function AppShell({
             <span aria-hidden="true" className={`size-2 shrink-0 rounded-[3px] ${theme.wordmarkDot}`} />
             Tofly Creator Management System
           </Link>
-          <span
-            data-role-tag=""
+          <RoleTag
+            role={role}
             className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider ${theme.tag}`}
-          >
-            {theme.label}
-          </span>
+          />
         </div>
 
         {/* Below md the menu is a bar of tiles fixed to the foot of the screen. */}
@@ -70,7 +70,7 @@ export function AppShell({
         >
           <p className="hidden px-3 text-xs md:block">
             Masuk sebagai
-            <span className="mt-0.5 block text-[13px] font-semibold">{theme.label}</span>
+            <SignedInName role={role} />
           </p>
           <LogoutButton tone={theme.logout} />
         </div>

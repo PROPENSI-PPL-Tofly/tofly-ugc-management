@@ -17,12 +17,16 @@ import {
   PaymentProofService,
   type PaymentProofReader,
 } from '../invoices/payment-proof.service.js';
+import {
+  forCreator as rateChangeForCreator,
+  type CreatorRateChangeDto,
+} from '../invoices/rate-change.js';
 
 // The creator's Pembayaran page (PBI-13): GET /me/invoices answers every invoice of the signed-in
 // creator with its status, the breakdown or its frozen snapshot (PBI-12), the proof link once
 // uploaded and the comment thread (13.1). The creator reads the same numbers the admin froze.
 
-/** An adjustment as the creator reads it: what and why, not which admin recorded it. */
+/** An adjustment as the creator reads it: what, why and who by name, never the admin's id. */
 export type CreatorAdjustmentDto = Omit<InvoiceAdjustmentDto, 'actorId'>;
 
 export type CreatorSnapshotDto = Omit<InvoiceSnapshotDto, 'adjustments'> & {
@@ -30,9 +34,10 @@ export type CreatorSnapshotDto = Omit<InvoiceSnapshotDto, 'adjustments'> & {
 };
 
 /** One of the creator's invoices, under the names the admin's detail uses. */
-export type CreatorInvoiceDto = Omit<InvoiceView, 'adjustments' | 'snapshot'> &
+export type CreatorInvoiceDto = Omit<InvoiceView, 'adjustments' | 'rateChanges' | 'snapshot'> &
   InvoicePaymentFields & {
     adjustments: CreatorAdjustmentDto[];
+    rateChanges: CreatorRateChangeDto[];
     snapshot: CreatorSnapshotDto | null;
     /** Oldest first. */
     comments: InvoiceCommentDto[];
@@ -47,9 +52,17 @@ function forCreator({
   id,
   amount,
   reason,
+  actorName,
   createdAt,
 }: InvoiceAdjustmentDto): CreatorAdjustmentDto {
-  return { id, amount, reason, createdAt };
+  // A snapshot's copy carries no name: names are read live, never frozen.
+  return {
+    id,
+    amount,
+    reason,
+    ...(actorName !== undefined && { actorName }),
+    createdAt,
+  };
 }
 
 @Injectable()
@@ -80,6 +93,7 @@ export class MyInvoicesService {
       items: views.map((view) => ({
         ...view,
         adjustments: view.adjustments.map(forCreator),
+        rateChanges: view.rateChanges.map(rateChangeForCreator),
         snapshot: view.snapshot && {
           ...view.snapshot,
           adjustments: view.snapshot.adjustments.map(forCreator),

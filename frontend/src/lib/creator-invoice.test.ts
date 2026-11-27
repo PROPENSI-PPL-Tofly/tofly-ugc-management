@@ -1,5 +1,6 @@
 import {
   COMMENT_MAX_LENGTH,
+  CREATOR_INVOICE_STATUS_LABELS,
   creatorNextStep,
   currentAndHistory,
   invoiceActivity,
@@ -10,11 +11,25 @@ import {
   type CreatorInvoice,
 } from "./creator-invoice";
 import { aCreatorInvoice, NONE_REACHED } from "./creator-invoice.builder";
-import { INVOICE_STATUSES, type InvoiceStatus } from "./invoice";
+import { INVOICE_STATUS_LABELS, INVOICE_STATUSES, type InvoiceStatus } from "./invoice";
 
 function invoice(overrides: Partial<CreatorInvoice> = {}): CreatorInvoice {
   return aCreatorInvoice(overrides);
 }
+
+// PBI-37: the creator reads a cancelled invoice in their own words, never the admin's "Cancelled".
+describe("CREATOR_INVOICE_STATUS_LABELS", () => {
+  it("calls a cancelled invoice Dibatalkan", () => {
+    expect(CREATOR_INVOICE_STATUS_LABELS.cancelled).toBe("Dibatalkan");
+  });
+
+  it.each(INVOICE_STATUSES.filter((status) => status !== "cancelled"))(
+    "words the %s step as the admin's table does",
+    (status) => {
+      expect(CREATOR_INVOICE_STATUS_LABELS[status]).toBe(INVOICE_STATUS_LABELS[status]);
+    },
+  );
+});
 
 describe("totalLabel", () => {
   it("calls a running total an estimate, since it moves until the invoice is frozen", () => {
@@ -151,7 +166,19 @@ describe("creatorNextStep", () => {
   it("offers acknowledge only on a finalized invoice and confirm only once the proof is in", () => {
     const actions = INVOICE_STATUSES.map((status: InvoiceStatus) => creatorNextStep(invoice({ status })).action);
 
-    expect(actions).toEqual([null, "acknowledge", null, "confirm", null]);
+    // A cancelled invoice (PBI-37) offers no move at all.
+    expect(actions).toEqual([null, "acknowledge", null, "confirm", null, null]);
+  });
+});
+
+describe("a cancelled invoice (PBI-37)", () => {
+  it("says it was cancelled and offers no move", () => {
+    expect(creatorNextStep(invoice({ status: "cancelled" }))).toEqual({ hint: "Dibatalkan", action: null });
+  });
+
+  // Off the pipeline: the tracker must not claim it still waits on Berjalan or any step after.
+  it("waits on no step of the pipeline", () => {
+    expect(invoiceSteps(invoice({ status: "cancelled" })).map((step) => step.state)).not.toContain("current");
   });
 });
 
@@ -242,12 +269,132 @@ describe("invoiceActivity", () => {
     );
 
     expect(entries.map((entry) => entry.text)).toEqual([
-      "Invoice difinalisasi Admin",
+      "Admin memfinalisasi invoice · Rp550.000",
       "Kamu meng-acknowledge invoice",
       "Admin mengirim bukti bayar",
       "Kamu mengonfirmasi pembayaran diterima",
     ]);
     expect(entries.every((entry) => entry.kind === "event")).toBe(true);
+  });
+
+  // PBI-23, 23.11 (client note from UAT, 11 Nov): the acting Admin's name replaces "Admin".
+  it("names the Admin who finalized and the Admin who sent the proof, each their own", () => {
+    const base = invoice();
+    const entries = invoiceActivity(
+      invoice({
+        status: "payment_uploaded",
+        breakdown: { ...base.breakdown, finalizedBy: "Sinta Dewi" },
+        reachedAt: {
+          ...NONE_REACHED,
+          finalized: "2026-12-01T02:00:00Z",
+          payment_uploaded: "2026-12-04T02:00:00Z",
+        },
+        proof: {
+          url: "/api/me/invoices/c/payment-proof",
+          fileName: "bukti.pdf",
+          uploadedAt: "2026-12-04T02:00:00Z",
+          uploadedBy: "bima.admin@tofly.id",
+        },
+      }),
+    );
+
+    expect(entries.map((entry) => entry.text)).toEqual([
+      "Sinta Dewi memfinalisasi invoice · Rp550.000",
+      "bima.admin@tofly.id mengirim bukti bayar",
+    ]);
+  });
+
+  // The prototype logs `Admin memfinalisasi invoice · ${fmtMoney(p.snapshot.total)}` once, at
+  // Finalize, so an adjustment added afterwards moves the invoice's total but never this line.
+  describe("the total on the finalized step", () => {
+    const FINALIZED_AT = "2026-12-02T02:00:00Z";
+    const adjustment = (id: string, amount: number, createdAt: string) => ({
+      id,
+      amount,
+      reason: "Penyesuaian",
+      createdAt,
+    });
+    const finalizedText = (overrides: Partial<CreatorInvoice>) =>
+      invoiceActivity(
+        invoice({ status: "finalized", reachedAt: { ...NONE_REACHED, finalized: FINALIZED_AT }, ...overrides }),
+      ).find((entry) => entry.id === "finalized")?.text;
+
+    it("counts an adjustment added before Finalize", () => {
+      expect(
+        finalizedText({
+          adjustments: [adjustment("before", 50000, "2026-12-01T02:00:00Z")],
+          totalAmount: 600000,
+        }),
+      ).toBe("Admin memfinalisasi invoice · Rp600.000");
+    });
+
+    it("counts an adjustment saved at the very moment of Finalize", () => {
+      expect(
+        finalizedText({ adjustments: [adjustment("same", 50000, FINALIZED_AT)], totalAmount: 600000 }),
+      ).toBe("Admin memfinalisasi invoice · Rp600.000");
+    });
+
+    it("keeps the total it was finalized at when an adjustment comes one second later", () => {
+      expect(
+        finalizedText({
+          adjustments: [adjustment("after", -75000, "2026-12-02T02:00:01Z")],
+          totalAmount: 475000,
+        }),
+      ).toBe("Admin memfinalisasi invoice · Rp550.000");
+    });
+
+    it("counts a measured performance bonus", () => {
+      expect(finalizedText({ bonusAmount: 100000, totalAmount: 650000 })).toBe(
+        "Admin memfinalisasi invoice · Rp650.000",
+      );
+    });
+
+    it("says Rp0 when the penalty used the whole pay up", () => {
+      expect(finalizedText({ penaltyAmount: 900000, totalAmount: 0, floored: true })).toBe(
+        "Admin memfinalisasi invoice · Rp0",
+      );
+    });
+
+    it("stays at Rp0 when a later adjustment lifts a floored invoice above zero", () => {
+      expect(
+        finalizedText({
+          penaltyAmount: 900000,
+          adjustments: [adjustment("after", 300000, "2026-12-03T02:00:00Z")],
+          totalAmount: 100000,
+        }),
+      ).toBe("Admin memfinalisasi invoice · Rp0");
+    });
+
+    // PBI-23 AC 25: the backend's frozen total wins; the sums above are for older snapshots only.
+    describe("when the snapshot kept the total from Finalize", () => {
+      const frozenAt = (finalizedTotal: number) => ({ ...invoice().breakdown, finalizedTotal });
+
+      it("shows it, with an adjustment saved during the last sync that the clock would miss", () => {
+        expect(
+          finalizedText({
+            breakdown: frozenAt(600000),
+            adjustments: [adjustment("during-sync", 50000, "2026-12-02T02:00:05Z")],
+            totalAmount: 600000,
+          }),
+        ).toBe("Admin memfinalisasi invoice · Rp600.000");
+      });
+
+      it("keeps it when a later adjustment moves the invoice's total", () => {
+        expect(
+          finalizedText({
+            breakdown: frozenAt(550000),
+            adjustments: [adjustment("after", -75000, "2026-12-03T02:00:00Z")],
+            totalAmount: 475000,
+          }),
+        ).toBe("Admin memfinalisasi invoice · Rp550.000");
+      });
+
+      it("shows a frozen Rp0 as Rp0, not as a missing total", () => {
+        expect(finalizedText({ breakdown: frozenAt(0), totalAmount: 100000 })).toBe(
+          "Admin memfinalisasi invoice · Rp0",
+        );
+      });
+    });
   });
 
   it("weaves the comments in among the steps, oldest first", () => {
@@ -285,5 +432,116 @@ describe("invoiceActivity", () => {
       "budi.admin@tofly.id",
       "Rangga Pratama",
     ]);
+  });
+
+  // PBI-23, 23.11, in the prototype's words:
+  // `Admin menambah penyesuaian: ${label} (${amount>0?'+':''}${fmtMoney(amount)})`
+  describe("an adjustment", () => {
+    const ADDITION = {
+      id: "adj-1",
+      amount: 50000,
+      reason: "Reimbursement ongkir produk",
+      createdAt: "2026-12-02T02:00:00Z",
+      actorName: "Sinta Dewi",
+    };
+    const DEDUCTION = {
+      id: "adj-2",
+      amount: -75000,
+      reason: "Koreksi kelebihan tagihan",
+      createdAt: "2026-12-03T02:00:00Z",
+      actorName: "bima.admin@tofly.id",
+    };
+    const UNNAMED = {
+      id: "adj-3",
+      amount: 1,
+      reason: "Pembulatan",
+      createdAt: "2026-12-04T02:00:00Z",
+    };
+
+    it("names the Admin who added it, with its reason and a plus on what it adds", () => {
+      expect(invoiceActivity(invoice({ adjustments: [ADDITION] }))).toEqual([
+        {
+          kind: "event",
+          id: "adj-1",
+          text: "Sinta Dewi menambah penyesuaian: Reimbursement ongkir produk (+Rp50.000)",
+          at: "2026-12-02T02:00:00Z",
+        },
+      ]);
+    });
+
+    it("writes a deduction with the prototype's minus, right against the Rp", () => {
+      const [entry] = invoiceActivity(invoice({ adjustments: [DEDUCTION] }));
+
+      expect(entry.text).toBe("bima.admin@tofly.id menambah penyesuaian: Koreksi kelebihan tagihan (−Rp75.000)");
+    });
+
+    it("says Admin when the API names no one", () => {
+      const [entry] = invoiceActivity(invoice({ adjustments: [UNNAMED] }));
+
+      expect(entry.text).toBe("Admin menambah penyesuaian: Pembulatan (+Rp1)");
+    });
+
+    it("gives each adjustment its own line, by its own Admin", () => {
+      const entries = invoiceActivity(invoice({ adjustments: [ADDITION, DEDUCTION] }));
+
+      expect(entries.map((entry) => entry.id)).toEqual(["adj-1", "adj-2"]);
+    });
+
+    it("takes its place by time, also when it was added after Finalize", () => {
+      const entries = invoiceActivity(
+        invoice({
+          status: "finalized",
+          reachedAt: { ...NONE_REACHED, finalized: "2026-12-02T12:00:00Z" },
+          adjustments: [DEDUCTION, ADDITION],
+        }),
+      );
+
+      expect(entries.map((entry) => entry.id)).toEqual(["adj-1", "finalized", "adj-2"]);
+    });
+
+    it("comes after a step and before a comment of the same moment", () => {
+      const at = ADDITION.createdAt;
+      const entries = invoiceActivity(
+        invoice({
+          status: "finalized",
+          reachedAt: { ...NONE_REACHED, finalized: at },
+          adjustments: [ADDITION],
+          comments: [{ ...COMMENT, createdAt: at }],
+        }),
+      );
+
+      expect(entries.map((entry) => entry.id)).toEqual(["finalized", "adj-1", "c-1"]);
+    });
+  });
+});
+
+// PBI-16 AC 9.
+describe("invoiceActivity with fixed rate changes", () => {
+  it("weaves each change in with the steps and the comments, by time", () => {
+    const change = (id: string, createdAt: string) => ({
+      id,
+      oldRate: 1_000_000,
+      newRate: 2_000_000,
+      actorName: null,
+      createdAt,
+    });
+    const entries = invoiceActivity(
+      aCreatorInvoice({
+        reachedAt: { finalized: "2026-11-20T03:00:00Z", creator_acked: null, payment_uploaded: null, paid: null },
+        rateChanges: [change("early", "2026-11-10T03:00:00Z"), change("mid", "2026-11-15T03:00:00Z")],
+        comments: [
+          { id: "c", authorName: "Salsa", authorRole: "creator", text: "Halo", createdAt: "2026-11-12T03:00:00Z" },
+        ],
+      }),
+    );
+
+    expect(entries.map((entry) => entry.id)).toEqual(["rate-early", "c", "rate-mid", "finalized"]);
+  });
+});
+
+describe("totalLabel for an invoice an early end cancelled", () => {
+  it("says the total is not paid, and adds no note that it may still change", () => {
+    expect(totalLabel("cancelled")).toBe("Dibatalkan, tidak dibayar");
+    expect(totalNote("cancelled")).toBeNull();
   });
 });

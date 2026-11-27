@@ -9,6 +9,7 @@ import {
   type EmailSender,
 } from '../src/email/email-sender.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { runningContract } from './contracts.js';
 
 // Signing in with an email code end to end against real Postgres (PBI-39): the code the request
 // emails is the one verification accepts, once, and wrong guesses are counted atomically.
@@ -55,8 +56,8 @@ describe('Email code sign-in (e2e)', () => {
       .useValue(outbox)
       .compile();
     app = module.createNestApplication();
-    // Listening once, on a port of its own: left unbound, supertest binds and closes the server
-    // around every request, and the concurrent requests below reset one another's sockets.
+    // Listening once up front: on a server that is not listening, supertest opens and closes it
+    // around every request, and the close of one parallel guess reset the others (ECONNRESET).
     await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
 
@@ -70,7 +71,12 @@ describe('Email code sign-in (e2e)', () => {
       userIds.push(user.id);
       if (!isAdmin) {
         await prisma.creators.create({
-          data: { user_id: user.id, first_name: 'E2E' },
+          // Access follows the contracts (PRD 3.1): a creator signs in while one runs.
+          data: {
+            user_id: user.id,
+            first_name: 'E2E',
+            contracts: { create: runningContract() },
+          },
         });
       }
     }
@@ -124,7 +130,7 @@ describe('Email code sign-in (e2e)', () => {
 
   it.each([
     ['a creator', CREATOR, 'creator', '/creator/dashboard'],
-    ['an admin', ADMIN, 'admin', '/admin/creators'],
+    ['an admin', ADMIN, 'admin', '/admin/dashboard'],
   ])(
     'signs %s in with the emailed code and opens their home page (AC 3, 10)',
     async (_, email, role, home) => {

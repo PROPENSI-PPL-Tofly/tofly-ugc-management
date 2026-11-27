@@ -10,6 +10,7 @@ import { AppModule } from '../src/app.module.js';
 import { jakartaMidnight } from '../src/creators/evergreen.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { RateFormulaService } from '../src/rate-formula/rate-formula.service.js';
+import { numbersFor } from './document-numbers.js';
 import { as, signIn, signInAsAdmin } from './sessions.js';
 
 // SCRUM-164 (13.1): the invoice walks Finalized → Acknowledged → Payment Proof Uploaded → Paid,
@@ -137,6 +138,8 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         acknowledged_by: true,
         paid_at: true,
         paid_by: true,
+        invoice_number: true,
+        receipt_number: true,
       },
     });
   }
@@ -227,12 +230,16 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         invoiceStatus: 'creator_acked',
         acknowledgedAt: expect.stringMatching(ISO),
       });
-      expect(await saved(nadiaEarlier)).toEqual({
+      const issued = await saved(nadiaEarlier);
+      expect(issued).toEqual({
         status: 'creator_acked',
         acknowledged_at: new Date(acked.body.acknowledgedAt),
         acknowledged_by: nadiaUser,
         paid_at: null,
         paid_by: null,
+        // PBI-31: the invoice is issued, and numbered, by the acknowledge; no receipt yet.
+        invoice_number: expect.stringMatching(/^TOF-INV-\d{6}-\d{3,}$/),
+        receipt_number: null,
       });
 
       await admin
@@ -253,6 +260,9 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         acknowledged_by: nadiaUser,
         paid_at: new Date(paid.body.paidAt),
         paid_by: nadiaUser,
+        // The invoice keeps its number; the confirmation numbers the receipt.
+        invoice_number: issued?.invoice_number,
+        receipt_number: expect.stringMatching(/^TOF-RCP-\d{6}-\d{3,}$/),
       });
 
       // The admin reads both of the creator's moves on the invoice's detail.
@@ -361,7 +371,9 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       expect(JSON.stringify(res.body)).not.toContain(`${MARKER}-nadia@example.com`);
     });
 
-    it('GET /me/invoices answers an empty list for a creator with no contract', async () => {
+    // PRD Sprint 4, rule 1: access follows the contracts, so a creator with none has nothing to
+    // work on or settle and is refused before the list is read.
+    it('GET /me/invoices refuses a creator with no contract', async () => {
       const user = await prisma.users.create({
         data: { email: `${MARKER}-tanpa-kontrak@example.com` },
       });
@@ -380,8 +392,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
 
       const res = await fresh.get('/me/invoices');
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual({ items: [] });
+      expect(res.status).toBe(401);
     });
   });
 
@@ -515,17 +526,12 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
     });
   });
 
-  // PBI-13 + prototype ("akses login dicabut H+1 setelah Paid"): revoking a creator takes effect
-  // once nothing is left for them to settle, so a creator whose access was revoked after their
-  // contract ended can still acknowledge and confirm their last invoice.
-  describe('a creator whose access was revoked', () => {
+  // PBI-13 + prototype ("akses login dicabut H+1 setelah Paid"): access follows the contracts, so a
+  // creator whose contract ended can still acknowledge and confirm their last invoice.
+  describe('a creator whose contract has ended', () => {
     it('settles their last invoice, keeps access the day it is paid, and loses it the day after', async () => {
       const revoked = await creator('Dicabut', [{ start: -60, end: -10 }]);
       const [contractId] = revoked.contractIds;
-      await prisma.creators.update({
-        where: { id: revoked.creatorId },
-        data: { access_revoke_date: day(-5) },
-      });
       await finalize(contractId);
 
       const list = await revoked.client.get('/me/invoices');
@@ -545,7 +551,7 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
       // Paid today: still in until tomorrow.
       expect((await revoked.client.get('/me/invoices')).status).toBe(200);
 
-      // The day after it was paid, the revoke date is in force again.
+      // The day after it was paid, nothing is left to settle.
       await prisma.invoices.update({
         where: { contract_id: contractId },
         data: { paid_at: day(-1) },
@@ -571,6 +577,36 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
         acknowledged_by: sari.userId,
       });
     });
+
+    // PBI-31: the database refuses an issued invoice without its number and a paid one without
+    // its receipt number, whatever code writes it.
+    it.each([
+      ['creator_acked', 'invoice_number', { invoice_number: null, receipt_number: null }],
+      ['paid', 'receipt_number', { receipt_number: null }],
+    ] as const)(
+      'the database refuses a %s invoice without its %s',
+      async (status, _column, missing) => {
+        const numbered = await creator(`Nomor-${status}`, [{ start: -60, end: -1 }]);
+        const now = new Date();
+
+        await expect(
+          prisma.invoices.create({
+            data: {
+              contract_id: numbered.contractIds[0],
+              status,
+              finalized_at: now,
+              snapshot: {},
+              acknowledged_at: now,
+              acknowledged_by: numbered.userId,
+              paid_at: status === 'paid' ? now : null,
+              paid_by: status === 'paid' ? numbered.userId : null,
+              ...numbersFor(status),
+              ...missing,
+            },
+          }),
+        ).rejects.toThrow(/invoices_(invoice_number_when_issued|receipt_number_when_paid)/);
+      },
+    );
 
     // OWASP Top 10:2025 A08 (Software and Data Integrity Failures): the database itself refuses
     // a status past a step that kept no actor and time, whatever code writes it.
@@ -606,6 +642,8 @@ describe('Invoice status flow and creator confirmation (e2e)', () => {
               acknowledged_by: moves.by ? integrity.userId : null,
               paid_at: moves.paid ? now : null,
               paid_by: moves.paid ? integrity.userId : null,
+              // Numbered as the status requires, so only the check under test can refuse it.
+              ...numbersFor(status),
             },
           }),
         ).rejects.toThrow(/invoices_(acknowledged|paid)_check/);

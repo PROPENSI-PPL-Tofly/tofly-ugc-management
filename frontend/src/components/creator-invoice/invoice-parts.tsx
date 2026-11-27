@@ -174,7 +174,7 @@ export function InvoiceParts({
             {invoice.floored ? (
               <p className="text-xs font-semibold text-red-wash">Penalti melebihi pendapatan, total minimal Rp0.</p>
             ) : null}
-            {invoice.bonusAmount === null ? (
+            {invoice.bonusAmount === null && invoice.status !== "cancelled" ? (
               <p className="text-xs text-rule">Belum termasuk bonus performa yang menunggu data.</p>
             ) : null}
           </div>

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreatorContentBoard } from "@/components/creator-detail/creator-content-board";
 import { CreatorProfilePanel } from "@/components/creator-detail/creator-profile";
+import { EditCreatorTrigger } from "@/components/creator-detail/edit-creator-trigger";
+import { EndContractEarlyTrigger } from "@/components/creator-detail/end-contract-early-trigger";
 import { ExtendContractTrigger } from "@/components/creator-detail/extend-contract-trigger";
 import { UpcomingPeriodActions } from "@/components/creator-detail/upcoming-period-actions";
 import { PeriodSummary, PeriodTabs } from "@/components/creator-detail/period-tabs";
@@ -70,7 +72,21 @@ export default async function CreatorDetailPage({
       {view ? (
         <div className="flex flex-col gap-4">
           {/* The profile describes the creator's current contract, whichever period is open. */}
-          <CreatorProfilePanel creator={view.creator} current={view.current} today={today} connections={view.connections} />
+          <CreatorProfilePanel
+            creator={view.creator}
+            current={view.current}
+            today={today}
+            connections={view.connections}
+            // PBI-16: changes the creator and the terms of the period that is open.
+            action={
+              <EditCreatorTrigger
+                creator={view.creator}
+                period={view.selected}
+                periods={view.periods}
+                usernameLocks={view.usernameLocks}
+              />
+            }
+          />
           <PeriodTabs
             creatorId={id}
             periods={view.periods}
@@ -85,6 +101,8 @@ export default async function CreatorDetailPage({
                   periods={view.periods}
                   selected={view.selected}
                 />
+                {/* PBI-37: only while a period runs and was not ended early; before the renewal, as the prototype orders them. */}
+                <EndContractEarlyTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />
                 <ExtendContractTrigger creatorId={id} creatorName={view.creator.name} periods={view.periods} />
               </>
             }

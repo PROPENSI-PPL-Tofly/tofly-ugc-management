@@ -3,8 +3,9 @@
 import { useState, type ReactNode } from "react";
 import { InvoiceParts } from "@/components/creator-invoice/invoice-parts";
 import { InvoiceTabs } from "@/components/creator-invoice/invoice-tabs";
-import { InvoiceTracker } from "@/components/creator-invoice/invoice-tracker";
+import { CancelledInvoiceNotice, InvoiceTracker } from "@/components/creator-invoice/invoice-tracker";
 import { Button } from "@/components/ui/button";
+import { InvoiceDocumentButtons } from "./invoice-pdf-button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@/lib/admin-invoice-view";
 import { instantDay, invoiceActivity, invoiceSteps, totalAmountLabel } from "@/lib/creator-invoice";
 import { formatContractWindow, jakartaDay } from "@/lib/format";
-import type { InvoiceRow } from "@/lib/invoice";
+import { INVOICE_STATUS_LABELS, type InvoiceRow } from "@/lib/invoice";
 import type { InvoiceBreakdown } from "@/lib/invoice-breakdown";
 import type { BreakdownStatus } from "./breakdown-popup";
 
@@ -104,7 +105,11 @@ export function InvoiceRincian({
           <p className="mt-0.5 text-[26px] leading-tight font-bold tabular-nums">{totalAmountLabel(view)}</p>
         </div>
 
-        <InvoiceTracker steps={invoiceSteps(view)} />
+        {view.status === "cancelled" ? (
+          <CancelledInvoiceNotice label={INVOICE_STATUS_LABELS.cancelled} />
+        ) : (
+          <InvoiceTracker steps={invoiceSteps(view)} />
+        )}
 
         {editor ? <div className="mt-4">{editor}</div> : null}
         {upload ? <div className="mt-4">{upload}</div> : null}
@@ -157,6 +162,9 @@ export function InvoiceRincian({
             >
               {hint}
             </p>
+          )}
+          {view === null ? null : (
+            <InvoiceDocumentButtons contractId={row.contractId} audience="admin" status={view.status} />
           )}
           {actions}
           <Button onClick={onClose}>Tutup</Button>

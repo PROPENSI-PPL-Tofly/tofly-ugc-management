@@ -278,6 +278,21 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-30 AC 1: the renewal is offered on the Periode Kontrak panel, for this creator.
+  // PBI-16 AC 1.
+  it("offers Ubah Data in the creator's profile", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf());
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Data" })).toBeInTheDocument();
+  });
+
+  it("offers Ubah Data for a creator without a contract", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [], current: null, selected: null }));
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Data" })).toBeInTheDocument();
+  });
+
   it("offers Perpanjang Kontrak on the Periode Kontrak panel while the contract runs", async () => {
     await renderPage();
 
@@ -311,6 +326,23 @@ describe("Creator Detail page", () => {
     await renderPage();
 
     expect(screen.queryByRole("button", { name: "Hapus Periode" })).not.toBeInTheDocument();
+  });
+
+  // PBI-37 AC 1: the early end is offered on the same panel, only while the contract runs.
+  it("offers Akhiri Kontrak Lebih Awal on the Periode Kontrak panel while the contract runs", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Akhiri Kontrak Lebih Awal" })).toBeInTheDocument();
+  });
+
+  it("offers no early end once the contract was ended early", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(
+      viewOf({ periods: [{ ...NEWEST, earlyEndReason: "fraud" }, OLDEST] }),
+    );
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "Akhiri Kontrak Lebih Awal" })).not.toBeInTheDocument();
   });
 
   it("still shows the profile of a creator without any contract", async () => {

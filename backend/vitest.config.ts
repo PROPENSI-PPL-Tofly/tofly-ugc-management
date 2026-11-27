@@ -19,6 +19,7 @@ export default defineConfig({
       exclude: [
         'src/main.ts',
         'src/email/send-test-email-cli.ts',
+        'src/email/notifications/preview-notifications-cli.ts',
         // Nest wiring is proven by booting the app. The email sign-in modules (PBI-39) are measured
         // instead: they choose which adapter (Prisma, a fail-closed sender) a request really gets.
         'src/*.module.ts',
@@ -46,6 +47,22 @@ export default defineConfig({
         // Outgoing email (PBI-39): a message that reaches the wrong address, or a failure nobody
         // notices, is a security bug, so every line is held to the auth standard.
         'src/email/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // "Log Aktivitas" (SCRUM-296): who may read the audit trail and what it shows of each entry are
+        // access and logging rules, so every line and branch is held to the auth standard.
+        'src/audit-logs/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
+        // The deadline buffer (SCRUM-298): who may change it and the one window every deadline rule
+        // draws with it are held to the auth standard, so no line or branch goes untested.
+        'src/deadline-buffer/**': {
           lines: 100,
           branches: 100,
           functions: 100,
@@ -82,6 +99,23 @@ export default defineConfig({
             functions: 100,
             statements: 100,
           },
+        // 31.4: an export that sends the wrong amount or skips the wrong invoice is a finance
+        // bug, so every line, branch and function in the new code is held to full coverage.
+        'src/invoices/{bulk-export-request,invoice-export*,prisma-invoice-export*,zip-archive}.ts':
+          {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
+        // 24.1: the executive dashboard's formulas decide what management spends on, so every
+        // line and branch of the new module is held to full coverage from its first commit.
+        'src/dashboard/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
       },
     },
   },

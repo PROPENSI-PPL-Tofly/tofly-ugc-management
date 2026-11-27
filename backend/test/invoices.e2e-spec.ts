@@ -304,9 +304,20 @@ describe('Invoices API (e2e)', () => {
   });
 
   it('rejects paging values that are not positive integers', async () => {
-    await admin.get('/invoices?page=abc').expect(400);
-    await admin.get('/invoices?page=0').expect(400);
-    await admin.get('/invoices?pageSize=51').expect(400);
+    const nan = await admin.get('/invoices?page=abc');
+    const zero = await admin.get('/invoices?page=0');
+    const huge = await admin.get('/invoices?pageSize=51');
+
+    // Each 400 names the paging value that was refused, not some other failure.
+    expect(nan.body).toMatchObject({ statusCode: 400 });
+    expect(zero.body).toMatchObject({
+      statusCode: 400,
+      message: 'page must be 1 or greater',
+    });
+    expect(huge.body).toMatchObject({
+      statusCode: 400,
+      message: 'pageSize must be between 1 and 50',
+    });
   });
 
   it('searches by name and filters by contract status across the whole roster', async () => {
@@ -972,8 +983,9 @@ describe('Invoices API (e2e)', () => {
     });
   });
 
-  // OWASP Top 10:2025 A06 — an early end counts: the contract stops on the day access was revoked.
-  it('finalizes a contract that ended early, before its end date, and lists the day it stopped', async () => {
+  // OWASP Top 10:2025 A06 — an early end counts: the contract stops on its last day (PBI-37), the
+  // end_date an early end moves while original_end_date keeps the agreed one.
+  it('finalizes a contract that ended early, before its original end, and lists the day it stopped', async () => {
     const user = await prisma.users.create({
       data: { email: `${MARKER}-early-end@example.com` },
     });
@@ -981,11 +993,14 @@ describe('Invoices API (e2e)', () => {
       data: {
         user_id: user.id,
         first_name: `${MARKER} Early End`,
-        access_revoke_date: day(-2),
         contracts: {
           create: {
             start_date: day(-30),
-            end_date: day(30),
+            end_date: day(-2),
+            original_end_date: day(30),
+            end_reason: 'violation',
+            end_note: 'Pelanggaran kontrak.',
+            ended_at: day(-3),
             contract_type: 'regular',
             days_between: 14,
             content_quota: 1,

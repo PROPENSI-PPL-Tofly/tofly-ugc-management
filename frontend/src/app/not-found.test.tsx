@@ -29,13 +29,24 @@ describe("App not-found screen", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers an admin one way on, back to the Kreator", async () => {
+  it("offers an admin one way on, back to the Dashboard an admin starts on", async () => {
     await renderNotFound();
 
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Kembali ke Kreator" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Kembali ke Dashboard" })).toHaveAttribute(
       "href",
-      "/admin/creators",
+      "/admin/dashboard",
+    );
+  });
+
+  it("offers a Super Admin the same way on as an admin", async () => {
+    vi.mocked(currentRole).mockResolvedValue("super_admin");
+
+    await renderNotFound();
+
+    expect(screen.getByRole("link", { name: "Kembali ke Dashboard" })).toHaveAttribute(
+      "href",
+      "/admin/dashboard",
     );
   });
 

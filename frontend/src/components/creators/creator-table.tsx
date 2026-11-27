@@ -22,6 +22,8 @@ import { useUrlQuery } from "@/lib/url-query";
 import { Pill, StatusDot, type Tone } from "@/components/ui/pill";
 import { DEFAULT_CREATOR_DETAIL_PARAMS, creatorDetailHref } from "@/lib/creator-detail";
 import { ProductivityTip } from "./productivity-tip";
+import { EarlyEndNote } from "./early-end-note";
+import { readEarlyEnd } from "@/lib/early-end-display";
 import type { ContractStatus, CreatorSummary } from "@/lib/creators";
 import {
   EMPTY,
@@ -89,6 +91,12 @@ function contractNote(creator: CreatorSummary): string {
       : remaining;
 
   return `${contractTypePrefix(creator.contract.type)}${note}`;
+}
+
+/** The current contract's early end (PBI-37), when the API says it had one; endDate is its last day. */
+function ContractEarlyEnd({ creator }: Readonly<{ creator: CreatorSummary }>) {
+  const earlyEnd = readEarlyEnd(creator.contract.earlyEnd);
+  return earlyEnd ? <EarlyEndNote lastDay={creator.contract.endDate} earlyEnd={earlyEnd} /> : null;
 }
 
 const LINK_BUTTON = `inline-flex items-center ${buttonClasses()}`;
@@ -269,6 +277,8 @@ export function CreatorTable({
                             {`+ Periode ${creator.contract.next.periodNumber} mulai ${formatDate(creator.contract.next.startDate)}`}
                           </p>
                         ) : null}
+
+                        <ContractEarlyEnd creator={creator} />
                       </>
                     )}
                   </div>

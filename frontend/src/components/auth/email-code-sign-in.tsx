@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ALERT, FIELD, FIELD_ERROR } from "@/components/ui/form-classes";
 import { EMAIL_FORMAT, MAX_EMAIL_LENGTH } from "@/lib/creator-form";
+import { ACCESS_CLOSED } from "@/lib/login-errors";
 import {
   requestCode,
   verifyCode,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/email-sign-in-api";
 import { CODE_LENGTH, CodeBoxes } from "./code-boxes";
 import { useCountdown } from "./use-countdown";
+import { useFirstBoxFocus } from "./use-first-box-focus";
 
 /** AC: "Kirim Ulang" unlocks this long after a code was sent. */
 export const RESEND_AFTER_SECONDS = 60;
@@ -27,12 +29,24 @@ const CODE_FORMAT = new RegExp(`^\\d{${CODE_LENGTH}}$`);
 const VERIFY_PROBLEM: Record<Exclude<CodeVerifyOutcome["kind"], "signed_in" | "wrong">, string> = {
   invalid: INCOMPLETE_CODE,
   expired: "Kode sudah kedaluwarsa. Kirim ulang kode.",
-  denied: "Akses ditolak. Hubungi Admin untuk meminta akses.",
+  denied: ACCESS_CLOSED,
   failed: "Gagal masuk. Silakan coba lagi.",
 };
 
+const OUT_OF_TRIES =
+  "Kode salah dan percobaan sudah habis. Kirim ulang kode, atau hubungi tim Tofly kalau kode tidak pernah sampai.";
+
+/**
+ * PBI-23 AC 9 on this path: an address without access is never sent a code, and saying so would
+ * tell anyone which addresses have accounts (OWASP A07). So every address reads the same line,
+ * and the no-access message itself stays for a refusal after a right code.
+ */
+const NO_CODE_HELP =
+  "Kode tidak sampai? Bisa jadi akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.";
+
 function verifyProblem(outcome: Exclude<CodeVerifyOutcome, { kind: "signed_in" }>): string {
   if (outcome.kind !== "wrong") return VERIFY_PROBLEM[outcome.kind];
+  if (outcome.attemptsLeft === 0) return OUT_OF_TRIES;
   return outcome.attemptsLeft === undefined
     ? "Kode salah."
     : `Kode salah. Sisa ${outcome.attemptsLeft} percobaan.`;
@@ -181,18 +195,8 @@ function CodeStep({
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState<"verify" | "resend" | null>(null);
   const inFlight = useRef(false);
-  const boxesRef = useRef<HTMLDivElement>(null);
+  const boxesRef = useFirstBoxFocus(busy === null);
   const { secondsLeft, restart } = useCountdown(RESEND_AFTER_SECONDS);
-
-  function focusFirstBox() {
-    boxesRef.current?.querySelector("input")?.focus();
-  }
-
-  // On arrival, and each time the boxes unlock after a check or a resend: they cannot take focus
-  // while disabled, so this waits for the render that enables them.
-  useEffect(() => {
-    if (busy === null) focusFirstBox();
-  }, [busy]);
 
   function startOver(problem: string | null) {
     setAlert(problem);
@@ -253,6 +257,7 @@ function CodeStep({
         Masukkan 6 digit kode yang dikirim ke <span className="font-semibold text-ink">{email}</span>.
         Kode berlaku 10 menit.
       </p>
+      <p className="text-xs text-muted">{NO_CODE_HELP}</p>
       <div ref={boxesRef}>
         <CodeBoxes
           value={code}

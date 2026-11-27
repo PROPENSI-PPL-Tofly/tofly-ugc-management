@@ -5,6 +5,13 @@ import { PortNotReady } from '../auth/google/unready-ports.js';
 // `html` added beside the plain text so a template can offer both (39.1). PBI-11 reuses the
 // same port for its own messages.
 
+/** A file sent with a message, such as the invoice PDF on the Paid email (PBI-11 AC 3). */
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 export interface EmailMessage {
   /** One recipient address. */
   to: string;
@@ -15,6 +22,8 @@ export interface EmailMessage {
   text: string;
   /** The same message in HTML, for mail readers that show it; left out for a text-only send. */
   html?: string;
+  /** Files sent along; left out when there are none. */
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailSender {

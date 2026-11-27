@@ -2,8 +2,9 @@
 // still has to act on. The labels are the prototype's; the count behind each card and the
 // place it leads to both come from its status.
 
+import { currentAndHistory, type CreatorInvoice } from "./creator-invoice";
 import { shiftDay } from "./deadline-period";
-import { daysUntil, EMPTY, formatDaysLeft } from "./format";
+import { daysUntil, EMPTY, formatDate, formatDaysLeft } from "./format";
 import {
   DEFAULT_MY_TASKS_PARAMS,
   TASK_STATUS_FILTERS,
@@ -96,4 +97,18 @@ export function nearestDeadlineLabel(deadline: string | null, now: Date): string
   if (days === null) return EMPTY;
 
   return days < 0 ? formatDaysLeft(days) : `${days} hari lagi`;
+}
+
+/**
+ * The last day of the contract being billed now, as GET /me/invoices sends it (PBI-37, 37.3): an
+ * early end moves the contract's end date to its last day (37.1), so this is the new day for a
+ * contract ended early and the agreed one otherwise. Null for a creator without invoices.
+ */
+export function contractLastDay(invoices: readonly CreatorInvoice[]): string | null {
+  return currentAndHistory(invoices).current?.periodEnd ?? null;
+}
+
+/** "Hari terakhir kontrak: 20 Nov 2026"; the day alone, never why it moved. */
+export function contractLastDayLabel(day: string): string {
+  return `Hari terakhir kontrak: ${formatDate(day)}`;
 }

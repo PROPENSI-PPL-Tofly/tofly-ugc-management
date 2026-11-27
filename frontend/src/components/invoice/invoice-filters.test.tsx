@@ -60,6 +60,7 @@ describe("InvoiceFilters", () => {
       "Perlu Bukti Bayar",
       "Bukti Bayar Terkirim",
       "Paid",
+      "Cancelled",
     ]);
   });
 
@@ -77,6 +78,14 @@ describe("InvoiceFilters", () => {
     pickFilter("Invoice", "Paid");
 
     expect(hook.current.setParam).toHaveBeenCalledWith("status", "paid");
+  });
+
+  it("sends a Cancelled pick to the address in the API's word", () => {
+    render(<InvoiceFilters />);
+
+    pickFilter("Invoice", "Cancelled");
+
+    expect(hook.current.setParam).toHaveBeenCalledWith("status", "cancelled");
   });
 
   it("offers no contract-end period filter", () => {

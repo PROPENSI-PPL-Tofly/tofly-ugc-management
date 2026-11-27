@@ -2,9 +2,10 @@ import { AccessDenied } from "@/components/shell/access-denied";
 import { homeFor, type Role } from "@/lib/session";
 import { currentRole } from "@/lib/session.server";
 
-/** The one way on from a missing page, by who is looking. */
+/** The one way on from a missing page, by who is looking: each role starts on its Dashboard. */
 const WAY_ON: Record<Role, string> = {
-  admin: "Kembali ke Kreator",
+  admin: "Kembali ke Dashboard",
+  super_admin: "Kembali ke Dashboard",
   creator: "Kembali ke Dashboard",
 };
 

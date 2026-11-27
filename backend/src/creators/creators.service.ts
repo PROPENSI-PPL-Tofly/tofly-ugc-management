@@ -1,7 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { content_status, Prisma } from '@prisma/client';
+import type { content_status, Prisma, social_platform } from '@prisma/client';
 import { LINKS_AS_HANDED_IN } from '../contents/content-links.js';
+import { accessClosedSince } from '../auth/google/creator-access.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { usernameLock } from './creator-edit-policy.js';
+import { jakartaDay } from './evergreen.js';
 import {
   computePerformance,
   computeProgress,
@@ -31,6 +34,7 @@ import {
   withLastSync,
 } from '../social/social-connection.js';
 import type { Filters } from './filters.js';
+import { submittedPlatforms } from './submitted-platforms.js';
 import type { Paging } from './paging.js';
 
 // Only what the summary needs. Selecting columns (rather than whole rows) keeps
@@ -40,7 +44,6 @@ const CREATOR_SELECT = {
   first_name: true,
   middle_name: true,
   last_name: true,
-  access_revoke_date: true,
   users: { select: { email: true } },
   social_accounts: {
     select: { platform: true, username: true, ...CONNECTION_COLUMNS },
@@ -52,8 +55,13 @@ const CREATOR_SELECT = {
       end_date: true,
       content_quota: true,
       contract_type: true,
+      original_end_date: true,
+      end_reason: true,
+      // The access rule reads every contract's invoice (PRD 3.1).
+      invoice: { select: { status: true, paid_at: true } },
       contents: {
         select: {
+          type: true,
           deadline: true,
           video_submitted_at: true,
           status: true,
@@ -75,7 +83,6 @@ const DETAIL_SELECT = {
   middle_name: true,
   last_name: true,
   phone_number: true,
-  access_revoke_date: true,
   users: {
     select: {
       email: true,
@@ -100,6 +107,11 @@ const DETAIL_SELECT = {
       content_quota: true,
       fixed_rate: true,
       contract_type: true,
+      original_end_date: true,
+      end_reason: true,
+      end_note: true,
+      ended_at: true,
+      invoice: { select: { status: true, paid_at: true } },
       // Deliberately no `take`: each period's progress, performance and remaining Evergreen
       // slots are computed from all of its contents, so a cut list would report wrong numbers.
       // Only the few columns those need are read; the table pages the contents themselves
@@ -160,6 +172,7 @@ const NO_CONTRACT: ContractSummary = {
   contentQuota: 0,
   type: null,
   next: null,
+  earlyEnd: null,
 };
 
 /** The renewal still to start after the current period, its start as a calendar day. */
@@ -207,13 +220,24 @@ function toMetricsContract(
       deadline: content.deadline,
       videoSubmittedAt: content.video_submitted_at,
       isProposal: isProposal(content.status),
+      type: content.type,
       submissionCount: content._count.submissions,
     })),
   };
 }
 
+/** "Berakhir Lebih Awal" and its reason (PBI-37), or null for a contract that runs as agreed. */
+function earlyEndSummary(
+  contract: Pick<SummaryRow['contracts'][number], 'original_end_date' | 'end_reason'>,
+): ContractSummary['earlyEnd'] {
+  // The database records an early end whole or not at all (contracts_early_end_check).
+  return contract.original_end_date === null
+    ? null
+    : { originalEndDate: calendarDay(contract.original_end_date), reason: contract.end_reason! };
+}
+
 /** The slice of the database client this service touches; tests hand in a stub of just that. */
-export type CreatorsClient = Pick<PrismaService, 'creators' | '$queryRaw'>;
+export type CreatorsClient = Pick<PrismaService, 'creators' | 'content_links' | '$queryRaw'>;
 
 // contractStatus and productivity are derived from dates and nested content/submission
 // counts, not stored columns — there is no WHERE clause for them. Search could be pushed to
@@ -310,7 +334,15 @@ export class CreatorsService implements CreatorLister {
       });
     }
 
-    const [summary] = await this.withLatestSyncs([this.toSummary(row, today)]);
+    const [[summary], submitted] = await Promise.all([
+      this.withLatestSyncs([this.toSummary(row, today)]),
+      submittedPlatforms(this.prisma, id),
+    ]);
+    const lockOf = (platform: social_platform) =>
+      usernameLock(
+        row.social_accounts.find((account) => account.platform === platform),
+        submitted.has(platform),
+      );
 
     const periods = toContractPeriods(row.contracts, today);
     // Both lists keep the database order, so a period's index is its row's index.
@@ -320,6 +352,7 @@ export class CreatorsService implements CreatorLister {
     return {
       ...summary,
       phoneNumber: row.phone_number,
+      usernameLocks: { instagram: lockOf('instagram'), tiktok: lockOf('tiktok') },
       contractHistory: periods,
       contents: currentRow ? toContentEntries(currentRow, today) : [],
       drafts: currentRow ? toDraftEntries(currentRow) : [],
@@ -415,9 +448,14 @@ export class CreatorsService implements CreatorLister {
 
       socialConnections,
 
-      accessRevokeDate: row.access_revoke_date
-        ? calendarDay(row.access_revoke_date)
-        : null,
+      // PRD 3.1: access follows the contracts, so the day it closed is derived from them.
+      accessRevokeDate: accessClosedSince(
+        jakartaDay(today),
+        row.contracts.map((contract) => ({
+          endDay: calendarDay(contract.end_date),
+          invoice: contract.invoice,
+        })),
+      ),
 
       contract: current
         ? {
@@ -429,10 +467,11 @@ export class CreatorsService implements CreatorLister {
             contentQuota: current.contentQuota,
             type: current.contractType,
             next: nextOf(contracts, current, today),
+            earlyEnd: earlyEndSummary(row.contracts.find(({ id }) => id === current.id)!),
           }
         : NO_CONTRACT,
 
-      progress: computeProgress(current ? current.contents : []),
+      progress: computeProgress(current?.contents ?? [], current?.contentQuota ?? 0),
 
       performance: computePerformance(current, today),
     };

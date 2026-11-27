@@ -1025,7 +1025,7 @@ describe("ContentDetailPanel as the content's side sheet (6.5)", () => {
         }),
       );
 
-      expect(await screen.findByText("Link Instagram diganti")).toBeInTheDocument();
+      expect(await screen.findByText("Link Instagram diganti oleh kreator")).toBeInTheDocument();
     });
   });
 
@@ -1946,5 +1946,16 @@ describe("ContentDetailPanel follow-up notes", () => {
 
     await screen.findByLabelText("Riwayat konten");
     expect(screen.queryByText("Catatan susulan ditambahkan")).toBeNull();
+  });
+});
+
+describe("a content an early end closed", () => {
+  it("reads Ditutup in the header and counts no days down to its deadline", async () => {
+    open(detail({ status: "scheduled", closedAt: "2026-11-20T03:00:00.000Z", deadline: "2099-01-01" }));
+
+    const meta = await screen.findByTestId("modal-meta");
+    expect(within(meta).getByText("Ditutup")).toBeInTheDocument();
+    expect(within(meta).queryByText("Scheduled")).not.toBeInTheDocument();
+    expect(screen.queryByText(/H-\d+/)).not.toBeInTheDocument();
   });
 });

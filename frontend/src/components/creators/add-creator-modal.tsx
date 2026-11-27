@@ -1,5 +1,6 @@
 "use client";
 
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
@@ -74,13 +75,15 @@ export function AddCreatorModal({
   const instagramCountId = useId();
   const tiktokCountId = useId();
   const today = localCalendarDay(new Date());
+  // The buffer a Super Admin set (PBI-23) holds the pickers, the rules and the calendar alike.
+  const bufferDays = useDeadlineBuffer();
   // What the admin changed on the calendar; re-applied to whatever the contract now allows.
-  const { allocation, picks, setPicks } = useDeadlineAllocation(form, today);
+  const { allocation, picks, setPicks } = useDeadlineAllocation(form, today, bufferDays);
   const remaining = allocation?.remaining ?? 0;
 
   // Recomputed on every render — the single source of truth for both Simpan's disabled state
   // and the per-field error messages below, so there is only one place validation ever runs.
-  const liveErrors = validateCreatorForm(form, undefined, existingEmails);
+  const liveErrors = validateCreatorForm(form, undefined, existingEmails, bufferDays);
   const isFormValid = Object.keys(liveErrors).length === 0;
   // Simpan's disabled state reads liveErrors directly; a field only *shows* its message once
   // touched, or the server's until it is edited (see useFieldErrors).
