@@ -164,7 +164,9 @@ describe('EmailNotifier', () => {
 
     await expect(done).resolves.toBe(false);
     expect(sender.send).not.toHaveBeenCalled();
-    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'EmailTimeout', NOW);
+    // Not EmailTimeout: the mail server was never asked, so the 08:00 run may still send it (AC 8).
+    expect(store.startSending).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RenderTimeout', NOW);
   });
 
   // AC 8: once the email is marked failed the 08:00 run sends it, so a late render sends nothing.
@@ -189,6 +191,30 @@ describe('EmailNotifier', () => {
 
     await expect(notifier.notify(EVENT)).resolves.toBe(false);
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RangeError', NOW);
+  });
+
+  // A render that fails never reaches the mail server, so its row must not say sending: a row left
+  // sending is closed as UnknownOutcome and never sent (#264), and this one can still be sent.
+  it('never marks the row sending when the template cannot be rendered', async () => {
+    const { store, templates, notifier } = setup();
+    templates.render.mockRejectedValue(new PortNotReady('FRONTEND_URL is not set'));
+
+    await notifier.notify(EVENT);
+
+    expect(store.startSending).not.toHaveBeenCalled();
+    expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+
+  it('keeps calling a send that runs out of time after the mail server was asked EmailTimeout', async () => {
+    vi.useFakeTimers();
+    const { store, notifier } = setup({ send: () => new Promise(() => {}) });
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+
+    await expect(done).resolves.toBe(false);
+    expect(store.startSending).toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'EmailTimeout', NOW);
   });
 
   it('clears its timer once the send is accepted', async () => {
