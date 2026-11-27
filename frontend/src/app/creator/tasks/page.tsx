@@ -2,11 +2,13 @@ import { AppShell } from "@/components/shell/app-shell";
 import { MyTaskBoard } from "@/components/tasks/my-task-board";
 import { MyTaskFilters } from "@/components/tasks/my-task-filters";
 import { MyTaskTabBar } from "@/components/tasks/my-task-tab-bar";
+import { ProposeContent } from "@/components/tasks/propose-content";
 import { TaskViewToggle } from "@/components/tasks/task-view-toggle";
 import { buttonClasses } from "@/components/ui/button-classes";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import { parsePage } from "@/lib/creators";
+import { loadProposalWindow } from "@/lib/creator-proposal.server";
 import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
 import { fetchAllMyTasks } from "@/lib/task-calendar.server";
@@ -127,7 +129,8 @@ export default async function TaskSayaPage({
   const parsed = parseMyTasksParams(params);
   const state = view === "calendar" ? calendarParams(parsed) : parsed;
   const invalidStatuses = unknownStatuses(params);
-  const loaded = await load(state, view);
+  // PBI-14 (14.2): read beside the list, never in its way; null hides Ajukan Konten (AC 3).
+  const [loaded, proposalWindow] = await Promise.all([load(state, view), loadProposalWindow(jakartaDay())]);
   const firstPage = buildMyTasksQuery({ ...state, page: 1 });
   const retrySearch = new URLSearchParams({
     ...buildMyTasksQuery(state),
@@ -138,7 +141,12 @@ export default async function TaskSayaPage({
       <AppShell
           role="creator"
           title="Tugas Saya"
-          action={<TaskViewToggle view={view} state={state} />}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              {proposalWindow ? <ProposeContent window={proposalWindow} /> : null}
+              <TaskViewToggle view={view} state={state} />
+            </div>
+          }
       >
         {invalid === null ? null : (
             <p role="status" className={NOTICE}>
