@@ -33,6 +33,31 @@ export const CONTENT_STATUS_TONES: Record<ContentStatus, Tone> = {
   link_submitted: "green",
 };
 
+/** What a content an early end closed reads as, whatever status it stopped at. */
+export const CLOSED_CONTENT_LABEL = "Ditutup";
+
+export interface StatusDisplay {
+  label: string;
+  tone: Tone;
+}
+
+/**
+ * How a content's status shows on every admin screen: "Ditutup" in the quiet tone once an early
+ * end closed it, otherwise its status and that status's tone. A status newer than this build
+ * shows by its raw name, never a blank.
+ */
+export function contentStatusDisplay(
+  row: Readonly<{ status: ContentStatus; closedAt?: string | null }>,
+): StatusDisplay {
+  if (row.closedAt) {
+    return { label: CLOSED_CONTENT_LABEL, tone: "neutral" };
+  }
+  return {
+    label: CONTENT_STATUS_LABELS[row.status] ?? row.status,
+    tone: CONTENT_STATUS_TONES[row.status] ?? "neutral",
+  };
+}
+
 /** A content type as a badge: Specific in the accent, Evergreen quiet, so the two tell apart. */
 export const CONTENT_TYPE_TONES: Record<ContentType, Tone> = {
   evergreen: "neutral",

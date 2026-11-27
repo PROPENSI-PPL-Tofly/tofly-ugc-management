@@ -549,6 +549,7 @@ describe("toCreatorDetailView", () => {
         tags: ["overdue"],
         revisionCount: 2,
         platforms: [],
+        closedAt: null,
       },
     ]);
     expect(view.page).toBe(2);
