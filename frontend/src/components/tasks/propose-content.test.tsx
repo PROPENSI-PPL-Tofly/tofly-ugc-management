@@ -161,7 +161,8 @@ describe("ProposeContent, sending", () => {
     expect(screen.queryByRole("dialog", { name: "Ajukan Konten" })).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Pengajuan terkirim. Tunggu persetujuan Admin.");
     expect(push).toHaveBeenCalledWith("/creator/tasks?tab=waiting");
-    expect(refresh).toHaveBeenCalled();
+    // The page is dynamic, so the push alone renders it again; a refresh would render it twice.
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("shows Mengirim… and holds the form while it sends", async () => {

@@ -169,6 +169,16 @@ describe("checkProposal", () => {
       checkProposal(fields({ name: "a".repeat(100), brief: "b".repeat(1000), notes: "c".repeat(500) }), WINDOW),
     ).toEqual({});
   });
+
+  // As the API counts it: the spaces around the text are trimmed before its length is checked.
+  it("counts text without the spaces around it", () => {
+    expect(
+      checkProposal(
+        fields({ name: ` ${"a".repeat(100)} `, brief: ` ${"b".repeat(1000)} `, notes: ` ${"c".repeat(500)} ` }),
+        WINDOW,
+      ),
+    ).toEqual({});
+  });
 });
 
 describe("toProposalBody", () => {
