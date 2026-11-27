@@ -137,7 +137,7 @@ describe("verifyCode (POST /auth/email/verify, 39.3)", () => {
     });
   });
 
-  it.each(["/admin/creators", "/creator/dashboard"])(
+  it.each(["/admin/dashboard", "/creator/dashboard"])(
     "reads 200 as signed in, following %s, a role's home",
     async (home) => {
       stubFetch(answer(200, { redirectTo: home }));

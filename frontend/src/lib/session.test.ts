@@ -2,8 +2,8 @@ import { APP_NAME, homeFor } from "./session";
 
 describe("homeFor", () => {
   it("starts an admin and a super admin on the Kreator, and a creator on their Dashboard", () => {
-    expect(homeFor("admin")).toBe("/admin/creators");
-    expect(homeFor("super_admin")).toBe("/admin/creators");
+    expect(homeFor("admin")).toBe("/admin/dashboard");
+    expect(homeFor("super_admin")).toBe("/admin/dashboard");
     expect(homeFor("creator")).toBe("/creator/dashboard");
   });
 
