@@ -1,14 +1,14 @@
-// The admin's executive Dashboard (PBI-24): the page's URL state, GET /dashboard/executive's
+// The admin's executive Dashboard (PBI-24): the page's URL state, GET /admin/dashboard's
 // monthly series and creator rows, the three charts' bars and the Performa Creator order. Pure
 // module — no fetch, no clock — so the page, its charts and its table share one vocabulary and
-// the tests pin the wire shape without a server. The answer's shape is the one 24.3 asks 24.1
-// to write; the KPI part of it is 24.2's and is not read here.
+// the tests pin the wire shape without a server. reshapeExecutiveAnswer turns 24.1's answer into
+// the shape these checks and 24.2's KPI checks read; the KPI figures themselves are 24.2's.
 
 import { oneOf, single, type SearchParams } from "./search-params";
 
 /** The page's address and the endpoint it reads. */
 export const EXECUTIVE_DASHBOARD_BASE = "/admin/dashboard";
-export const EXECUTIVE_DASHBOARD_PATH = "/dashboard/executive";
+export const EXECUTIVE_DASHBOARD_PATH = "/admin/dashboard";
 
 /** AC Range: 3, 6 or 12 months ending this month, 6 by default. */
 export const RANGE_MONTHS = [3, 6, 12] as const;
@@ -54,7 +54,7 @@ export interface CreatorPerformance {
   costPer1000Views: number | null;
 }
 
-/** The parts of GET /dashboard/executive the charts and the table read. */
+/** The parts of GET /admin/dashboard the charts and the table read. */
 export interface ExecutiveDashboard {
   months: MonthSeries[];
   creators: CreatorPerformance[];
@@ -104,7 +104,7 @@ export function dashboardHref(state: DashboardState): string {
  * it already has, so its order never travels (OWASP A03: only checked values reach the API).
  */
 export function toDashboardApiQuery(state: DashboardState): URLSearchParams {
-  return new URLSearchParams({ months: String(state.months) });
+  return new URLSearchParams({ range: String(state.months) });
 }
 
 const UNUSABLE_ANSWER = 502;
@@ -179,7 +179,7 @@ export function coversRange(months: readonly MonthSeries[], count: number): bool
 }
 
 /**
- * GET /dashboard/executive's answer as the charts and the table read it. A 200 the page cannot
+ * GET /admin/dashboard's answer, reshaped, as the charts and the table read it. A 200 the page cannot
  * use is a failure, never an empty dashboard: a chart that silently dropped a malformed month
  * would show a gap and hide the drift (OWASP A08: data from another system is checked before it
  * is trusted). Only the fields named here are kept.
@@ -215,6 +215,107 @@ export function toExecutiveDashboard(body: unknown): ExecutiveDashboard {
       views: creator.views,
       costPer1000Views: creator.costPer1000Views,
     })),
+  };
+}
+
+/** Each chart of 24.1's answer, by its key there, and its parts' keys there by the field here. */
+const CHART_FIELDS = {
+  spending: { chart: "spending", parts: { fixedRate: "fixedRate", additionalContent: "additionalContent", performanceBonus: "performanceBonus" } },
+  views: { chart: "views", parts: { instagram: "instagram", tiktok: "tiktok" } },
+  delivery: { chart: "timeliness", parts: { onTime: "on_time", late: "late", notSent: "not_sent" } },
+} as const;
+
+/** The KPI cards' keys (24.2) for 24.1's card keys. */
+const KPI_FIELDS = {
+  totalSpending: "totalSpending",
+  unpaid: "unpaidAmount",
+  totalViews: "totalViews",
+  costPer1000Views: "costPer1000Views",
+  onTimeRate: "onTimeRate",
+  engagementRate: "engagementRate",
+} as const;
+
+/** One chart's months as month → (part key → value), in the order the answer gave them. */
+function chartMonths(charts: readonly unknown[], key: string): Map<string, Record<string, unknown>> {
+  const chart = charts.find((entry) => isRecord(entry) && entry.key === key);
+  const months = new Map<string, Record<string, unknown>>();
+  if (!isRecord(chart) || !Array.isArray(chart.months)) return months;
+  for (const entry of chart.months) {
+    if (!isRecord(entry) || typeof entry.month !== "string" || !Array.isArray(entry.parts)) continue;
+    months.set(entry.month, Object.fromEntries(entry.parts.filter(isRecord).map((part) => [String(part.key), part.value])));
+  }
+  return months;
+}
+
+function pick(values: Record<string, unknown> | undefined, fields: Readonly<Record<string, string>>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(fields).map(([field, key]) => [field, values?.[key]]));
+}
+
+function creatorFields(row: unknown): unknown {
+  if (!isRecord(row)) return row;
+  return {
+    creatorId: row.creatorId,
+    creatorName: row.name,
+    spending: row.spending,
+    contentSent: row.sent,
+    contentQuota: row.quota,
+    onTimeRate: row.onTimeRate,
+    views: row.views,
+    costPer1000Views: row.costPer1000Views,
+  };
+}
+
+/** Both ranges' figures for the KPI cards; a card the answer left out stays out, so only it fails. */
+function kpiBlock(cards: unknown, missingViewLinks: unknown): unknown {
+  if (!Array.isArray(cards)) return undefined;
+  const current: Record<string, unknown> = {};
+  const previous: Record<string, unknown> = {};
+  for (const card of cards) {
+    if (!isRecord(card) || typeof card.key !== "string" || !Object.hasOwn(KPI_FIELDS, card.key)) continue;
+    const field = KPI_FIELDS[card.key as keyof typeof KPI_FIELDS];
+    current[field] = card.value;
+    previous[field] = card.previous;
+  }
+  current.linksAwaitingData = missingViewLinks;
+  return { current, previous };
+}
+
+/** "Jun 2026" for the first and last month of the answer's range, or null when it has none. */
+function periodOf(range: unknown): { from: string; to: string } | null {
+  if (!isRecord(range) || typeof range.from !== "string" || typeof range.to !== "string") return null;
+  const from = range.from.slice(0, 7);
+  const to = range.to.slice(0, 7);
+  return MONTH.test(from) && MONTH.test(to) ? { from: monthLabel(from), to: monthLabel(to) } : null;
+}
+
+/**
+ * GET /admin/dashboard (24.1) in the shapes this page's checks read: `charts` for
+ * toExecutiveDashboard, `kpis` for 24.2's toExecutiveKpis, and the months shown for the header.
+ * It only moves fields; it never fills a gap, so anything missing or malformed still fails the
+ * check that reads it (OWASP A08). The spending chart's months are the axis; a month another
+ * chart lacks leaves its figures undefined, which fails the whole answer.
+ */
+export function reshapeExecutiveAnswer(body: unknown): { charts: unknown; kpis: unknown; period: { from: string; to: string } | null } {
+  if (!isRecord(body)) return { charts: undefined, kpis: undefined, period: null };
+  const charts = Array.isArray(body.charts) ? body.charts : [];
+  const spending = chartMonths(charts, CHART_FIELDS.spending.chart);
+  const views = chartMonths(charts, CHART_FIELDS.views.chart);
+  const delivery = chartMonths(charts, CHART_FIELDS.delivery.chart);
+
+  return {
+    charts: {
+      months: Array.isArray(body.charts)
+        ? [...spending.keys()].map((month) => ({
+            month,
+            spending: pick(spending.get(month), CHART_FIELDS.spending.parts),
+            views: pick(views.get(month), CHART_FIELDS.views.parts),
+            delivery: pick(delivery.get(month), CHART_FIELDS.delivery.parts),
+          }))
+        : body.charts,
+      creators: Array.isArray(body.creators) ? body.creators.map(creatorFields) : body.creators,
+    },
+    kpis: kpiBlock(body.kpis, body.missingViewLinks),
+    period: periodOf(body.range),
   };
 }
 

@@ -115,7 +115,10 @@ describe("Executive dashboard page", () => {
     await renderPage({ range: "3" });
 
     expect(screen.getByText("Dashboard tidak bisa dimuat.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Coba lagi|Muat ulang/ })).toHaveAttribute("href", "/admin/dashboard?range=3");
+    // The panel's retry and each card's lead back to the same view.
+    const retries = screen.getAllByRole("link", { name: /Coba lagi|Muat ulang/ });
+    expect(retries).toHaveLength(KPI_LABELS.length + 1);
+    for (const retry of retries) expect(retry).toHaveAttribute("href", "/admin/dashboard?range=3");
     expect(screen.queryByRole("heading", { name: "Spending per Bulan" })).not.toBeInTheDocument();
     // Every KPI card says it failed, still under its label, and offers the same view again.
     expect(screen.getAllByText("Gagal dimuat.")).toHaveLength(KPI_LABELS.length);
