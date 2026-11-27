@@ -8,6 +8,7 @@ import {
 } from "@/lib/my-tasks";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
 import { fetchAllMyTasks } from "@/lib/task-calendar.server";
+import { loadProposalWindow } from "@/lib/creator-proposal.server";
 import TaskSayaPage from "./page";
 
 vi.mock("@/lib/my-tasks.server", () => ({
@@ -16,6 +17,11 @@ vi.mock("@/lib/my-tasks.server", () => ({
 
 vi.mock("@/lib/task-calendar.server", () => ({
   fetchAllMyTasks: vi.fn(),
+}));
+
+// PBI-14 (14.2): no window unless a test gives one, so the other tests see no Ajukan Konten.
+vi.mock("@/lib/creator-proposal.server", () => ({
+  loadProposalWindow: vi.fn().mockResolvedValue(null),
 }));
 
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -521,5 +527,46 @@ describe("Tugas Saya's list head", () => {
 
     const header = screen.getByRole("heading", { level: 1, name: "Tugas Saya" }).parentElement as HTMLElement;
     expect(within(header).getByRole("group", { name: "Tampilan tugas" })).toBeInTheDocument();
+  });
+});
+
+// PBI-14 (14.2) AC 1 and AC 3: "Ajukan Konten" sits in Task Saya for a creator with a running
+// contract, and the list never depends on it.
+describe("Tugas Saya page, Ajukan Konten", () => {
+  const proposalWindow = vi.mocked(loadProposalWindow);
+
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    proposalWindow.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  it("offers + Ajukan Konten beside the view toggle when the creator may propose", async () => {
+    mockedFetch.mockResolvedValue(answer());
+    proposalWindow.mockResolvedValue({ first: "2026-11-21", last: "2026-12-26" });
+
+    await renderPage();
+
+    const header = screen.getByRole("heading", { level: 1, name: "Tugas Saya" }).parentElement as HTMLElement;
+    expect(within(header).getByRole("button", { name: "+ Ajukan Konten" })).toBeInTheDocument();
+    expect(proposalWindow).toHaveBeenCalledWith(TODAY);
+  });
+
+  it("offers nothing to a creator who may not propose", async () => {
+    mockedFetch.mockResolvedValue(answer());
+    proposalWindow.mockResolvedValue(null);
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "+ Ajukan Konten" })).not.toBeInTheDocument();
+  });
+
+  it("still lists the tasks when the button is hidden", async () => {
+    mockedFetch.mockResolvedValue(answer());
+    proposalWindow.mockResolvedValue(null);
+
+    await renderPage();
+
+    expect(screen.getByText("Evg_1_RanggaPratama_12102026")).toBeInTheDocument();
   });
 });
