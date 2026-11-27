@@ -5,6 +5,7 @@ import type { Principal } from './ports.js';
 // query that finds the user, so a sign-in and every request cost what they always did.
 const SELECT = {
   id: true,
+  name: true,
   is_admin: true,
   admin_role: true,
   is_active: true,
@@ -66,7 +67,9 @@ describe('PrismaWhitelistResolver.resolve', () => {
   it('denies an unregistered email without creating a user', async () => {
     const { prisma, resolver } = resolverFor(null);
 
-    await expect(resolver.resolve('unregistered@example.com')).resolves.toBeNull();
+    await expect(
+      resolver.resolve('unregistered@example.com'),
+    ).resolves.toBeNull();
 
     expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
       where: { email: 'unregistered@example.com' },
@@ -93,27 +96,41 @@ describe('PrismaWhitelistResolver.resolve', () => {
   });
 
   it('denies a non-admin user without a creator profile', async () => {
-    const { resolver } = resolverFor({ id: 'user-x', is_admin: false, creators: null });
+    const { resolver } = resolverFor({
+      id: 'user-x',
+      is_admin: false,
+      creators: null,
+    });
 
-    await expect(resolver.resolve('noncreator@example.com')).resolves.toBeNull();
+    await expect(
+      resolver.resolve('noncreator@example.com'),
+    ).resolves.toBeNull();
   });
 
   it('resolves a creator with a running period to the creator principal', async () => {
     const { resolver } = resolverFor(creatorUser([period('2026-12-15')]));
 
-    await expect(resolver.resolve('creator@example.com')).resolves.toEqual(CREATOR);
+    await expect(resolver.resolve('creator@example.com')).resolves.toEqual(
+      CREATOR,
+    );
   });
 
   it('lets a creator in before their first period starts', async () => {
-    const { resolver } = resolverFor(creatorUser([period('2027-03-31', { status: 'running', paid_at: null })]));
+    const { resolver } = resolverFor(
+      creatorUser([period('2027-03-31', { status: 'running', paid_at: null })]),
+    );
 
-    await expect(resolver.resolve('creator@example.com')).resolves.toEqual(CREATOR);
+    await expect(resolver.resolve('creator@example.com')).resolves.toEqual(
+      CREATOR,
+    );
   });
 
   // PBI-37 (AC 13): only "Pembayaran" is left to open.
   it('lets a creator in after their period while its invoice is not paid, for payments only', async () => {
     const { resolver } = resolverFor(
-      creatorUser([period('2026-10-31', { status: 'finalized', paid_at: null })]),
+      creatorUser([
+        period('2026-10-31', { status: 'finalized', paid_at: null }),
+      ]),
     );
 
     await expect(resolver.resolve('creator@example.com')).resolves.toEqual({
@@ -125,7 +142,10 @@ describe('PrismaWhitelistResolver.resolve', () => {
   it('denies a creator the day after their last invoice was paid', async () => {
     const { resolver } = resolverFor(
       creatorUser([
-        period('2026-10-31', { status: 'paid', paid_at: new Date('2026-11-23T03:00:00.000Z') }),
+        period('2026-10-31', {
+          status: 'paid',
+          paid_at: new Date('2026-11-23T03:00:00.000Z'),
+        }),
       ]),
     );
 
@@ -135,7 +155,9 @@ describe('PrismaWhitelistResolver.resolve', () => {
   // PBI-37: "Batalkan Invoice" closes access at once when nothing else is left.
   it('denies a creator whose only invoice was just cancelled', async () => {
     const { resolver } = resolverFor(
-      creatorUser([period('2026-11-24', { status: 'cancelled', paid_at: null })]),
+      creatorUser([
+        period('2026-11-24', { status: 'cancelled', paid_at: null }),
+      ]),
     );
 
     await expect(resolver.resolve('creator@example.com')).resolves.toBeNull();
@@ -146,7 +168,10 @@ describe('PrismaWhitelistResolver.resolve', () => {
     vi.setSystemTime(new Date('2026-11-23T17:30:00.000Z'));
     const { resolver } = resolverFor(
       creatorUser([
-        period('2026-11-23', { status: 'paid', paid_at: new Date('2026-11-22T03:00:00.000Z') }),
+        period('2026-11-23', {
+          status: 'paid',
+          paid_at: new Date('2026-11-22T03:00:00.000Z'),
+        }),
       ]),
     );
 
@@ -167,9 +192,13 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
   });
 
   it('looks the user up by id and applies the same rules as sign-in', async () => {
-    const { prisma, resolver } = resolverFor(creatorUser([period('2026-12-15')]));
+    const { prisma, resolver } = resolverFor(
+      creatorUser([period('2026-12-15')]),
+    );
 
-    await expect(resolver.resolveUser(CREATOR.userId)).resolves.toEqual(CREATOR);
+    await expect(resolver.resolveUser(CREATOR.userId)).resolves.toEqual(
+      CREATOR,
+    );
     expect(prisma.users.findUnique).toHaveBeenCalledExactlyOnceWith({
       where: { id: CREATOR.userId },
       select: SELECT,
@@ -178,7 +207,9 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
 
   it('refuses a creator whose contract was ended early with a cancelled invoice since sign-in', async () => {
     const { resolver } = resolverFor(
-      creatorUser([period('2026-11-24', { status: 'cancelled', paid_at: null })]),
+      creatorUser([
+        period('2026-11-24', { status: 'cancelled', paid_at: null }),
+      ]),
     );
 
     await expect(resolver.resolveUser(CREATOR.userId)).resolves.toBeNull();
@@ -220,11 +251,39 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
       });
     });
 
+    // The frame names who is signed in (PBI-23): the Admin's name, read with the role.
+    it("carries the Admin's name on the principal when one is set", async () => {
+      const { resolver } = resolverFor(admin({ name: '  Rina Wijaya ' }));
+
+      await expect(resolver.resolveUser('admin-1')).resolves.toEqual({
+        userId: 'admin-1',
+        role: 'admin',
+        adminRole: 'admin',
+        name: 'Rina Wijaya',
+      });
+    });
+
+    it.each([[null], [''], ['   ']])(
+      'carries no name for an Admin whose name is %j',
+      async (name) => {
+        const { resolver } = resolverFor(admin({ name }));
+
+        await expect(
+          resolver.resolveUser('admin-1'),
+        ).resolves.not.toHaveProperty('name');
+      },
+    );
+
     // OWASP A01: a deactivated Admin is refused at sign-in and on the next request of any session.
-    it.each([['an Admin', 'admin'], ['a Super Admin', 'super_admin']])(
+    it.each([
+      ['an Admin', 'admin'],
+      ['a Super Admin', 'super_admin'],
+    ])(
       'refuses %s who was deactivated, at sign-in and on each request',
       async (_label, role) => {
-        const { resolver } = resolverFor(admin({ admin_role: role, is_active: false }));
+        const { resolver } = resolverFor(
+          admin({ admin_role: role, is_active: false }),
+        );
 
         await expect(resolver.resolveUser('admin-1')).resolves.toBeNull();
         await expect(resolver.resolve('admin@tofly.id')).resolves.toBeNull();
@@ -232,10 +291,13 @@ describe('PrismaWhitelistResolver.resolveUser', () => {
     );
 
     // OWASP A01: fail closed. An admin row without a known role is never given one by guessing.
-    it.each([[null], ['owner'], [undefined]])('refuses an admin whose role is %s', async (role) => {
-      const { resolver } = resolverFor(admin({ admin_role: role }));
+    it.each([[null], ['owner'], [undefined]])(
+      'refuses an admin whose role is %s',
+      async (role) => {
+        const { resolver } = resolverFor(admin({ admin_role: role }));
 
-      await expect(resolver.resolveUser('admin-1')).resolves.toBeNull();
-    });
+        await expect(resolver.resolveUser('admin-1')).resolves.toBeNull();
+      },
+    );
   });
 });

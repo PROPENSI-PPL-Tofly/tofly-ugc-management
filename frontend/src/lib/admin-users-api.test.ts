@@ -1,5 +1,6 @@
 import { apiFetch } from "./api-client";
 import {
+  CODE_MINUTES,
   CONFIRMATION_MINUTES,
   createAdmin,
   deactivateAdmin,
@@ -176,11 +177,12 @@ describe("the email confirmation", () => {
   });
 
   it("asks the backend to email a code to the signed-in Super Admin", async () => {
-    answers(200, { validMinutes: 15 });
+    answers(200, { validMinutes: 10 });
 
     await expect(requestConfirmation()).resolves.toEqual({
       kind: "sent",
       message: "Kode dikirim ke email kamu.",
+      validMinutes: 10,
     });
 
     expect(sent()).toEqual({
@@ -190,6 +192,20 @@ describe("the email confirmation", () => {
     });
     expect(CONFIRMATION_MINUTES).toBe(15);
   });
+
+  // QA: the prompt said the code lasts 15 minutes, the time one confirmation lasts, while the code
+  // itself lasts the 10 minutes the backend answers.
+  it.each([undefined, 0, -1, 2.5, "10"])(
+    "falls back to the code's usual life when the backend names no usable minutes (%s)",
+    async (validMinutes) => {
+      answers(200, { validMinutes });
+
+      await expect(requestConfirmation()).resolves.toMatchObject({
+        validMinutes: CODE_MINUTES,
+      });
+      expect(CODE_MINUTES).toBe(10);
+    },
+  );
 
   it("says how long a resend waits when the backend limits it", async () => {
     answers(429, { code: "CONFIRMATION_LIMITED", retryAfterMinutes: 5 });

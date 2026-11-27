@@ -3,7 +3,7 @@
 import { useId, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ALERT, FIELD, FIELD_ERROR, NUMERIC_INPUT, REQUIRED_MARK, digitsOnly } from "@/components/ui/form-classes";
+import { ALERT, FIELD, FIELD_ERROR, NUMERIC_INPUT, REQUIRED_MARK } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import {
@@ -94,7 +94,7 @@ export function DeadlineBufferModal({
       >
         <form id="deadline-buffer-form" noValidate onSubmit={submit} className="flex flex-col gap-3">
           <p id={noteId} className="text-[13px] text-ink-2">
-            Berlaku untuk semua jadwal: deadline paling cepat {shown} hari setelah hari ini atau
+            Berlaku untuk jadwal baru: deadline paling cepat {shown} hari setelah hari ini atau
             tanggal mulai kontrak, dan paling lambat {shown} hari sebelum akhir kontrak.
           </p>
 
@@ -109,7 +109,9 @@ export function DeadlineBufferModal({
               aria-invalid={fieldError ? true : undefined}
               aria-describedby={fieldError ? errorId : undefined}
               onChange={(event) => {
-                setTyped(digitsOnly(event.target.value));
+                // Kept as typed: dropping a minus or a decimal point would turn -3 into 3 and 1.5
+                // into 15 without a word; checkBufferDays refuses them instead.
+                setTyped(event.target.value);
                 setFieldError(undefined);
               }}
             />
@@ -135,8 +137,8 @@ export function DeadlineBufferModal({
       {confirming ? (
         <ConfirmDialog
           title="Ubah buffer deadline?"
-          message="Tambah Creator, Perpanjang Kontrak, Tambah Konten dan Edit Deadline akan memakai buffer baru ini."
-          warning="Deadline yang sudah dijadwalkan tidak berubah."
+          message="Berlaku untuk jadwal baru. Jadwal yang sudah ada tidak berubah."
+          warning="Dipakai oleh Tambah Creator, Tambah Konten, edit deadline, Perpanjang Kontrak dan Ajukan Konten."
           details={bufferChangeDetails(current, Number(typed))}
           confirmLabel="Ya, Ubah"
           cancelLabel="Kembali"

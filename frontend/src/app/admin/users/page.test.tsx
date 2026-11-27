@@ -39,7 +39,7 @@ async function renderPage(params: Record<string, string | string[] | undefined> 
 describe("Pengguna Admin page", () => {
   beforeEach(() => {
     vi.mocked(currentSession).mockReset();
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
     vi.mocked(fetchAdminUsers).mockReset();
   });
 
@@ -93,7 +93,7 @@ describe("Pengguna Admin page", () => {
 describe("Pengguna Admin page states", () => {
   beforeEach(() => {
     vi.mocked(currentSession).mockReset();
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
     vi.mocked(fetchAdminUsers).mockReset();
   });
 
@@ -178,7 +178,7 @@ describe("Pengguna Admin page states", () => {
 describe("Pengguna Admin search", () => {
   beforeEach(() => {
     vi.mocked(currentSession).mockReset();
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
     vi.mocked(fetchAdminUsers).mockReset();
     vi.mocked(fetchAdminUsers).mockResolvedValue({
       kind: "loaded",
@@ -200,7 +200,7 @@ describe("Pengguna Admin gate", () => {
   });
 
   it("gives an Admin the not-found page instead of the list, and asks for none", async () => {
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: false, name: null });
 
     await expect(renderPage()).rejects.toThrow(NotFound);
     expect(fetchAdminUsers).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe("Pengguna Admin gate", () => {
 describe("Pengguna Admin's way to add someone", () => {
   beforeEach(() => {
     vi.mocked(currentSession).mockReset();
-    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    vi.mocked(currentSession).mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
     vi.mocked(fetchAdminUsers).mockReset();
     vi.mocked(fetchAdminUsers).mockResolvedValue({
       kind: "loaded",

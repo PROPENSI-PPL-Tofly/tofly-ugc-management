@@ -646,7 +646,9 @@ describe('InvoicesService', () => {
       expect(prisma.creators.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            contracts: { some: { end_date: { gte: new Date('2026-06-01T00:00:00Z') } } },
+            contracts: {
+              some: { end_date: { gte: new Date('2026-06-01T00:00:00Z') } },
+            },
           },
         }),
       );
@@ -709,10 +711,9 @@ describe('InvoicesService', () => {
         const result = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
         expect(result.summary.total).toBe(2_000_000);
-        expect(result.items.map((item) => [item.contract.id, item.invoiceStatus])).toContainEqual([
-          'rangga-c',
-          'cancelled',
-        ]);
+        expect(
+          result.items.map((item) => [item.contract.id, item.invoiceStatus]),
+        ).toContainEqual(['rangga-c', 'cancelled']);
       });
 
       it('filters on Cancelled like any other status', async () => {
@@ -722,7 +723,9 @@ describe('InvoicesService', () => {
           status: 'cancelled',
         });
 
-        expect(result.items.map((item) => item.contract.id)).toEqual(['rangga-c']);
+        expect(result.items.map((item) => item.contract.id)).toEqual([
+          'rangga-c',
+        ]);
         expect(result.summary.total).toBe(0);
       });
 
@@ -780,7 +783,9 @@ describe('InvoicesService', () => {
       const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
 
       expect(items[0].adjustments[0].actorName).toBe('Sinta Dewi');
-      expect(prisma.invoice_adjustments.findMany).toHaveBeenCalledExactlyOnceWith(
+      expect(
+        prisma.invoice_adjustments.findMany,
+      ).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
           select: expect.objectContaining({
             users: { select: { name: true, email: true } },
@@ -1096,26 +1101,39 @@ describe('InvoicesService', () => {
 
     // PBI-23, 23.10: the invoice's activity names who finalized it.
     it.each([
-      ['by name', { name: 'Sinta Dewi', email: 'sinta@tofly.id' }, 'Sinta Dewi'],
-      ['by email while the account has no name', { name: null, email: 'sinta@tofly.id' }, 'sinta@tofly.id'],
+      [
+        'by name',
+        { name: 'Sinta Dewi', email: 'sinta@tofly.id' },
+        'Sinta Dewi',
+      ],
+      [
+        'by email while the account has no name',
+        { name: null, email: 'sinta@tofly.id' },
+        'sinta@tofly.id',
+      ],
       ['as no one on an invoice finalized before it was recorded', null, null],
-    ])('answers the admin who finalized it %s', async (_label, finalizer, finalizedBy) => {
-      prisma.creators.findUnique.mockResolvedValue(row());
-      pipeline = { 'contract-1': 'finalized' };
-      persist([
-        {
-          id: 'invoice-1',
-          contract_id: 'contract-1',
-          snapshot: snapshotOf(5_500_000),
-          adjustments: [],
-          finalizer,
-        },
-      ]);
+    ])(
+      'answers the admin who finalized it %s',
+      async (_label, finalizer, finalizedBy) => {
+        prisma.creators.findUnique.mockResolvedValue(row());
+        pipeline = { 'contract-1': 'finalized' };
+        persist([
+          {
+            id: 'invoice-1',
+            contract_id: 'contract-1',
+            snapshot: snapshotOf(5_500_000),
+            adjustments: [],
+            finalizer,
+          },
+        ]);
 
-      await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject({
-        finalizedBy,
-      });
-    });
+        await expect(service.detail('creator-1', TODAY)).resolves.toMatchObject(
+          {
+            finalizedBy,
+          },
+        );
+      },
+    );
 
     it('answers no finalizer for a contract without a saved invoice', async () => {
       prisma.creators.findUnique.mockResolvedValue(row());
@@ -1420,7 +1438,7 @@ describe('InvoicesService', () => {
       });
     });
 
-    it('names the admin who finalized each of the creator\'s invoices', async () => {
+    it("names the admin who finalized each of the creator's invoices", async () => {
       prisma.creators.findUnique.mockResolvedValue(renewed);
       pipeline = { first: 'finalized' };
       persist([
@@ -1558,13 +1576,15 @@ describe('InvoicesService', () => {
           createdAt: '2026-11-25T03:00:00.000Z',
         },
       ]);
-      expect(prisma.invoices.findMany.mock.calls[0][0].select.rate_changes).toEqual({
+      expect(
+        prisma.invoices.findMany.mock.calls[0][0].select.rate_changes,
+      ).toEqual({
         select: {
           id: true,
           old_rate: true,
           new_rate: true,
           created_at: true,
-          users: { select: { email: true } },
+          users: { select: { email: true, name: true } },
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       });
@@ -1785,7 +1805,11 @@ describe('InvoicesService on a stand-in roster repository', () => {
     const filters = { q: 'rangga' };
 
     // Act
-    const result = await service.list({ page: 1, pageSize: 10 }, TODAY, filters);
+    const result = await service.list(
+      { page: 1, pageSize: 10 },
+      TODAY,
+      filters,
+    );
 
     // Assert
     expect(roster.creators).toHaveBeenCalledExactlyOnceWith(filters);

@@ -80,7 +80,10 @@ describe('/admin-users (e2e)', () => {
   beforeAll(async () => {
     vi.stubEnv('DEV_AUTH_ENABLED', '');
     vi.stubEnv('SUPER_ADMIN_EMAIL', '');
-    vi.stubEnv('LOGIN_CODE_SECRET', 'e2e-login-code-secret-of-at-least-32-chars');
+    vi.stubEnv(
+      'LOGIN_CODE_SECRET',
+      'e2e-login-code-secret-of-at-least-32-chars',
+    );
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -109,7 +112,10 @@ describe('/admin-users (e2e)', () => {
   describe('access', () => {
     it('answers 403 to an Admin and to a creator, and 401 with no session', async () => {
       const admin = await makeUser('plain-admin');
-      const adminCookie = await signIn(app, { userId: admin.id, role: 'admin' });
+      const adminCookie = await signIn(app, {
+        userId: admin.id,
+        role: 'admin',
+      });
       const user = await prisma.users.create({
         data: { email: email('creator') },
       });
@@ -123,7 +129,9 @@ describe('/admin-users (e2e)', () => {
       });
 
       await as(app, adminCookie).get('/admin-users').expect(403);
-      const refused = await as(app, creatorCookie).get('/admin-users').expect(403);
+      const refused = await as(app, creatorCookie)
+        .get('/admin-users')
+        .expect(403);
       expect(refused.body.message).toBe('Halaman ini hanya untuk Super Admin');
       await request(app.getHttpServer()).get('/admin-users').expect(401);
       await as(app, adminCookie)
@@ -137,7 +145,11 @@ describe('/admin-users (e2e)', () => {
     it('adds an Admin who can sign in at once, and records it in Log Aktivitas', async () => {
       const response = await as(app, superCookie)
         .post('/admin-users')
-        .send({ name: ' Sinta Dewi ', email: email('Sinta').toUpperCase(), role: 'admin' })
+        .send({
+          name: ' Sinta Dewi ',
+          email: email('Sinta').toUpperCase(),
+          role: 'admin',
+        })
         .expect(201);
 
       expect(response.body).toMatchObject({
@@ -154,6 +166,7 @@ describe('/admin-users (e2e)', () => {
         userId: response.body.id,
         role: 'admin',
         adminRole: 'admin',
+        name: 'Sinta Dewi',
       });
       const [entry] = await prisma.audit_logs.findMany({
         where: { target_id: response.body.id, action: 'admin_added' },
@@ -164,12 +177,16 @@ describe('/admin-users (e2e)', () => {
         actor_role: 'super_admin',
         category: 'akses_admin',
         target_label: 'Sinta Dewi',
-        new_values: { name: 'Sinta Dewi', email: email('sinta'), role: 'admin' },
+        new_values: {
+          name: 'Sinta Dewi',
+          email: email('sinta'),
+          role: 'admin',
+        },
       });
     });
 
     // Any user: a creator's address, written in other capitals, is the same address (citext).
-    it("refuses a creator's email with \"Email sudah dipakai\"", async () => {
+    it('refuses a creator\'s email with "Email sudah dipakai"', async () => {
       const user = await prisma.users.create({
         data: { email: email('kreator-taken') },
       });
@@ -184,7 +201,9 @@ describe('/admin-users (e2e)', () => {
 
       expect(response.body.errors).toEqual({ email: 'Email sudah dipakai' });
       await expect(
-        prisma.users.findUniqueOrThrow({ where: { email: email('kreator-taken') } }),
+        prisma.users.findUniqueOrThrow({
+          where: { email: email('kreator-taken') },
+        }),
       ).resolves.toMatchObject({ is_admin: false, admin_role: null });
     });
 
@@ -226,33 +245,38 @@ describe('/admin-users (e2e)', () => {
         .get(`/admin-users?q=${MARKER}-list-`)
         .expect(200);
 
-      expect(response.body.items.map((item: { name: string }) => item.name)).toEqual([
-        `${MARKER} Bima`,
-        `${MARKER} Cahya`,
-        `${MARKER} Ayu`,
-      ]);
+      expect(
+        response.body.items.map((item: { name: string }) => item.name),
+      ).toEqual([`${MARKER} Bima`, `${MARKER} Cahya`, `${MARKER} Ayu`]);
       expect(response.body).toMatchObject({ page: 1, pageSize: 10, total: 3 });
       expect(response.body.inactiveCount).toBeGreaterThanOrEqual(1);
     });
 
-    it('searches the email too, ignoring case, and marks the Super Admin\'s own row', async () => {
+    it("searches the email too, ignoring case, and marks the Super Admin's own row", async () => {
       const response = await as(app, superCookie)
         .get(`/admin-users?q=${encodeURIComponent(email('SUPER'))}`)
         .expect(200);
 
       expect(response.body.items).toEqual([
-        expect.objectContaining({ id: superId, role: 'super_admin', isSelf: true }),
+        expect.objectContaining({
+          id: superId,
+          role: 'super_admin',
+          isSelf: true,
+        }),
       ]);
     });
 
     // A search for "_" or "%" is that character, not a wildcard that matches every Admin.
-    it.each(['_', '%'])('reads %s in the search as itself', async (character) => {
-      const response = await as(app, superCookie)
-        .get(`/admin-users?q=${encodeURIComponent(`${MARKER}${character}`)}`)
-        .expect(200);
+    it.each(['_', '%'])(
+      'reads %s in the search as itself',
+      async (character) => {
+        const response = await as(app, superCookie)
+          .get(`/admin-users?q=${encodeURIComponent(`${MARKER}${character}`)}`)
+          .expect(200);
 
-      expect(response.body.total).toBe(0);
-    });
+        expect(response.body.total).toBe(0);
+      },
+    );
 
     it('answers 400 for a page below 1', async () => {
       await as(app, superCookie).get('/admin-users?page=0').expect(400);
@@ -327,7 +351,10 @@ describe('/admin-users (e2e)', () => {
   describe('Ubah role, Tambah Super Admin and Nonaktifkan, after the email code', () => {
     it('changes a role only after this session enters the emailed code, then ends their sessions', async () => {
       const admin = await makeUser('promote', { name: 'Rina' });
-      const adminCookie = await signIn(app, { userId: admin.id, role: 'admin' });
+      const adminCookie = await signIn(app, {
+        userId: admin.id,
+        role: 'admin',
+      });
 
       const refused = await as(app, superCookie)
         .patch(`/admin-users/${admin.id}`)
@@ -338,7 +365,9 @@ describe('/admin-users (e2e)', () => {
       await as(app, superCookie)
         .post('/admin-users/confirmation')
         .expect(200)
-        .expect((response) => expect(response.body).toEqual({ validMinutes: 10 }));
+        .expect((response) =>
+          expect(response.body).toEqual({ validMinutes: 10 }),
+        );
       const code = outbox.lastCode(email('super'));
       // OWASP A02: only the HMAC is kept.
       const stored = await prisma.admin_confirmation_codes.findMany({
@@ -350,7 +379,9 @@ describe('/admin-users (e2e)', () => {
         .post('/admin-users/confirmation/verify')
         .send({ code: wrong })
         .expect(422)
-        .expect((response) => expect(response.body.code).toBe('CONFIRMATION_WRONG'));
+        .expect((response) =>
+          expect(response.body.code).toBe('CONFIRMATION_WRONG'),
+        );
       await as(app, superCookie)
         .post('/admin-users/confirmation/verify')
         .send({ code })
@@ -388,7 +419,11 @@ describe('/admin-users (e2e)', () => {
         .expect(403);
       await as(app, otherCookie)
         .post('/admin-users')
-        .send({ name: 'Super Baru', email: email('new-super'), role: 'super_admin' })
+        .send({
+          name: 'Super Baru',
+          email: email('new-super'),
+          role: 'super_admin',
+        })
         .expect(403);
       await expect(
         prisma.users.findUnique({ where: { email: email('new-super') } }),
@@ -397,7 +432,10 @@ describe('/admin-users (e2e)', () => {
 
     it('deactivates an Admin after the code, ending their open session at once', async () => {
       const admin = await makeUser('deactivate', { name: 'Dodi' });
-      const adminCookie = await signIn(app, { userId: admin.id, role: 'admin' });
+      const adminCookie = await signIn(app, {
+        userId: admin.id,
+        role: 'admin',
+      });
       await as(app, adminCookie).get('/creators').expect(200);
       const cookie = await signIn(app, { userId: superId, role: 'admin' });
       await confirm(cookie, email('super'));
@@ -427,7 +465,9 @@ describe('/admin-users (e2e)', () => {
       await as(app, superCookie)
         .post(`/admin-users/${superId}/deactivate`)
         .expect(409)
-        .expect((response) => expect(response.body.code).toBe('CANNOT_DEACTIVATE_SELF'));
+        .expect((response) =>
+          expect(response.body.code).toBe('CANNOT_DEACTIVATE_SELF'),
+        );
       const refused = await as(app, superCookie)
         .patch(`/admin-users/${superId}`)
         .send({ name: 'Super Gunta', role: 'admin' })
@@ -445,19 +485,24 @@ describe('/admin-users (e2e)', () => {
       const cookie = await signIn(app, { userId: guesser.id, role: 'admin' });
       await as(app, cookie).post('/admin-users/confirmation').expect(200);
       const code = outbox.lastCode(email('guesser'));
-      const wrong = (n: number) => String((Number(code) + n) % 1_000_000).padStart(6, '0');
+      const wrong = (n: number) =>
+        String((Number(code) + n) % 1_000_000).padStart(6, '0');
       const guesses = Array.from({ length: 20 }, (_, n) => wrong(n + 1));
       guesses.splice(10, 0, code);
 
       // supertest starts the server on every request while it is not listening, and 21 of
       // those at once on one server reset each other's connections; listen once for the burst.
       const server = app.getHttpServer() as Server;
-      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
       let answers: request.Response[];
       try {
         answers = await Promise.all(
           guesses.map((guess) =>
-            as(app, cookie).post('/admin-users/confirmation/verify').send({ code: guess }),
+            as(app, cookie)
+              .post('/admin-users/confirmation/verify')
+              .send({ code: guess }),
           ),
         );
       } finally {
@@ -465,7 +510,8 @@ describe('/admin-users (e2e)', () => {
       }
 
       const compared = answers.filter(
-        (answer) => answer.status === 200 || answer.body.code === 'CONFIRMATION_WRONG',
+        (answer) =>
+          answer.status === 200 || answer.body.code === 'CONFIRMATION_WRONG',
       );
       expect(compared.length).toBeLessThanOrEqual(5);
       const stored = await prisma.admin_confirmation_codes.findFirstOrThrow({
@@ -485,7 +531,9 @@ describe('/admin-users (e2e)', () => {
       await as(app, cookie)
         .post(`/admin-users/${target.id}/reactivate`)
         .expect(403)
-        .expect((response) => expect(response.body.code).toBe('CONFIRMATION_REQUIRED'));
+        .expect((response) =>
+          expect(response.body.code).toBe('CONFIRMATION_REQUIRED'),
+        );
       await expect(
         prisma.users.findUniqueOrThrow({ where: { id: target.id } }),
       ).resolves.toMatchObject({ is_active: false });
@@ -495,7 +543,10 @@ describe('/admin-users (e2e)', () => {
         .post(`/admin-users/${target.id}/reactivate`)
         .expect(200)
         .expect((response) =>
-          expect(response.body).toMatchObject({ role: 'super_admin', status: 'active' }),
+          expect(response.body).toMatchObject({
+            role: 'super_admin',
+            status: 'active',
+          }),
         );
     });
 
@@ -507,7 +558,9 @@ describe('/admin-users (e2e)', () => {
         await as(app, cookie)
           .post('/admin-users/confirmation')
           .expect(503)
-          .expect((response) => expect(response.body.code).toBe('CONFIRMATION_NOT_SENT'));
+          .expect((response) =>
+            expect(response.body.code).toBe('CONFIRMATION_NOT_SENT'),
+          );
       } finally {
         outbox.down = false;
       }
@@ -524,8 +577,14 @@ describe('/admin-users (e2e)', () => {
     it('keeps one active Super Admin when the last two demote each other at once', async () => {
       const first = await makeUser('race-a', { admin_role: 'super_admin' });
       const second = await makeUser('race-b', { admin_role: 'super_admin' });
-      const firstCookie = await signIn(app, { userId: first.id, role: 'admin' });
-      const secondCookie = await signIn(app, { userId: second.id, role: 'admin' });
+      const firstCookie = await signIn(app, {
+        userId: first.id,
+        role: 'admin',
+      });
+      const secondCookie = await signIn(app, {
+        userId: second.id,
+        role: 'admin',
+      });
       await confirm(firstCookie, email('race-a'));
       await confirm(secondCookie, email('race-b'));
       // Every other Super Admin (this suite's actor and the one promoted above) steps aside.
@@ -551,10 +610,15 @@ describe('/admin-users (e2e)', () => {
             .send({ name: 'A', role: 'admin' }),
         ]);
 
-        expect([one.status, two.status].filter((status) => status === 200)).toHaveLength(1);
+        expect(
+          [one.status, two.status].filter((status) => status === 200),
+        ).toHaveLength(1);
         await expect(
           prisma.users.count({
-            where: { id: { in: [first.id, second.id] }, admin_role: 'super_admin' },
+            where: {
+              id: { in: [first.id, second.id] },
+              admin_role: 'super_admin',
+            },
           }),
         ).resolves.toBe(1);
       } finally {
@@ -570,12 +634,14 @@ describe('/admin-users (e2e)', () => {
     const admin = await makeUser('signs-in');
     const starter = app.get<SessionStarter>(SESSION_STARTER);
 
-    await starter.start(
-      { cookie: () => undefined } as unknown as Response,
-      { userId: admin.id, role: 'admin' },
-    );
+    await starter.start({ cookie: () => undefined } as unknown as Response, {
+      userId: admin.id,
+      role: 'admin',
+    });
 
-    const row = await prisma.users.findUniqueOrThrow({ where: { id: admin.id } });
+    const row = await prisma.users.findUniqueOrThrow({
+      where: { id: admin.id },
+    });
     expect(row.last_signed_in_at).toBeInstanceOf(Date);
   });
 });

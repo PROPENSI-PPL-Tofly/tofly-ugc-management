@@ -63,7 +63,13 @@ export function CodeBoxes({ value, onChange, disabled, invalid, describedBy }: C
   }
 
   function handleKeyDown(index: number, event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Backspace") {
+    // A digit is written from the key itself: typing the digit a box already holds changes nothing
+    // the browser reports, so waiting for onChange would leave the cursor in place. Keyboards that
+    // send no key name (some Android ones) still reach handleChange.
+    if (/^\d$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      fill(index, event.key);
+    } else if (event.key === "Backspace") {
       event.preventDefault();
       const target = chars[index] !== "" ? index : index - 1;
       if (target < 0) return;

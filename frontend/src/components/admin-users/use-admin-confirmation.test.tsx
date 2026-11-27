@@ -24,6 +24,7 @@ function codeIsSent(expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
   vi.mocked(requestConfirmation).mockResolvedValue({
     kind: "sent",
     message: "Kode dikirim ke email kamu.",
+    validMinutes: 10,
   });
   vi.mocked(verifyConfirmation).mockResolvedValue({ kind: "confirmed", expiresAt });
 }
@@ -108,6 +109,28 @@ describe("the confirmation before a sensitive action", () => {
     fireEvent.click(screen.getByRole("button", { name: "Batal" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("tells the caller the prompt was cancelled, so it can undo its own waiting", async () => {
+    const run = vi.fn();
+    const cancelled = vi.fn();
+    function Cancelling() {
+      const { withConfirmation, prompt } = useAdminConfirmation();
+      return (
+        <>
+          <button onClick={() => withConfirmation("role_change", run, cancelled)}>Ubah peran</button>
+          {prompt}
+        </>
+      );
+    }
+    render(<Cancelling />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(cancelled).toHaveBeenCalledTimes(1);
     expect(run).not.toHaveBeenCalled();
   });
 

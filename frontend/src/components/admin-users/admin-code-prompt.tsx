@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { CodeBoxes, CODE_LENGTH } from "@/components/auth/code-boxes";
 import { useCountdown } from "@/components/auth/use-countdown";
+import { useFirstBoxFocus } from "@/components/auth/use-first-box-focus";
 import { Button } from "@/components/ui/button";
 import { ALERT } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import {
+  CODE_MINUTES,
   CONFIRMATION_MINUTES,
   requestConfirmation,
   verifyConfirmation,
@@ -50,10 +52,18 @@ export function AdminCodePrompt({
   const [busy, setBusy] = useState(true);
   const { secondsLeft, restart } = useCountdown(RESEND_AFTER_SECONDS);
   const asked = useRef(false);
+  // As on the sign-in screen, the cursor returns to the first box after the send, a check or a resend.
+  const boxesRef = useFirstBoxFocus(request?.kind === "sent" && !busy);
+
+  /** A wrong code or a new one starts from empty boxes, so nothing is typed over old digits. */
+  function startOver(next: string | null) {
+    setProblem(next);
+    setCode("");
+  }
 
   const ask = useCallback(async () => {
     setBusy(true);
-    setProblem(null);
+    startOver(null);
 
     try {
       const outcome = await requestConfirmation();
@@ -102,13 +112,13 @@ export function AdminCodePrompt({
       }
 
       if (outcome.kind === "wrong") {
-        setProblem(
+        startOver(
           outcome.attemptsLeft === undefined
             ? "Kode salah."
             : `Kode salah. Sisa ${outcome.attemptsLeft} percobaan.`,
         );
       } else if (outcome.kind === "expired") {
-        setProblem(EXPIRED);
+        startOver(EXPIRED);
       } else {
         setProblem(CHECK_FAILED);
       }
@@ -135,7 +145,11 @@ export function AdminCodePrompt({
     >
       <form id={formId} onSubmit={(event) => void submit(event)}>
         <p className="text-[13px] text-ink-2">
-          {ACTION_NAME[action]} perlu kode dari email kamu. Kode berlaku {CONFIRMATION_MINUTES}{" "}
+          {ACTION_NAME[action]} perlu kode dari email kamu. Kode berlaku{" "}
+          {request?.kind === "sent" ? request.validMinutes : CODE_MINUTES} menit.
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          Setelah dikonfirmasi, perubahan berikutnya tidak perlu kode selama {CONFIRMATION_MINUTES}{" "}
           menit.
         </p>
 
@@ -152,7 +166,7 @@ export function AdminCodePrompt({
         ) : null}
 
         {request?.kind === "sent" ? (
-          <div className="mt-4 flex flex-col gap-3">
+          <div ref={boxesRef} className="mt-4 flex flex-col gap-3">
             <CodeBoxes
               value={code}
               onChange={setCode}

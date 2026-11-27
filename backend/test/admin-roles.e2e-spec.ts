@@ -284,7 +284,7 @@ describe('Admin roles and status (e2e)', () => {
 
       await as(app, cookie)
         .get('/auth/session')
-        .expect(200, { role: 'admin', adminRole: 'super_admin' });
+        .expect(200, { role: 'admin', adminRole: 'super_admin', name: null });
 
       await prisma.users.update({
         where: { id: user.id },
@@ -292,7 +292,7 @@ describe('Admin roles and status (e2e)', () => {
       });
       await as(app, cookie)
         .get('/auth/session')
-        .expect(200, { role: 'admin', adminRole: 'admin' });
+        .expect(200, { role: 'admin', adminRole: 'admin', name: null });
     });
   });
 

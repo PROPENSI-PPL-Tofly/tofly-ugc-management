@@ -36,7 +36,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   // Read once here, after the role is known, so every date picker below counts with the one
   // buffer a Super Admin set (PBI-23) and a save's refresh hands them all the new value.
   return (
-    <SuperAdminProvider isSuperAdmin={session.isSuperAdmin}>
+    <SuperAdminProvider isSuperAdmin={session.isSuperAdmin} name={session.name}>
       <DeadlineBufferProvider bufferDays={await fetchDeadlineBuffer()}>{children}</DeadlineBufferProvider>
     </SuperAdminProvider>
   );

@@ -50,12 +50,12 @@ describe("Log Aktivitas page", () => {
     vi.clearAllMocks();
     load.mockResolvedValue(LOADED.list);
     loadOptions.mockResolvedValue({ actors: LOADED.actors, creators: LOADED.creators });
-    session.mockResolvedValue({ role: "admin", isSuperAdmin: true });
+    session.mockResolvedValue({ role: "admin", isSuperAdmin: true, name: null });
   });
 
   // PBI-23 AC 3 (OWASP A01:2025): a typed address opens nothing for a regular Admin.
   it("tells a regular Admin the page is not theirs, loading no entry", async () => {
-    session.mockResolvedValue({ role: "admin", isSuperAdmin: false });
+    session.mockResolvedValue({ role: "admin", isSuperAdmin: false, name: null });
 
     await renderPage();
 

@@ -30,10 +30,25 @@ describe("currentSession", () => {
 
   it("reads a Super Admin from the backend's answer", async () => {
     browserHasSession();
-    backendAnswers(200, { role: "admin", adminRole: "super_admin" });
+    backendAnswers(200, { role: "admin", adminRole: "super_admin", name: "Rina Wijaya" });
 
-    await expect(currentSession()).resolves.toEqual({ role: "admin", isSuperAdmin: true });
+    await expect(currentSession()).resolves.toEqual({
+      role: "admin",
+      isSuperAdmin: true,
+      name: "Rina Wijaya",
+    });
   });
+
+  // The frame names who is signed in; anything but a usable name falls back to the role.
+  it.each([[null], [""], ["   "], [42], [undefined]])(
+    "reads no name from an answer whose name is %j",
+    async (name) => {
+      browserHasSession();
+      backendAnswers(200, { role: "admin", adminRole: "admin", name });
+
+      await expect(currentSession()).resolves.toMatchObject({ name: null });
+    },
+  );
 
   // OWASP A01:2025: anything but the exact role reads as no Super Admin access.
   it.each([
@@ -44,14 +59,14 @@ describe("currentSession", () => {
     browserHasSession();
     backendAnswers(200, body);
 
-    await expect(currentSession()).resolves.toEqual({ role: "admin", isSuperAdmin: false });
+    await expect(currentSession()).resolves.toEqual({ role: "admin", isSuperAdmin: false, name: null });
   });
 
   it("never reads a creator as a Super Admin", async () => {
     browserHasSession();
-    backendAnswers(200, { role: "creator", adminRole: "super_admin" });
+    backendAnswers(200, { role: "creator", adminRole: "super_admin", name: "Creator" });
 
-    await expect(currentSession()).resolves.toEqual({ role: "creator", isSuperAdmin: false });
+    await expect(currentSession()).resolves.toEqual({ role: "creator", isSuperAdmin: false, name: null });
   });
 
   it("reads no session as nobody signed in", async () => {

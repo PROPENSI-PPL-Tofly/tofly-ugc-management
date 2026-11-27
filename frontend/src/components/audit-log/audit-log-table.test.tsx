@@ -180,7 +180,7 @@ describe("AuditLogTable", () => {
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(cellsOf()[5]).toHaveTextContent("Nama: Lama → Baru");
-    expect(cellsOf()[5]).toHaveTextContent("role: admin → super_admin");
+    expect(cellsOf()[5]).toHaveTextContent("Peran: Admin → Super Admin");
 
     fireEvent.click(toggle);
 

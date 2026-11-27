@@ -15,7 +15,16 @@ import { AdminCodePrompt } from "./admin-code-prompt";
 interface Asking {
   action: SensitiveAction;
   run: () => void;
+  /** Lets the caller undo its own waiting (a shut Simpan) when the prompt is closed unconfirmed. */
+  onCancel?: () => void;
 }
+
+/** What a caller hands over: the action, what to run once confirmed, and what to undo if not. */
+export type WithConfirmation = (
+  action: SensitiveAction,
+  run: () => void,
+  onCancel?: () => void,
+) => void;
 
 /** Epoch milliseconds the session stays confirmed until, or null before any code. */
 type LiveUntil = [number | null, Dispatch<SetStateAction<number | null>>];
@@ -44,13 +53,13 @@ export function useAdminConfirmation() {
   const [liveUntil, setLiveUntil] = useContext(SharedConfirmation) ?? own;
   const [asking, setAsking] = useState<Asking | null>(null);
 
-  const withConfirmation = useCallback(
-    (action: SensitiveAction, run: () => void) => {
+  const withConfirmation = useCallback<WithConfirmation>(
+    (action, run, onCancel) => {
       if (liveUntil !== null && liveUntil > Date.now()) {
         run();
         return;
       }
-      setAsking({ action, run });
+      setAsking({ action, run, onCancel });
     },
     [liveUntil],
   );
@@ -68,7 +77,10 @@ export function useAdminConfirmation() {
     <AdminCodePrompt
       action={asking.action}
       onConfirmed={confirmed}
-      onCancel={() => setAsking(null)}
+      onCancel={() => {
+        setAsking(null);
+        asking.onCancel?.();
+      }}
     />
   ) : null;
 

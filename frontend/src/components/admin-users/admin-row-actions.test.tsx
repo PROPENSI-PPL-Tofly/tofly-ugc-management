@@ -59,7 +59,7 @@ describe("the Pengguna Admin row actions", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
 
     await waitFor(() => expect(deactivateAdmin).toHaveBeenCalledWith("u1"));
-    expect(withConfirmation).toHaveBeenCalledWith("deactivate", expect.any(Function));
+    expect(withConfirmation).toHaveBeenCalledWith("deactivate", expect.any(Function), expect.any(Function));
     expect(onChanged).toHaveBeenCalledWith("Admin dinonaktifkan.");
   });
 
@@ -75,7 +75,7 @@ describe("the Pengguna Admin row actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Aktifkan" }));
 
     await waitFor(() => expect(reactivateAdmin).toHaveBeenCalledWith("u1"));
-    expect(withConfirmation).toHaveBeenCalledWith("reactivate_super_admin", expect.any(Function));
+    expect(withConfirmation).toHaveBeenCalledWith("reactivate_super_admin", expect.any(Function), expect.any(Function));
     expect(onChanged).toHaveBeenCalledWith("Admin diaktifkan kembali.");
   });
 
@@ -109,7 +109,7 @@ describe("the Pengguna Admin row actions", () => {
         { name: "Rangga Pratama", role: "super_admin" },
       ),
     );
-    expect(withConfirmation).toHaveBeenCalledWith("role_change", expect.any(Function));
+    expect(withConfirmation).toHaveBeenCalledWith("role_change", expect.any(Function), expect.any(Function));
   });
 
   it("does not ask for a code when only the name changed", async () => {
@@ -157,5 +157,59 @@ describe("the Pengguna Admin row actions", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Admin gagal diubah. Coba lagi.");
+  });
+  // QA: cancelling the code prompt left Simpan shut for good, so the change could not be retried
+  // without reloading the page.
+  it("lets the role change be sent again after the code prompt was cancelled", async () => {
+    let cancels = 0;
+    const withConfirmation = vi.fn(
+      (_action: string, run: () => void, onCancel?: () => void) => {
+        if (cancels++ === 0) onCancel?.();
+        else run();
+      },
+    );
+    renderActions(adminUser({ id: "u1" }), withConfirmation);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah" }));
+    fireEvent.change(await screen.findByLabelText(/Peran/), {
+      target: { value: "super_admin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    const save = screen.getByRole("button", { name: "Simpan" });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(updateAdmin).toHaveBeenCalledWith("u1", { name: "Rangga Pratama", role: "super_admin" }),
+    );
+  });
+
+  it("frees the row's buttons when the code prompt for a deactivation is cancelled", async () => {
+    const withConfirmation = vi.fn(
+      (_action: string, _run: () => void, onCancel?: () => void) => onCancel?.(),
+    );
+    renderActions(adminUser({ id: "u1" }), withConfirmation);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ubah" }));
+
+    expect(await screen.findByRole("button", { name: "Simpan" })).toBeEnabled();
+    expect(deactivateAdmin).not.toHaveBeenCalled();
+  });
+
+  it("frees the row's buttons when the code prompt for a Super Admin's return is cancelled", async () => {
+    const withConfirmation = vi.fn(
+      (_action: string, _run: () => void, onCancel?: () => void) => onCancel?.(),
+    );
+    renderActions(adminUser({ id: "u1", isActive: false, role: "super_admin" }), withConfirmation);
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktifkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ubah" }));
+
+    expect(await screen.findByRole("button", { name: "Simpan" })).toBeEnabled();
+    expect(reactivateAdmin).not.toHaveBeenCalled();
   });
 });
