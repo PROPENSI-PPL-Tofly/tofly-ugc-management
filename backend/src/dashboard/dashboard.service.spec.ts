@@ -155,6 +155,24 @@ describe('DashboardService', () => {
     expect(repo.contentsDueInRange).toHaveBeenCalledTimes(2);
   });
 
+  // Prototype formula: sent by the deadline ÷ content that has fallen due. Content whose deadline
+  // is still ahead this month is not due yet, so it neither helps nor hurts the rate.
+  it('judges the on-time rate only on content that has fallen due', async () => {
+    const { service } = setup({
+      invoices: [],
+      links: [],
+      contents: [
+        content('2026-11', '2026-11-04'),
+        content('2026-10'),
+        { ...content('2026-11'), deadline: '2026-11-28' },
+      ],
+    });
+
+    const result = await service.executive(TODAY, 6);
+
+    expect(result.kpis.find((kpi) => kpi.key === 'onTimeRate')?.value).toBe(50);
+  });
+
   it('shows empty dashboards as "—" rather than errors', async () => {
     const { service } = setup({ invoices: [], links: [], contents: [], creators: [] });
 

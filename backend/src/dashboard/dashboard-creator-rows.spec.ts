@@ -61,7 +61,10 @@ describe("the executive dashboard's creator rows", () => {
       [
         { creatorId: 'ana', deadline: '2026-11-05', videoSubmittedAt: '2026-11-04', isProposal: false },
         { creatorId: 'ana', deadline: '2026-11-10', videoSubmittedAt: '2026-11-12', isProposal: false },
+        // Missed: counts against the rate, as on Creator Database (computePerformance).
         { creatorId: 'ana', deadline: '2026-11-20', videoSubmittedAt: null, isProposal: false },
+        // Not due yet: not counted at all.
+        { creatorId: 'ana', deadline: '2026-11-28', videoSubmittedAt: null, isProposal: false },
       ],
       'views',
       'desc',
@@ -74,7 +77,7 @@ describe("the executive dashboard's creator rows", () => {
       spending: 1_000_000,
       sent: 2,
       quota: 5,
-      onTimeRate: 50,
+      onTimeRate: 100 / 3,
       views: 4_000,
       costPer1000Views: 250_000,
     });
