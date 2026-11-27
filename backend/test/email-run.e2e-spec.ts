@@ -115,6 +115,7 @@ describe('the 08:00 email run (e2e)', () => {
       retried: expect.any(Number),
       resent: expect.any(Number),
       reminded: expect.any(Number),
+      closed: expect.any(Number),
     });
     expect(second.status).toBe(200);
     const rows = await reminderRows(due.id);
@@ -140,6 +141,29 @@ describe('the 08:00 email run (e2e)', () => {
     const rows = await reminderRows(due.id);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ status: 'failed', attempts: 0, last_error: 'PortNotReady' });
+  });
+
+  // Review on #264 (Kak Satria, AC 8, OWASP A09): a row left sending for 30 minutes may have gone
+  // out, so the run closes it instead of sending it again, and its answer counts it.
+  it('closes an email left sending for 30 minutes and counts it in the answer', async () => {
+    const store = new PrismaEmailLogStore(prisma);
+    const email = {
+      eventKey: `${MARKER}-stuck-${Date.now()}`,
+      template: 'content_scheduled',
+      recipient: `${MARKER}-salsa@example.com`,
+      payload: {},
+    };
+    await store.claim(email);
+    await store.startSending(email.eventKey, email.recipient, new Date(Date.now() - 31 * 60 * 1000));
+
+    const response = await runWith({ 'x-sync-secret': SECRET });
+
+    expect(response.status).toBe(200);
+    expect(response.body.closed).toBeGreaterThanOrEqual(1);
+    const row = await prisma.email_log.findUniqueOrThrow({
+      where: { event_key_recipient: { event_key: email.eventKey, recipient: email.recipient } },
+    });
+    expect(row).toMatchObject({ status: 'failed', attempts: 3, last_error: 'UnknownOutcome' });
   });
 
   // Review on #253 (Davin, Gunta): two runs at once claim a failed row once, so it is sent once.

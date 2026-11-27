@@ -112,8 +112,11 @@ export class EmailNotifier {
       // Rendering counts against the same 10 seconds: the Paid email reads its PDF first (11.4).
       const sending = (async () => {
         const rendered = await this.templates.render(template, payload);
-        // Too late: the email is marked failed and the 08:00 run will send it (AC 8).
+        // Too late: the email is already marked failed, so it must not go out now (AC 8).
         if (clock.expired) return;
+        // Review on #253 (Kak Satria, AC 8): from here the mail server may accept it, so a row
+        // whose sent mark is lost stays sending and is closed by the 08:00 run, never sent again.
+        await this.store.startSending(eventKey, recipient, this.clock());
         await this.sender.send({ to: recipient, senderName: EMAIL_SENDER_NAME, ...rendered });
       })();
       await this.withinTimeout(sending, clock);
