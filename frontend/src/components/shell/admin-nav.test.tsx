@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
 describe("AdminNav", () => {
   // PBI-23 AC 1 and 3: the Super Admin menu stays hidden from everyone else.
-  it("adds Log Aktivitas for a Super Admin, as the sixth equal tile on a phone", () => {
+  it("adds Log Aktivitas for a Super Admin, as the seventh equal tile on a phone", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/log-aktivitas");
 
     render(
@@ -22,7 +22,7 @@ describe("AdminNav", () => {
     expect(link).toHaveAttribute("aria-current", "page");
     expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getAllByRole("link").at(-1)).toBe(link);
-    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-6");
+    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-7");
   });
 
   it("hides Log Aktivitas from a regular Admin", () => {
@@ -153,16 +153,28 @@ describe("AdminNav", () => {
     );
   });
 
+  // Prototype (Sprint 4, PBI-24): the executive Dashboard is the admin's first place.
+  it("puts Dashboard first, linked to the executive dashboard and current there", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/dashboard");
+
+    render(<AdminNav />);
+
+    const link = screen.getByRole("link", { name: "Dashboard" });
+    expect(link).toHaveAttribute("href", "/admin/dashboard");
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(screen.getAllByRole("link")[0]).toBe(link);
+  });
+
   // The approved design replaces the phone's sideways-scrolling row (where "Pembayaran"
   // sat cut off at the edge) with equal tiles at the foot of the screen, one per place, so with
-  // Performa Konten there are four: every place is in sight, nothing to scroll to, no edge to fade.
-  it("lays the places out as four equal tiles on a phone, none of them cut off", () => {
+  // Dashboard there are five: every place is in sight, nothing to scroll to, no edge to fade.
+  it("lays the places out as five equal tiles on a phone, none of them cut off", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators");
 
     render(<AdminNav />);
     const list = screen.getByRole("list");
 
-    expect(list).toHaveClass("grid", "grid-cols-4");
+    expect(list).toHaveClass("grid", "grid-cols-5");
     expect(list).not.toHaveClass("overflow-x-auto");
     expect(list).not.toHaveAttribute("data-more");
   });
