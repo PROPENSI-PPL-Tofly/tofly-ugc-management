@@ -201,6 +201,7 @@ function toRow(item: RawContentListItem): CreatorContentRow {
     tags: item.tags,
     revisionCount: item.revisionCount,
     platforms: item.platforms,
+    closedAt: item.closedAt ?? null,
   };
 }
 

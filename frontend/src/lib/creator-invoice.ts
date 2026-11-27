@@ -97,9 +97,13 @@ export const CREATOR_INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   cancelled: "Dibatalkan",
 };
 
+/** Said of the total of an invoice an early end cancelled, for the admin and the creator alike. */
+export const CANCELLED_TOTAL_LABEL = "Dibatalkan, tidak dibayar";
+
 /** The total's name as the prototype gives it to a creator: an estimate until it is frozen. */
 export function totalLabel(status: InvoiceStatus): string {
   if (status === "accruing") return "Estimasi Pendapatan";
+  if (status === "cancelled") return CANCELLED_TOTAL_LABEL;
   return status === "paid" ? "Total Dibayarkan" : "Total Final";
 }
 

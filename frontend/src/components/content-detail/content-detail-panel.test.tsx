@@ -1948,3 +1948,14 @@ describe("ContentDetailPanel follow-up notes", () => {
     expect(screen.queryByText("Catatan susulan ditambahkan")).toBeNull();
   });
 });
+
+describe("a content an early end closed", () => {
+  it("reads Ditutup in the header and counts no days down to its deadline", async () => {
+    open(detail({ status: "scheduled", closedAt: "2026-11-20T03:00:00.000Z", deadline: "2099-01-01" }));
+
+    const meta = await screen.findByTestId("modal-meta");
+    expect(within(meta).getByText("Ditutup")).toBeInTheDocument();
+    expect(within(meta).queryByText("Scheduled")).not.toBeInTheDocument();
+    expect(screen.queryByText(/H-\d+/)).not.toBeInTheDocument();
+  });
+});

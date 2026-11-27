@@ -110,3 +110,13 @@ describe("CreatorCalendar", () => {
     expect(container.querySelector("img,script")).toBeNull();
   });
 });
+
+describe("a content an early end closed", () => {
+  it("names its chip Ditutup", () => {
+    renderCalendar("2026-10-21", [entry({ closedAt: "2026-11-20T03:00:00.000Z" })]);
+
+    expect(
+      within(cell("2026-10-01")).getByRole("button", { name: "Evg_1_RanggaPratama_01102026 · Ditutup" }),
+    ).toBeInTheDocument();
+  });
+});

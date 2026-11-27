@@ -538,3 +538,10 @@ describe("invoiceActivity with fixed rate changes", () => {
     expect(entries.map((entry) => entry.id)).toEqual(["rate-early", "c", "rate-mid", "finalized"]);
   });
 });
+
+describe("totalLabel for an invoice an early end cancelled", () => {
+  it("says the total is not paid, and adds no note that it may still change", () => {
+    expect(totalLabel("cancelled")).toBe("Dibatalkan, tidak dibayar");
+    expect(totalNote("cancelled")).toBeNull();
+  });
+});

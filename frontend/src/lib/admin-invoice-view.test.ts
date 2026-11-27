@@ -233,3 +233,11 @@ describe("ADMIN_EVENT_TEXT", () => {
     expect(ADMIN_EVENT_TEXT.paid).toBe("Creator mengonfirmasi pembayaran diterima");
   });
 });
+
+// QA: a cancelled invoice still read "Total Final" over an amount, as if it were owed.
+describe("adminTotalLabel for an invoice an early end cancelled", () => {
+  it("says the total is not paid, and adds no note that it may still change", () => {
+    expect(adminTotalLabel("cancelled")).toBe("Dibatalkan, tidak dibayar");
+    expect(adminTotalNote("cancelled")).toBeNull();
+  });
+});

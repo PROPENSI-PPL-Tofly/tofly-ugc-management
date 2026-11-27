@@ -10,7 +10,6 @@ import { useDiscardGuard } from "@/components/ui/use-discard-guard";
 import { FIELD, Field } from "@/components/creators/contract-terms-fields";
 import { EARLY_END_REASON_LABELS } from "@/lib/contract-extension";
 import type { CreatorPeriod } from "@/lib/creator-detail";
-import { localCalendarDay } from "@/lib/creator-form";
 import type { EarlyEndReason } from "@/lib/creators";
 import {
   ACCESS_LABELS,
@@ -27,7 +26,7 @@ import {
   type UpcomingChoice,
 } from "@/lib/early-end";
 import { endContractEarly, previewEarlyEnd, type EarlyEndPlan, type PlannedPeriod } from "@/lib/early-end-api";
-import { formatContractWindow, formatDate } from "@/lib/format";
+import { formatContractWindow, formatDate, jakartaDay } from "@/lib/format";
 
 type ErrorField = keyof EarlyEndErrors;
 
@@ -154,7 +153,7 @@ function Consequences({ plan, form }: { plan: EarlyEndPlan; form: EarlyEndForm }
           <Consequence
             label="Invoice"
             value={`Bisa difinalisasi mulai ${formatDate(plan.finalizableFrom)}`}
-            tip="Fixed rate tetap penuh. Potong lewat penyesuaian sebelum finalize."
+            detail="Fixed rate tetap penuh. Potong lewat penyesuaian sebelum finalize."
           />
         )}
         <Consequence label="Akses Creator" value={ACCESS_LABELS[plan.access]} />
@@ -190,7 +189,8 @@ export function EndContractEarlyModal({
   /** The end was saved, with the plan the API carried out. */
   onEnded: (plan: EarlyEndPlan) => void;
 }) {
-  const today = localCalendarDay(new Date());
+  // Jakarta's day, as the API counts it, not the browser's: an admin abroad sees the same range.
+  const today = jakartaDay();
   const noteCountId = useId();
   const [form, setForm] = useState<EarlyEndForm>(EMPTY_EARLY_END_FORM);
   const [touched, setTouched] = useState<ReadonlySet<ErrorField>>(new Set());

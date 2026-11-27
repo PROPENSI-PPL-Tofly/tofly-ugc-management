@@ -116,6 +116,8 @@ export interface RawContentDetail {
    * AC 1, 3, 9); null otherwise and on a creator's read, absent in an answer from before 25.2.
    */
   edit?: EditWindow | null;
+  /** When an early end closed the content (ISO time); null while it is open. */
+  closedAt?: string | null;
 }
 
 export type ContentDetail = RawContentDetail;
