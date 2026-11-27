@@ -217,6 +217,41 @@ describe("one confirmation for the whole page", () => {
     expect(requestConfirmation).toHaveBeenCalledTimes(1);
   });
 
+  // The backend keeps the confirmation on the session, so a reload or a later visit within the
+  // 15 minutes starts from it instead of emailing another code (AC 11).
+  it("lets an action through without a code while the session the page loaded with is confirmed", () => {
+    const run = vi.fn();
+    render(
+      <AdminConfirmationProvider confirmedUntil={new Date(Date.now() + 5 * 60_000).toISOString()}>
+        <Harness run={run} />
+      </AdminConfirmationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(requestConfirmation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a confirmation that has run out", new Date(Date.now() - 60_000).toISOString()],
+    ["no confirmation", null],
+    ["a time it cannot read", "not-a-time"],
+  ])("asks for a code when the page loaded with %s", async (_label, confirmedUntil) => {
+    const run = vi.fn();
+    render(
+      <AdminConfirmationProvider confirmedUntil={confirmedUntil}>
+        <Harness run={run} />
+      </AdminConfirmationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByLabelText("Digit 1 dari 6");
+
+    expect(run).not.toHaveBeenCalled();
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+  });
+
   // StrictMode runs an effect twice in development; two emails would leave the first code dead.
   it("emails one code per opening, even when React runs the opening twice", async () => {
     render(

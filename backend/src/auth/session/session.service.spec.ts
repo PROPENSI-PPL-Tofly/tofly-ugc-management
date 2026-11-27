@@ -90,7 +90,8 @@ function repository(): SessionRepository & {
     updateMany: vi.fn(
       async (args: Parameters<SessionRepository['updateMany']>[0]) => {
         const current = records.get(args.where.idHash);
-        if (current) records.set(args.where.idHash, { ...current, ...args.data });
+        if (current)
+          records.set(args.where.idHash, { ...current, ...args.data });
         return { count: current ? 1 : 0 };
       },
     ),
@@ -423,6 +424,17 @@ describe('AppSessionService', () => {
       await expect(sessions.isConfirmed(id)).resolves.toBe(false);
     });
 
+    it('tells until when the session stays confirmed, and nothing once it has run out', async () => {
+      const { id } = await sessions.start(response(), CREATOR);
+      await expect(sessions.confirmedUntil(id)).resolves.toBeNull();
+
+      await sessions.confirm(id, UNTIL);
+      await expect(sessions.confirmedUntil(id)).resolves.toEqual(UNTIL);
+
+      currentTime = new Date(UNTIL);
+      await expect(sessions.confirmedUntil(id)).resolves.toBeNull();
+    });
+
     it('reads a session nobody confirmed as unconfirmed', async () => {
       const { id } = await sessions.start(response(), CREATOR);
 
@@ -444,6 +456,7 @@ describe('AppSessionService', () => {
     ])('neither confirms nor reads %s', async (_label, id) => {
       await expect(sessions.confirm(id, UNTIL)).resolves.toBe(false);
       await expect(sessions.isConfirmed(id)).resolves.toBe(false);
+      await expect(sessions.confirmedUntil(id)).resolves.toBeNull();
       expect(store.updateMany).not.toHaveBeenCalled();
     });
 
