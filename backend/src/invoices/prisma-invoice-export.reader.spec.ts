@@ -7,7 +7,9 @@ function row(overrides: Record<string, unknown> = {}) {
   return {
     id: INVOICE_ID,
     status: 'finalized',
-    finalized_at: new Date('2026-07-15T07:00:00.000Z'),
+    invoice_number: 'TOF-INV-202607-014',
+    // 01:00 in Jakarta on the 16th: the sheet must show the Jakarta day, not the UTC one.
+    finalized_at: new Date('2026-07-15T18:00:00.000Z'),
     acknowledged_at: new Date('2026-07-16T07:00:00.000Z'),
     paid_at: null,
     snapshot: {
@@ -47,7 +49,10 @@ function row(overrides: Record<string, unknown> = {}) {
 
 function readerFor(rows: unknown[]) {
   const findMany = vi.fn().mockResolvedValue(rows);
-  return { reader: new PrismaInvoiceExportReader({ invoices: { findMany } } as never), findMany };
+  return {
+    reader: new PrismaInvoiceExportReader({ invoices: { findMany } } as never),
+    findMany,
+  };
 }
 
 describe('PrismaInvoiceExportReader (31.4)', () => {
@@ -72,6 +77,7 @@ describe('PrismaInvoiceExportReader (31.4)', () => {
       {
         id: INVOICE_ID,
         status: 'finalized',
+        invoiceNumber: 'TOF-INV-202607-014',
         creatorName: 'Budi Santoso',
         creatorEmail: 'budi@example.com',
         period: 2,
@@ -80,12 +86,10 @@ describe('PrismaInvoiceExportReader (31.4)', () => {
         additionalContent: 200_000,
         performanceBonus: 50_000,
         penalty: 0,
-        adjustments: [
-          { reason: 'Koreksi', amount: 25_000, corrected: true },
-        ],
+        adjustments: [{ reason: 'Koreksi', amount: 25_000, corrected: true }],
         total: 1_525_000,
-        finalizedAt: '2026-07-15T07:00:00.000Z',
-        acknowledgedAt: '2026-07-16T07:00:00.000Z',
+        finalizedAt: '2026-07-16',
+        acknowledgedAt: '2026-07-16',
         paidAt: null,
       },
     ]);
@@ -99,6 +103,11 @@ describe('PrismaInvoiceExportReader (31.4)', () => {
     expect(source.finalizedAt).toBeNull();
     expect(source.acknowledgedAt).toBeNull();
     expect(source.paidAt).toBeNull();
+  });
+
+  it('passes on a missing number instead of making one up', async () => {
+    const { reader } = readerFor([row({ invoice_number: null })]);
+    expect((await reader.read([INVOICE_ID]))[0].invoiceNumber).toBeNull();
   });
 
   it('treats an invoice without a usable snapshot as running, so it is skipped', async () => {

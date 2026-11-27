@@ -15,13 +15,12 @@ describe('InvoiceExportController (31.4)', () => {
     ).toContain(AdminGuard);
   });
 
-  it('validates the body and streams the ZIP as an attachment', async () => {
-    const archive = Buffer.from('PK');
+  it('validates the body and streams the xlsx as an attachment', async () => {
     const exportPdf = vi.fn().mockResolvedValue({
-      archive,
+      workbook: Buffer.from('PK'),
       exported: 1,
       skipped: [],
-      filename: 'Rekap_Invoice_20260720.zip',
+      filename: 'Rekap_Invoice_20260720.xlsx',
     });
     const controller = new InvoiceExportController({
       export: exportPdf,
@@ -34,9 +33,12 @@ describe('InvoiceExportController (31.4)', () => {
 
     expect(exportPdf).toHaveBeenCalledWith([ID], expect.any(Date));
     expect(result).toBeInstanceOf(StreamableFile);
-    const options = (result as unknown as { options: Record<string, string> }).options;
-    expect(options.type).toBe('application/zip');
-    expect(options.disposition).toContain('Rekap_Invoice_20260720.zip');
+    const options = (result as unknown as { options: Record<string, string> })
+      .options;
+    expect(options.type).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(options.disposition).toContain('Rekap_Invoice_20260720.xlsx');
   });
 
   it('refuses a caller without an admin principal before reading anything', async () => {
