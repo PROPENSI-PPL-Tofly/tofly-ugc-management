@@ -10,6 +10,8 @@ import { parsePage } from "@/lib/creators";
 import { jakartaDay } from "@/lib/format";
 import { fetchMyTasks } from "@/lib/my-tasks.server";
 import { fetchAllMyTasks } from "@/lib/task-calendar.server";
+import { CREATOR_INVOICES_PATH } from "@/lib/creator-invoice";
+import { redirect } from "next/navigation";
 import { calendarParams, parseTaskView, taskViewParams, type TaskView } from "@/lib/task-view";
 import {
   MY_TASKS_BASE,
@@ -37,6 +39,7 @@ type Loaded =
     | { kind: "ok"; result: MyTasksResponse; pastEnd: number | null }
     | { kind: "calendar"; tasks: MyTask[]; counts: MyTasksCounts }
     | { kind: "signed_out" }
+    | { kind: "payments_only" }
     | { kind: "failed" };
 
 /**
@@ -64,9 +67,10 @@ async function load(state: MyTasksParams, view: TaskView): Promise<Loaded> {
 
     return { kind: "ok", result, pastEnd: null };
   } catch (error) {
-    return error instanceof MyTasksError && error.status === 401
-        ? { kind: "signed_out" }
-        : { kind: "failed" };
+    if (!(error instanceof MyTasksError)) return { kind: "failed" };
+    if (error.status === 401) return { kind: "signed_out" };
+    // PBI-37 (AC 13): the backend opens only Pembayaran while an invoice is all that is left.
+    return error.code === "PAYMENTS_ONLY" ? { kind: "payments_only" } : { kind: "failed" };
   }
 }
 
@@ -128,6 +132,7 @@ export default async function TaskSayaPage({
   const state = view === "calendar" ? calendarParams(parsed) : parsed;
   const invalidStatuses = unknownStatuses(params);
   const loaded = await load(state, view);
+  if (loaded.kind === "payments_only") redirect(CREATOR_INVOICES_PATH);
   const firstPage = buildMyTasksQuery({ ...state, page: 1 });
   const retrySearch = new URLSearchParams({
     ...buildMyTasksQuery(state),
