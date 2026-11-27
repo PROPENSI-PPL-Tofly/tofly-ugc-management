@@ -25,9 +25,10 @@ function isWithin(pathname: string, href: string): boolean {
 // the current place are the theme's.
 const TILE = `flex flex-col items-center justify-center gap-1 rounded-xl bg-surface-2 px-1 py-2 text-center text-[11.5px] font-bold leading-tight text-ink-2 transition-[background-color,color,scale] hover:bg-rule-2 hover:text-ink active:scale-[.96] motion-reduce:active:scale-100 md:min-h-10 md:flex-row md:justify-start md:gap-2.5 md:rounded-(--radius-control) md:px-3 md:py-0 md:text-left md:text-[13px] md:font-semibold ${PHONE_TARGET}`;
 
-// One column per place, so every role's places share one row of equal tiles on a phone. Whole
-// class names, so Tailwind finds them.
-const COLUMNS: Record<number, string> = { 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6", 7: "grid-cols-7" };
+// One column per place, so every role's places share one row of equal tiles on a phone. Seven
+// (a Super Admin's) would leave each about 45px, too narrow for "Pembayaran", so they take two
+// rows of four. Whole class names, so Tailwind finds them.
+const COLUMNS: Record<number, string> = { 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6", 7: "grid-cols-4" };
 
 /**
  * The menu shared by every role: each role passes its places and its frame's colours, so a new

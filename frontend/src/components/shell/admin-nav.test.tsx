@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
 describe("AdminNav", () => {
   // PBI-23 AC 1 and 3: the Super Admin menu stays hidden from everyone else.
-  it("adds Log Aktivitas for a Super Admin, as the seventh equal tile on a phone", () => {
+  it("adds Log Aktivitas for a Super Admin, the seventh tile, in two rows of four on a phone", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/log-aktivitas");
 
     render(
@@ -22,7 +22,8 @@ describe("AdminNav", () => {
     expect(link).toHaveAttribute("aria-current", "page");
     expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getAllByRole("link").at(-1)).toBe(link);
-    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-7");
+    // Seven across leaves about 45px a tile at 375px, which cuts off "Pembayaran" (seen locally).
+    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-4");
   });
 
   it("hides Log Aktivitas from a regular Admin", () => {
