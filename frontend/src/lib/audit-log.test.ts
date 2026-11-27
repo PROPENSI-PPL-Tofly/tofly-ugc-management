@@ -485,6 +485,42 @@ describe("auditChangeShown", () => {
     expect(shown("status", "archived", "paid").from).toBe("archived");
   });
 
+  // The readers of stored lists and objects keep anything they cannot read as it was stored.
+  it.each([
+    ["keptPeriods", "not json"],
+    ["keptPeriods", '["dua"]'],
+    ["socialAccounts", '{"platform":"instagram"}'],
+    ["socialAccounts", '[{"platform":"instagram"}]'],
+    ["contract", "[]"],
+    ["contract", '{"startDate":"2026-01-01"}'],
+    ["performanceBonus", '"text"'],
+    ["bufferDays", "lima"],
+    ["closedContents", "n/a"],
+  ])("keeps %s %s as stored", (field, stored) => {
+    expect(shown(field, stored, EMPTY).from).toBe(stored);
+  });
+
+  it("reads an empty account list and an empty bonus as the dash", () => {
+    expect(shown("socialAccounts", "[]", EMPTY).from).toBe(EMPTY);
+    expect(shown("performanceBonus", "{}", EMPTY).from).toBe(EMPTY);
+  });
+
+  it("reads a contract without type, quota or rate by its dates alone", () => {
+    expect(shown("contract", '{"startDate":"2026-08-19","endDate":"2027-02-15"}', EMPTY).from).toBe(
+      `${formatDate("2026-08-19")} – ${formatDate("2027-02-15")}`,
+    );
+  });
+
+  it("names a platform it does not know by its key, and a bonus without tiers as 0", () => {
+    expect(shown("performanceBonus", '{"youtube":{"metric":"views"}}', EMPTY).from).toBe(
+      "youtube: views, 0 tingkat",
+    );
+    expect(shown("socialAccounts", '[{"platform":"youtube","username":"x"}]', EMPTY).from).toBe(
+      "youtube @x",
+    );
+    expect(shown("contract", '{"contractType":"trial","startDate":"2026-08-19","endDate":"2027-02-15"}', EMPTY).from).toMatch(/^trial · /);
+  });
+
   it("keeps a field it does not know under its own name", () => {
     expect(shown("days", "7", "5")).toEqual({ label: "days", from: "7", to: "5" });
   });
