@@ -1,4 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { jakartaDay } from '../creators/evergreen.js';
 import {
   isSkippable,
   toExportLine,
@@ -20,10 +25,10 @@ export interface SkippedInvoice {
 }
 
 export interface ExportResult {
-  archive: Buffer;
+  /** The xlsx itself (an xlsx is already a ZIP, so it is not wrapped again). */
+  workbook: Buffer;
   exported: number;
   skipped: SkippedInvoice[];
-  /** The attachment name; the ZIP contains one xlsx under the same day. */
   filename: string;
 }
 
@@ -39,13 +44,21 @@ export class InvoiceExportService {
     private readonly reader: InvoiceExportReader,
   ) {}
 
-  /** One ZIP with one xlsx recap, in the order the admin ticked the rows. */
+  /** One xlsx recap, in the order the admin ticked the rows, named after the Jakarta day. */
   async export(
     ids: readonly string[],
     today = new Date(),
   ): Promise<ExportResult> {
     const sources = await this.reader.read(ids);
     const kept = sources.filter((source) => !isSkippable(source.status));
+    if (kept.length === 0) {
+      // A file with only a header row would read as a successful download of nothing.
+      throw new UnprocessableEntityException({
+        code: 'INVOICE_EXPORT_EMPTY',
+        message: 'Tidak ada invoice yang bisa diunduh.',
+      });
+    }
+
     const skipped = sources
       .filter((source) => isSkippable(source.status))
       .map((source) => ({
@@ -53,17 +66,12 @@ export class InvoiceExportService {
         reason: SKIP_LABELS[source.status],
       }));
 
-    const lines = kept.map((source, index) => toExportLine(source, index + 1, today));
-    const day = today.toISOString().slice(0, 10).replace(/-/g, '');
-    const sheetName = `Rekap_Invoice_${day}.xlsx`;
-    const workbook = zipFiles(xlsxFiles(lines, today));
-    const archive = zipFiles([{ name: sheetName, content: workbook }]);
-
+    const day = jakartaDay(today).replace(/-/g, '');
     return {
-      archive,
+      workbook: zipFiles(xlsxFiles(kept.map(toExportLine))),
       exported: kept.length,
       skipped,
-      filename: `Rekap_Invoice_${day}.zip`,
+      filename: `Rekap_Invoice_${day}.xlsx`,
     };
   }
 }

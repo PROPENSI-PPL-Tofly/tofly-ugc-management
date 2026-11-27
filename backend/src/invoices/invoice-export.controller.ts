@@ -11,6 +11,9 @@ import { unauthenticated } from '../auth/creator-request.js';
 import { checkBulkExportRequest } from './bulk-export-request.js';
 import { InvoiceExportService } from './invoice-export.service.js';
 
+const XLSX_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 /** The admin's bulk download. A separate controller keeps the invoice read routes untouched. */
 @Controller('invoices')
 @UseGuards(AdminGuard)
@@ -30,8 +33,8 @@ export class InvoiceExportController {
       new Date(),
     );
 
-    return new StreamableFile(result.archive, {
-      type: 'application/zip',
+    return new StreamableFile(result.workbook, {
+      type: XLSX_TYPE,
       disposition: `attachment; filename*=UTF-8''${encodeURIComponent(result.filename)}`,
     });
   }
