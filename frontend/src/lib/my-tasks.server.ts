@@ -1,4 +1,4 @@
-import { readBody } from "./response-body";
+import { refusalCode } from "./response-body";
 import { appSessionCookieHeader } from "./session-cookie";
 import {
     MY_TASKS_PAGE_SIZE,
@@ -31,12 +31,6 @@ function isRawMyContents(body: unknown): body is RawMyContents {
     return body.items.every(
         (item) => isRecord(item) && typeof item.id === "string" && Array.isArray(item.actions),
     );
-}
-
-/** The machine code of a refusal, such as PAYMENTS_ONLY, or null when it sends none. */
-async function refusalCode(response: Response): Promise<string | null> {
-    const code = (await readBody(response) as { code?: unknown } | null)?.code;
-    return typeof code === "string" ? code : null;
 }
 
 /**

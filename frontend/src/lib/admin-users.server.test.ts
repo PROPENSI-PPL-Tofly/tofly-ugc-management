@@ -53,7 +53,7 @@ describe("fetchAdminUsers", () => {
 
     expect(outcome).toEqual({
       kind: "loaded",
-      list: { items: expect.any(Array), page: 1, pageSize: 10, total: 1, totalPages: 1 },
+      list: { items: expect.any(Array), page: 1, pageSize: 10, total: 1, totalPages: 1, confirmedUntil: null },
     });
     expect(fetchSpy).toHaveBeenCalledWith(
       "http://backend:3001/admin-users?q=rangga+pratama&page=2",

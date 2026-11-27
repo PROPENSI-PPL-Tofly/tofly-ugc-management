@@ -29,7 +29,7 @@ import {
 import { AdminUsersService } from './admin-users.service.js';
 import type {
   AdminUserDto,
-  AdminUserListResponse,
+  AdminUserListAnswer,
 } from './dto/admin-user.dto.js';
 
 type SignedIn = Pick<AdminRequest, 'principal' | 'cookies'>;
@@ -68,13 +68,17 @@ export class AdminUsersController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('q') q: unknown,
     @Req() request: SignedIn,
-  ): Promise<AdminUserListResponse> {
+  ): Promise<AdminUserListAnswer> {
     const actor = actorOf(request);
-    return this.admins.list(
-      checkPaging(page, DEFAULT_PAGE_SIZE),
-      searchText(q),
-      actor,
-    );
+    const [list, until] = await Promise.all([
+      this.admins.list(
+        checkPaging(page, DEFAULT_PAGE_SIZE),
+        searchText(q),
+        actor,
+      ),
+      this.sessions.confirmedUntil(this.sessionOf(request)),
+    ]);
+    return { ...list, confirmedUntil: until?.toISOString() ?? null };
   }
 
   @Post()

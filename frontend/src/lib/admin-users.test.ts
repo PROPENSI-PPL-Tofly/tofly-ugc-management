@@ -106,6 +106,22 @@ describe("the admin list's rows", () => {
     expect(list.totalPages).toBe(2);
   });
 
+  it("keeps until when the signed-in session stays confirmed", () => {
+    const until = "2026-11-28T02:00:00.000Z";
+
+    expect(
+      toAdminUserList({ items: [], page: 1, pageSize: 10, total: 0, confirmedUntil: until })
+        .confirmedUntil,
+    ).toBe(until);
+  });
+
+  it.each([null, undefined, 42])("reads a confirmedUntil of %s as no confirmation", (value) => {
+    expect(
+      toAdminUserList({ items: [], page: 1, pageSize: 10, total: 0, confirmedUntil: value })
+        .confirmedUntil,
+    ).toBeNull();
+  });
+
   it("reads an inactive admin who never signed in", () => {
     const list = toAdminUserList({
       items: [{ ...API_USER, status: "inactive", lastSignedInAt: null }],

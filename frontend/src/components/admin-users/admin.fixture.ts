@@ -28,6 +28,7 @@ export function listResponse(
     pageSize,
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    confirmedUntil: null,
     ...overrides,
   };
 }

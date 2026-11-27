@@ -31,6 +31,7 @@ function setup(confirmed = false) {
   const sessions = {
     cookieName: vi.fn(() => COOKIE),
     isConfirmed: vi.fn().mockResolvedValue(confirmed),
+    confirmedUntil: vi.fn().mockResolvedValue(null),
   };
   const confirmation = {
     request: vi.fn().mockResolvedValue({ validMinutes: 10 }),
@@ -63,6 +64,33 @@ describe('AdminUsersController', () => {
       'sinta',
       'user-super',
     );
+  });
+
+  // PBI-23 (AC 11): one code covers 15 minutes on this session, so the page has to know a
+  // confirmation it did not see being given, after a reload or a later visit.
+  it('tells the page until when its session stays confirmed', async () => {
+    const { sessions, controller } = setup();
+    sessions.confirmedUntil.mockResolvedValue(
+      new Date('2026-11-28T02:00:00.000Z'),
+    );
+
+    const answer = await controller.list(1, undefined, SIGNED_IN);
+
+    expect(sessions.confirmedUntil).toHaveBeenCalledWith('opaque-id');
+    expect(answer).toMatchObject({
+      items: [],
+      confirmedUntil: '2026-11-28T02:00:00.000Z',
+    });
+  });
+
+  it('tells the page nothing is confirmed when the session holds no confirmation', async () => {
+    const { controller } = setup();
+
+    await expect(
+      controller.list(1, undefined, SIGNED_IN),
+    ).resolves.toMatchObject({
+      confirmedUntil: null,
+    });
   });
 
   it.each([
@@ -110,10 +138,14 @@ describe('AdminUsersController', () => {
     expect(service.create).not.toHaveBeenCalled();
   });
 
-  it('changes an Admin\'s name and role, saying whether this session confirmed', async () => {
+  it("changes an Admin's name and role, saying whether this session confirmed", async () => {
     const { service, controller } = setup();
 
-    await controller.update(ID, { name: ' Sinta D. ', role: 'super_admin' }, SIGNED_IN);
+    await controller.update(
+      ID,
+      { name: ' Sinta D. ', role: 'super_admin' },
+      SIGNED_IN,
+    );
 
     expect(service.update).toHaveBeenCalledWith(
       ID,
@@ -130,7 +162,10 @@ describe('AdminUsersController', () => {
 
     expect(service.deactivate).toHaveBeenCalledWith(ID, 'user-super', true);
     expect(
-      Reflect.getMetadata(HTTP_CODE_METADATA, AdminUsersController.prototype.deactivate),
+      Reflect.getMetadata(
+        HTTP_CODE_METADATA,
+        AdminUsersController.prototype.deactivate,
+      ),
     ).toBe(200);
   });
 
@@ -148,7 +183,11 @@ describe('AdminUsersController', () => {
 
     await controller.verifyConfirmation({ code: '482193' }, SIGNED_IN);
 
-    expect(confirmation.verify).toHaveBeenCalledWith('user-super', 'opaque-id', '482193');
+    expect(confirmation.verify).toHaveBeenCalledWith(
+      'user-super',
+      'opaque-id',
+      '482193',
+    );
   });
 
   it('refuses a code that is not six digits before checking it', async () => {
@@ -168,19 +207,29 @@ describe('AdminUsersController', () => {
     expect(sessions.isConfirmed).toHaveBeenCalledWith('opaque-id');
     expect(service.reactivate).toHaveBeenCalledWith(ID, 'user-super', true);
     expect(
-      Reflect.getMetadata(HTTP_CODE_METADATA, AdminUsersController.prototype.reactivate),
+      Reflect.getMetadata(
+        HTTP_CODE_METADATA,
+        AdminUsersController.prototype.reactivate,
+      ),
     ).toBe(200);
   });
 
   // AdminGuard's local stand-in lets a request with no session through; no actor, no change.
   it.each([
     ['list', (c: AdminUsersController) => c.list(1, undefined, {})],
-    ['create', (c: AdminUsersController) => c.create({ name: 'A', email: 'a@t.id', role: 'admin' }, {})],
+    [
+      'create',
+      (c: AdminUsersController) =>
+        c.create({ name: 'A', email: 'a@t.id', role: 'admin' }, {}),
+    ],
     ['update', (c: AdminUsersController) => c.update(ID, { name: 'A' }, {})],
     ['reactivate', (c: AdminUsersController) => c.reactivate(ID, {})],
     ['deactivate', (c: AdminUsersController) => c.deactivate(ID, {})],
     ['request a code', (c: AdminUsersController) => c.requestConfirmation({})],
-    ['verify a code', (c: AdminUsersController) => c.verifyConfirmation({ code: '482193' }, {})],
+    [
+      'verify a code',
+      (c: AdminUsersController) => c.verifyConfirmation({ code: '482193' }, {}),
+    ],
   ])('answers 401 to %s with no signed-in Admin', async (_label, act) => {
     const { controller } = setup();
 

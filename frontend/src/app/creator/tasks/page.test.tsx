@@ -18,9 +18,16 @@ vi.mock("@/lib/task-calendar.server", () => ({
   fetchAllMyTasks: vi.fn(),
 }));
 
-const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
+const { replace, redirect } = vi.hoisted(() => ({
+  replace: vi.fn(),
+  // As Next does it: redirect() ends the render by throwing.
+  redirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT ${path}`);
+  }),
+}));
 
 vi.mock("next/navigation", () => ({
+  redirect,
   usePathname: () => "/creator/tasks",
   useRouter: () => ({ refresh: vi.fn(), replace }),
   useSearchParams: () => new URLSearchParams(window.location.search),
@@ -223,6 +230,24 @@ describe("Tugas Saya page", () => {
     expect(screen.getByText("Belum ada task.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Berikutnya" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reset filter" })).not.toBeInTheDocument();
+  });
+
+  // PBI-37 (AC 13), OWASP A01: while only an invoice waits, the backend opens nothing but
+  // Pembayaran. Task Saya follows that refusal there instead of offering a reload that cannot work.
+  it("sends a creator who only waits for payment to Pembayaran", async () => {
+    mockedFetch.mockRejectedValue(new MyTasksError(403, "PAYMENTS_ONLY"));
+
+    await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT /creator/payments");
+  });
+
+  it("does not redirect another refusal, only says the list did not load", async () => {
+    redirect.mockClear();
+    mockedFetch.mockRejectedValue(new MyTasksError(403, "SOMETHING_ELSE"));
+
+    await renderPage();
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Daftar tugas tidak bisa dimuat.");
   });
 
   it("tells a visitor who is not signed in as a creator, instead of a broken table", async () => {

@@ -63,6 +63,18 @@ describe("fetchMyConnectedAccounts", () => {
     expect((error as ConnectedAccountsError).status).toBe(status);
   });
 
+  it("keeps the backend's refusal code, such as PAYMENTS_ONLY", async () => {
+    mockedGet.mockResolvedValue(answer({ code: "PAYMENTS_ONLY" }, 403));
+
+    await expect(fetchMyConnectedAccounts()).rejects.toMatchObject({ status: 403, code: "PAYMENTS_ONLY" });
+  });
+
+  it("keeps no code when the refusal names none", async () => {
+    mockedGet.mockResolvedValue(answer("<html>no</html>", 500));
+
+    await expect(fetchMyConnectedAccounts()).rejects.toMatchObject({ status: 500, code: null });
+  });
+
   it("throws as unusable (502) when a 200 carries no JSON", async () => {
     mockedGet.mockResolvedValue(answer("<html>oops</html>"));
 
