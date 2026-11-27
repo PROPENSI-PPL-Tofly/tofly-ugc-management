@@ -101,6 +101,38 @@ describe("CodeBoxes", () => {
     expect(boxes()[3]).toHaveFocus();
   });
 
+  // QA: typing the digit a box already holds changes nothing the browser reports, so the cursor
+  // stayed put and the next digit landed in the same box (260802 became 260820).
+  it("moves on when the digit typed is the one the box already holds", () => {
+    render(<Harness initial="123400" />);
+    boxes()[4].focus();
+
+    fireEvent.keyDown(boxes()[4], { key: "0" });
+
+    expect(values()).toBe("123400");
+    expect(boxes()[5]).toHaveFocus();
+  });
+
+  it("writes a typed digit over a filled box from the key itself, keeping the order", () => {
+    render(<Harness initial="123400" />);
+    boxes()[0].focus();
+
+    for (const key of "260802") {
+      fireEvent.keyDown(document.activeElement as Element, { key });
+    }
+
+    expect(values()).toBe("260802");
+  });
+
+  it("leaves a digit typed with a modifier to the browser", () => {
+    render(<Harness initial="1" />);
+    boxes()[0].focus();
+
+    fireEvent.keyDown(boxes()[0], { key: "5", ctrlKey: true });
+
+    expect(values()).toBe("1_____");
+  });
+
   it("stays on the last box once it is filled", () => {
     render(<Harness initial="12345" />);
     boxes()[5].focus();
