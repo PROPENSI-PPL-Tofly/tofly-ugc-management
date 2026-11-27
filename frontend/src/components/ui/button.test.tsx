@@ -34,4 +34,18 @@ describe("Button", () => {
   it("lends the same press to a link drawn as a button", () => {
     expect(buttonClasses("accent").split(" ")).toContain(PHONE_TARGET);
   });
+
+  it("keeps the regular padding unless asked for the small size", () => {
+    expect(buttonClasses().split(" ")).toEqual(expect.arrayContaining(["px-3", "py-1.5"]));
+    expect(buttonClasses("default", "md")).toBe(buttonClasses());
+  });
+
+  // The prototype's .btn.sm, such as a KPI card's Coba lagi: tighter padding, the same 44px press.
+  it("draws the small size with tighter padding, still a 44px press on a phone", () => {
+    const small = buttonClasses("default", "sm").split(" ");
+
+    expect(small).toEqual(expect.arrayContaining(["px-2", "py-1", PHONE_TARGET]));
+    expect(small).not.toContain("px-3");
+    expect(small).not.toContain("py-1.5");
+  });
 });

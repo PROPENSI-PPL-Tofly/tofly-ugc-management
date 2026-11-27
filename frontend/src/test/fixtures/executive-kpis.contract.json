@@ -1,0 +1,19 @@
+{
+  "current": {
+    "totalSpending": 41250000,
+    "unpaidAmount": 6800000,
+    "totalViews": 1284500,
+    "costPer1000Views": 32113.6,
+    "onTimeRate": 86.4,
+    "engagementRate": 5.12,
+    "linksAwaitingData": 3
+  },
+  "previous": {
+    "totalSpending": 36700000,
+    "unpaidAmount": 0,
+    "totalViews": 1102300,
+    "costPer1000Views": 33294,
+    "onTimeRate": 88.1,
+    "engagementRate": null
+  }
+}
