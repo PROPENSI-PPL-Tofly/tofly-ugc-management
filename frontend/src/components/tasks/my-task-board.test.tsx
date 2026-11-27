@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import type { MyTask } from "@/lib/my-tasks";
 import { MyTaskBoard as Board } from "./my-task-board";
@@ -25,6 +25,12 @@ vi.mock("@/lib/content-detail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/content-detail")>()),
   fetchContentDetail: (id: string, role: "admin" | "creator") =>
     fetchContentDetail(id, role),
+}));
+
+// The request is stubbed: cancel-proposal.test covers it.
+const { cancelProposal } = vi.hoisted(() => ({ cancelProposal: vi.fn() }));
+vi.mock("@/lib/cancel-proposal", () => ({
+  cancelProposal: (id: string) => cancelProposal(id),
 }));
 
 function task(overrides: Partial<MyTask> = {}): MyTask {
@@ -470,5 +476,120 @@ describe("MyTaskBoard as a calendar", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Submit Draft" }));
 
     expect(await screen.findByRole("textbox", { name: "Link File Draft" })).toBeInTheDocument();
+  });
+});
+
+// PBI-14 (14.3): "Batalkan Pengajuan" asks first, then withdraws, confirms it in a toast and reads
+// the list again, from the row and from the panel alike.
+describe("MyTaskBoard, withdrawing a pending proposal", () => {
+  const proposal = task({
+    id: "proposal-1",
+    name: "Review Paket Kilat",
+    type: "specific",
+    status: "pending",
+    actions: ["cancel_proposal"],
+  });
+
+  beforeEach(() => {
+    refresh.mockClear();
+    replace.mockClear();
+    cancelProposal.mockReset().mockResolvedValue({ ok: true });
+    fetchContentDetail.mockReset();
+    window.history.pushState({}, "", "/creator/tasks");
+  });
+
+  async function confirmFromRow() {
+    fireEvent.click(screen.getByRole("button", { name: "Batalkan Pengajuan" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Batalkan Pengajuan?" });
+    return dialog;
+  }
+
+  it("asks first, in the prototype's words", async () => {
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    const dialog = await confirmFromRow();
+
+    expect(dialog).toHaveTextContent("“Review Paket Kilat” akan dihapus dari daftar.");
+    expect(within(dialog).getByRole("button", { name: "Kembali" })).toBeInTheDocument();
+    expect(cancelProposal).not.toHaveBeenCalled();
+  });
+
+  it("withdraws nothing when the creator goes back", async () => {
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    const dialog = await confirmFromRow();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kembali" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(cancelProposal).not.toHaveBeenCalled();
+  });
+
+  it("withdraws it, says so and reads the list again", async () => {
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    const dialog = await confirmFromRow();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
+
+    expect(await screen.findByText("Pengajuan dibatalkan.")).toBeInTheDocument();
+    expect(cancelProposal).toHaveBeenCalledExactlyOnceWith("proposal-1");
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("reads the list again when the admin decided first", async () => {
+    cancelProposal.mockResolvedValue({
+      ok: false,
+      stale: true,
+      message: "Pengajuan sudah diputuskan Admin. Muat ulang untuk melihat status terbaru.",
+    });
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    const dialog = await confirmFromRow();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
+
+    expect(
+      await screen.findByText("Pengajuan sudah diputuskan Admin. Muat ulang untuk melihat status terbaru."),
+    ).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the list as it is when the request only failed", async () => {
+    cancelProposal.mockResolvedValue({ ok: false, stale: false, message: "Pengajuan gagal dibatalkan. Coba lagi." });
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    const dialog = await confirmFromRow();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
+
+    expect(await screen.findByText("Pengajuan gagal dibatalkan. Coba lagi.")).toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("withdraws it from the panel too, closing the panel it was open in", async () => {
+    fetchContentDetail.mockResolvedValue({
+      id: "proposal-1",
+      name: "Review Paket Kilat",
+      type: "specific",
+      brief: "",
+      deadline: "2099-12-31",
+      status: "pending",
+      creatorName: "Rangga Pratama",
+      tags: [],
+      waitingOn: "admin",
+      latestSubmissionId: null,
+      creatorActions: ["cancel_proposal"],
+      events: [],
+    });
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review Paket Kilat" }));
+    const panel = await screen.findByRole("dialog");
+    fireEvent.click(await within(panel).findByRole("button", { name: "Batalkan Pengajuan" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Batalkan Pengajuan?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
+
+    expect(await screen.findByText("Pengajuan dibatalkan.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(new URLSearchParams(window.location.search).get("content")).toBeNull();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });

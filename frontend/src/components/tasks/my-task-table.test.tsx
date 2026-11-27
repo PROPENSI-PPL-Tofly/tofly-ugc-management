@@ -300,3 +300,47 @@ describe("MyTaskTable", () => {
     expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });
+
+// PBI-14 (14.3): a pending proposal reads as Menunggu Persetujuan, and its row carries the one
+// move the creator has on it, as the prototype draws it.
+describe("MyTaskTable, a pending proposal", () => {
+  const proposal = task({
+    id: "proposal-1",
+    name: "Review Paket Kilat",
+    type: "specific",
+    status: "pending",
+    actions: ["cancel_proposal"],
+  });
+
+  it("reads Menunggu Persetujuan and offers Batalkan Pengajuan without opening the row", () => {
+    const onCancelProposal = vi.fn();
+    const { onDetail } = renderTable([proposal, task()], { onCancelProposal });
+
+    expect(screen.getByText("Menunggu Persetujuan")).toBeInTheDocument();
+    const buttons = screen.getAllByRole("button", { name: "Batalkan Pengajuan" });
+    expect(buttons).toHaveLength(1);
+
+    fireEvent.click(buttons[0]);
+
+    expect(onCancelProposal).toHaveBeenCalledExactlyOnceWith(proposal);
+    expect(onDetail).not.toHaveBeenCalled();
+  });
+
+  it("names the action column for screen readers once a row has an action", () => {
+    renderTable([proposal], { onCancelProposal: vi.fn() });
+
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+  });
+
+  it("adds no action column while no row has one", () => {
+    renderTable([task()], { onCancelProposal: vi.fn() });
+
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
+  });
+
+  it("offers nothing where the host cannot withdraw it", () => {
+    renderTable([proposal]);
+
+    expect(screen.queryByRole("button", { name: "Batalkan Pengajuan" })).not.toBeInTheDocument();
+  });
+});
