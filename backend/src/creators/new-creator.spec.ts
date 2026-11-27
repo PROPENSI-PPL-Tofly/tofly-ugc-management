@@ -90,7 +90,9 @@ describe('checkNewCreator', () => {
     ])(
       'splits %s into first/middle/last',
       (_case, name, [first, middle, last]) => {
-        expect(checkNewCreator(body({ name }), TODAY, DEFAULT_BUFFER_DAYS)).toMatchObject({
+        expect(
+          checkNewCreator(body({ name }), TODAY, DEFAULT_BUFFER_DAYS),
+        ).toMatchObject({
           firstName: first,
           middleName: middle,
           lastName: last,
@@ -109,7 +111,11 @@ describe('checkNewCreator', () => {
 
     it('accepts 100 characters and rejects 101', () => {
       expect(() =>
-        checkNewCreator(body({ name: 'a'.repeat(100) }), TODAY, DEFAULT_BUFFER_DAYS),
+        checkNewCreator(
+          body({ name: 'a'.repeat(100) }),
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
+        ),
       ).not.toThrow();
       expect(errorsFor(body({ name: 'a'.repeat(101) }))).toEqual({
         name: 'Nama maksimal 100 karakter',
@@ -128,7 +134,9 @@ describe('checkNewCreator', () => {
       ],
       ['surrounding spaces', '  salsa@example.com ', 'salsa@example.com'],
     ])('accepts %s', (_case, email, saved) => {
-      expect(checkNewCreator(body({ email }), TODAY, DEFAULT_BUFFER_DAYS).email).toBe(saved);
+      expect(
+        checkNewCreator(body({ email }), TODAY, DEFAULT_BUFFER_DAYS).email,
+      ).toBe(saved);
     });
 
     it.each([
@@ -165,9 +173,10 @@ describe('checkNewCreator', () => {
       const at = (length: number) =>
         `${'a'.repeat(length - '@example.com'.length)}@example.com`;
 
-      expect(checkNewCreator(body({ email: at(254) }), TODAY, DEFAULT_BUFFER_DAYS).email).toBe(
-        at(254),
-      );
+      expect(
+        checkNewCreator(body({ email: at(254) }), TODAY, DEFAULT_BUFFER_DAYS)
+          .email,
+      ).toBe(at(254));
       expect(errorsFor(body({ email: at(255) }))).toEqual({
         email: 'Format email tidak valid',
       });
@@ -175,11 +184,16 @@ describe('checkNewCreator', () => {
   });
 
   describe('contract type', () => {
-    it.each(['probation', 'regular'])('accepts a %s contract', (contractType) => {
-      expect(checkNewCreator(body({ contractType }), TODAY, DEFAULT_BUFFER_DAYS)).toMatchObject({
-        contractType,
-      });
-    });
+    it.each(['probation', 'regular'])(
+      'accepts a %s contract',
+      (contractType) => {
+        expect(
+          checkNewCreator(body({ contractType }), TODAY, DEFAULT_BUFFER_DAYS),
+        ).toMatchObject({
+          contractType,
+        });
+      },
+    );
 
     it.each([
       ['missing', undefined],
@@ -206,11 +220,18 @@ describe('checkNewCreator', () => {
   describe('social accounts', () => {
     it('keeps only the platforms given a username, Instagram first', () => {
       expect(
-        checkNewCreator(body({ instagramUsername: '' }), TODAY, DEFAULT_BUFFER_DAYS).socialAccounts,
+        checkNewCreator(
+          body({ instagramUsername: '' }),
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
+        ).socialAccounts,
       ).toEqual([{ platform: 'tiktok', username: 'salsa.tt' }]);
       expect(
-        checkNewCreator(body({ tiktokUsername: undefined }), TODAY, DEFAULT_BUFFER_DAYS)
-          .socialAccounts,
+        checkNewCreator(
+          body({ tiktokUsername: undefined }),
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
+        ).socialAccounts,
       ).toEqual([{ platform: 'instagram', username: 'salsa.amelia' }]);
     });
 
@@ -223,7 +244,8 @@ describe('checkNewCreator', () => {
       expect(
         checkNewCreator(
           body({ instagramUsername: value, tiktokUsername: value }),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ).socialAccounts,
       ).toEqual([]);
     });
@@ -231,8 +253,12 @@ describe('checkNewCreator', () => {
     it('trims each username', () => {
       expect(
         checkNewCreator(
-          body({ instagramUsername: ' salsa.amelia ', tiktokUsername: ' salsa.tt ' }),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          body({
+            instagramUsername: ' salsa.amelia ',
+            tiktokUsername: ' salsa.tt ',
+          }),
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ).socialAccounts,
       ).toEqual([
         { platform: 'instagram', username: 'salsa.amelia' },
@@ -240,11 +266,35 @@ describe('checkNewCreator', () => {
       ]);
     });
 
+    // QA (OWASP A05): a handle has letters, digits, dots and underscores only.
+    it.each([
+      ['instagramUsername', 'bad user!'],
+      ['tiktokUsername', 'rangga<script>'],
+    ])('refuses the %s %j', (field, username) => {
+      expect(errorsFor(body({ [field]: username }))).toEqual({
+        [field]: 'Username hanya boleh huruf, angka, titik, dan garis bawah',
+      });
+    });
+
+    it('keeps a handle typed with its "@" without the "@"', () => {
+      expect(
+        checkNewCreator(
+          body({ instagramUsername: '@salsa.amelia' }),
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
+        ).socialAccounts,
+      ).toContainEqual({ platform: 'instagram', username: 'salsa.amelia' });
+    });
+
     it.each(['instagramUsername', 'tiktokUsername'])(
       'accepts a 100-character %s and rejects 101',
       (field) => {
         expect(() =>
-          checkNewCreator(body({ [field]: 'u'.repeat(100) }), TODAY, DEFAULT_BUFFER_DAYS),
+          checkNewCreator(
+            body({ [field]: 'u'.repeat(100) }),
+            TODAY,
+            DEFAULT_BUFFER_DAYS,
+          ),
         ).not.toThrow();
         expect(errorsFor(body({ [field]: 'u'.repeat(101) }))).toEqual({
           [field]: 'Username maksimal 100 karakter',
@@ -256,8 +306,11 @@ describe('checkNewCreator', () => {
   describe('contract dates', () => {
     it('accepts a contract starting today', () => {
       expect(
-        checkNewCreator(body({ contractStart: '2026-09-23' }), TODAY, DEFAULT_BUFFER_DAYS)
-          .contractStart,
+        checkNewCreator(
+          body({ contractStart: '2026-09-23' }),
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
+        ).contractStart,
       ).toEqual(day('2026-09-23'));
     });
 
@@ -267,7 +320,11 @@ describe('checkNewCreator', () => {
       const lateToday = new Date('2026-09-23T16:59:59Z');
 
       expect(() =>
-        checkNewCreator(body({ contractStart: '2026-09-23' }), lateToday, DEFAULT_BUFFER_DAYS),
+        checkNewCreator(
+          body({ contractStart: '2026-09-23' }),
+          lateToday,
+          DEFAULT_BUFFER_DAYS,
+        ),
       ).not.toThrow();
     });
 
@@ -276,7 +333,11 @@ describe('checkNewCreator', () => {
 
       let errors: unknown;
       try {
-        checkNewCreator(body({ contractStart: '2026-09-23' }), earlyNextDay, DEFAULT_BUFFER_DAYS);
+        checkNewCreator(
+          body({ contractStart: '2026-09-23' }),
+          earlyNextDay,
+          DEFAULT_BUFFER_DAYS,
+        );
       } catch (error) {
         errors = (error as { getResponse(): { errors: unknown } }).getResponse()
           .errors;
@@ -305,9 +366,12 @@ describe('checkNewCreator', () => {
     // A contract that ends inside the buffer leaves no day any content could be due on.
     it('rejects a contract that ends inside the buffer, naming the earliest end', () => {
       expect(
-        errorsFor(body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' })),
+        errorsFor(
+          body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' }),
+        ),
       ).toMatchObject({
-        contractEnd: 'Akhir kontrak paling cepat 6 Okt 2026 (masa buffer 5 hari)',
+        contractEnd:
+          'Akhir kontrak paling cepat 6 Okt 2026 (masa buffer 5 hari)',
       });
     });
 
@@ -344,9 +408,12 @@ describe('checkNewCreator', () => {
 
     it('counts the buffer from today when the contract has already started', () => {
       expect(
-        errorsFor(body({ contractStart: '2026-09-23', contractEnd: '2026-09-27' })),
+        errorsFor(
+          body({ contractStart: '2026-09-23', contractEnd: '2026-09-27' }),
+        ),
       ).toMatchObject({
-        contractEnd: 'Akhir kontrak paling cepat 28 Sep 2026 (masa buffer 5 hari)',
+        contractEnd:
+          'Akhir kontrak paling cepat 28 Sep 2026 (masa buffer 5 hari)',
       });
     });
 
@@ -454,7 +521,10 @@ describe('checkNewCreator', () => {
     });
 
     it('accepts an interval of 1 day, the PRD minimum', () => {
-      expect(checkNewCreator(body({ interval: 1 }), TODAY, DEFAULT_BUFFER_DAYS).interval).toBe(1);
+      expect(
+        checkNewCreator(body({ interval: 1 }), TODAY, DEFAULT_BUFFER_DAYS)
+          .interval,
+      ).toBe(1);
     });
 
     // Subtask 8.1: the prototype's Add Creator form takes the fixed rate in whole rupiah, from
@@ -473,9 +543,10 @@ describe('checkNewCreator', () => {
     });
 
     it.each([1, 10_000_000])('accepts a fixed rate of %s', (fixedRate) => {
-      expect(checkNewCreator(body({ fixedRate }), TODAY, DEFAULT_BUFFER_DAYS).fixedRate).toBe(
-        fixedRate,
-      );
+      expect(
+        checkNewCreator(body({ fixedRate }), TODAY, DEFAULT_BUFFER_DAYS)
+          .fixedRate,
+      ).toBe(fixedRate);
     });
 
     it.each([10_000_001, 9_999_999_999, 999_999_999_999])(
@@ -525,7 +596,8 @@ describe('checkNewCreator', () => {
       expect(() =>
         checkNewCreator(
           body(three('2026-10-06', '2026-10-13', '2026-10-20')),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ),
       ).not.toThrow();
       expect(
@@ -542,7 +614,8 @@ describe('checkNewCreator', () => {
             ...startsToday,
             ...three('2026-09-28', '2026-10-05', '2026-10-12'),
           }),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ),
       ).not.toThrow();
       expect(
@@ -559,7 +632,8 @@ describe('checkNewCreator', () => {
       expect(() =>
         checkNewCreator(
           body(three('2026-10-06', '2026-10-13', '2026-12-26')),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ),
       ).not.toThrow();
       expect(
@@ -573,7 +647,8 @@ describe('checkNewCreator', () => {
       expect(
         checkNewCreator(
           body(three('2026-10-06', '2026-10-06', '2026-10-13')),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ).deadlines,
       ).toEqual([day('2026-10-06'), day('2026-10-06'), day('2026-10-13')]);
     });
@@ -583,7 +658,8 @@ describe('checkNewCreator', () => {
       expect(
         checkNewCreator(
           body(three('2026-10-20', '2026-10-06', '2026-10-13')),
-          TODAY, DEFAULT_BUFFER_DAYS,
+          TODAY,
+          DEFAULT_BUFFER_DAYS,
         ).deadlines,
       ).toEqual([day('2026-10-06'), day('2026-10-13'), day('2026-10-20')]);
     });
@@ -623,7 +699,9 @@ describe('checkNewCreator', () => {
     );
 
     it('rejects with a 422 carrying a summary message and the field errors', () => {
-      expect(() => checkNewCreator(body({ name: '' }), TODAY, DEFAULT_BUFFER_DAYS)).toThrow(
+      expect(() =>
+        checkNewCreator(body({ name: '' }), TODAY, DEFAULT_BUFFER_DAYS),
+      ).toThrow(
         expect.objectContaining({
           status: 422,
           response: {
@@ -647,7 +725,8 @@ describe('checkNewCreator', () => {
     it('drops fields it does not know, such as is_admin', () => {
       const creator = checkNewCreator(
         body({ is_admin: true, isAdmin: true, user_id: 'someone-else' }),
-        TODAY, DEFAULT_BUFFER_DAYS,
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
       );
 
       expect(creator).not.toHaveProperty('is_admin');
@@ -674,24 +753,37 @@ describe('checkNewCreator with the stored buffer', () => {
 
   it('names the stored buffer in the earliest contract end', () => {
     expect(
-      errorsWith(body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' }), 9),
+      errorsWith(
+        body({ contractStart: '2026-10-01', contractEnd: '2026-10-01' }),
+        9,
+      ),
     ).toMatchObject({
-      contractEnd: 'Akhir kontrak paling cepat 10 Okt 2026 (masa buffer 9 hari)',
+      contractEnd:
+        'Akhir kontrak paling cepat 10 Okt 2026 (masa buffer 9 hari)',
     });
   });
 
   it('opens the deadlines the stored buffer after the start', () => {
     expect(
-      errorsWith(body({ deadlines: ['2026-10-09', '2026-10-13', '2026-10-20'] }), 9),
+      errorsWith(
+        body({ deadlines: ['2026-10-09', '2026-10-13', '2026-10-20'] }),
+        9,
+      ),
     ).toEqual({ deadlines: 'Deadline paling cepat 10 Okt 2026' });
   });
 
   it('closes the deadlines the stored buffer before the end, naming H-N', () => {
     expect(
-      errorsWith(body({ deadlines: ['2026-10-10', '2026-10-13', '2026-12-22'] }), 9),
+      errorsWith(
+        body({ deadlines: ['2026-10-10', '2026-10-13', '2026-12-22'] }),
+        9,
+      ),
     ).toEqual({});
     expect(
-      errorsWith(body({ deadlines: ['2026-10-10', '2026-10-13', '2026-12-23'] }), 9),
+      errorsWith(
+        body({ deadlines: ['2026-10-10', '2026-10-13', '2026-12-23'] }),
+        9,
+      ),
     ).toEqual({
       deadlines: 'Deadline paling lambat 22 Des 2026 (H-9 akhir kontrak)',
     });
