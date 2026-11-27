@@ -31,6 +31,9 @@ describe("DeadlineBufferModal", () => {
     expect(screen.getByRole("dialog", { name: "Atur Buffer Deadline" })).toBeInTheDocument();
     expect(field()).toHaveValue("6");
     expect(screen.getByText(/paling cepat 6 hari setelah hari ini/i)).toBeInTheDocument();
+    // QA: the note said "semua jadwal", although content already scheduled keeps its deadline.
+    expect(screen.getByText(/^Berlaku untuk jadwal baru:/)).toBeInTheDocument();
+    expect(screen.queryByText(/semua jadwal/i)).not.toBeInTheDocument();
     expect(screen.getByText(/paling lambat 6 hari sebelum akhir kontrak/i)).toBeInTheDocument();
   });
 
@@ -44,6 +47,9 @@ describe("DeadlineBufferModal", () => {
     ["", "Isi buffer deadline"],
     ["0", "Isi angka bulat 1–14"],
     ["15", "Isi angka bulat 1–14"],
+    // QA: a minus or a decimal point was dropped without a word, so -3 saved as 3 and 1.5 as 15.
+    ["-3", "Isi angka bulat 1–14"],
+    ["1.5", "Isi angka bulat 1–14"],
   ])("refuses %j at the field without asking to confirm", (typed, message) => {
     const { saveAction } = renderModal();
 
@@ -56,12 +62,12 @@ describe("DeadlineBufferModal", () => {
     expect(saveAction).not.toHaveBeenCalled();
   });
 
-  it("keeps digits only, as the other whole-number fields do", () => {
+  it("keeps what was typed, so a value it cannot take is refused rather than changed", () => {
     renderModal();
 
-    type("1a2");
+    type("-3");
 
-    expect(field()).toHaveValue("12");
+    expect(field()).toHaveValue("-3");
   });
 
   it("asks to confirm the old and new buffer before saving", () => {
@@ -72,7 +78,8 @@ describe("DeadlineBufferModal", () => {
 
     const dialog = screen.getByRole("alertdialog", { name: "Ubah buffer deadline?" });
     expect(dialog).toHaveTextContent("5 hari → 7 hari");
-    expect(dialog).toHaveTextContent(/deadline yang sudah dijadwalkan tidak berubah/i);
+    expect(dialog).toHaveTextContent("Berlaku untuk jadwal baru. Jadwal yang sudah ada tidak berubah.");
+    expect(dialog).toHaveTextContent(/Ajukan Konten/);
     expect(saveAction).not.toHaveBeenCalled();
   });
 
