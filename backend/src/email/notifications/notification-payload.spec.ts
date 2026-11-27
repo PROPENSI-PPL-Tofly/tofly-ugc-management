@@ -69,6 +69,23 @@ describe('readPayload (11.4)', () => {
   });
 
   // A creator gone from the contract still gets the Admins their email (11.2), named "Creator".
+  it('takes a quota as a whole number of contents', () => {
+    expect(
+      readPayload('quota_changed', { contractId: 'k1', quota: 8 }),
+    ).toMatchObject({
+      quota: 8,
+    });
+  });
+
+  it.each([[0], [-1], [1.5], ['8'], [null]])(
+    'refuses a quota of %j',
+    (quota) => {
+      expect(() =>
+        readPayload('quota_changed', { contractId: 'k1', quota }),
+      ).toThrow('Email quota_changed has no valid quota');
+    },
+  );
+
   it('names a creator with no name "Creator"', () => {
     expect(
       readPayload('draft_submitted', { ...CONTENT, creatorName: '  ' }),

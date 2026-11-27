@@ -20,14 +20,14 @@ function partsOf<T extends NotificationTemplate>(template: T) {
 }
 
 describe('NOTIFICATION_TEMPLATES', () => {
-  it('holds 19 templates: 16 for creators and 3 for Admins (11.4)', () => {
+  it('holds 21 templates: 18 for creators and 3 for Admins (11.4, PBI-16)', () => {
     const audiences = TEMPLATES.map(
       (template) => NOTIFICATION_TEMPLATES[template].audience,
     );
 
-    expect(TEMPLATES).toHaveLength(19);
+    expect(TEMPLATES).toHaveLength(21);
     expect(audiences.filter((audience) => audience === 'creator')).toHaveLength(
-      16,
+      18,
     );
     expect(audiences.filter((audience) => audience === 'admin')).toHaveLength(
       3,
@@ -53,6 +53,8 @@ describe('NOTIFICATION_TEMPLATES', () => {
         'invoice_paid',
         'period_added',
         'contract_ended_early',
+        'contract_end_changed',
+        'quota_changed',
         'deadline_reminder',
         'draft_submitted',
         'proposal_submitted',
@@ -167,6 +169,31 @@ describe('NOTIFICATION_TEMPLATES', () => {
         'Periode kontrak 3 kamu berjalan 1 Mar 2027 sampai 31 Mei 2027.',
         expect.any(String),
       ],
+    });
+  });
+
+  // PBI-16: the creator learns the period's new end, and that what was scheduled stays.
+  it('gives the period and its new end date', () => {
+    expect(partsOf('contract_end_changed')).toEqual({
+      audience: 'creator',
+      subject: 'Akhir kontrak kamu kini 1 Mar 2027',
+      lines: [
+        'Periode kontrak 2 kamu kini berakhir 1 Mar 2027.',
+        'Konten dan deadline yang sudah dijadwalkan tetap sama.',
+      ],
+      button: { label: 'Buka Dashboard', path: '/creator/dashboard' },
+    });
+  });
+
+  it('gives the period and its new number of contents', () => {
+    expect(partsOf('quota_changed')).toEqual({
+      audience: 'creator',
+      subject: 'Jumlah konten kontrak kamu kini 8',
+      lines: [
+        'Jumlah konten periode kontrak 2 kamu kini 8 konten.',
+        'Konten tambahan muncul di Tugas Saya begitu dijadwalkan.',
+      ],
+      button: { label: 'Buka Tugas Saya', path: '/creator/tasks' },
     });
   });
 

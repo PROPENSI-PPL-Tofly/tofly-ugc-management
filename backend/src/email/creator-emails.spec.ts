@@ -4,20 +4,29 @@ import { CreatorEmails, type CreatorEmailClient } from './creator-emails.js';
 const CREATOR = '11111111-1111-4111-8111-111111111111';
 const CONTENT = '22222222-2222-4222-8222-222222222222';
 
-function setup(found: unknown = {
-  first_name: 'Rangga',
-  middle_name: null,
-  last_name: 'Pratama',
-  users: { email: 'rangga@example.com' },
-}) {
+function setup(
+  found: unknown = {
+    first_name: 'Rangga',
+    middle_name: null,
+    last_name: 'Pratama',
+    users: { email: 'rangga@example.com' },
+  },
+) {
   const prisma = {
     creators: { findUnique: vi.fn().mockResolvedValue(found) },
     contents: { findUnique: vi.fn() },
     contracts: { findUnique: vi.fn() },
   } satisfies CreatorEmailClient;
-  const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+  const notifier = {
+    notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+  };
   const log = { warn: vi.fn() };
-  return { prisma, notifier, log, emails: new CreatorEmails(prisma, notifier, log) };
+  return {
+    prisma,
+    notifier,
+    log,
+    emails: new CreatorEmails(prisma, notifier, log),
+  };
 }
 
 describe('CreatorEmails', () => {
@@ -57,7 +66,11 @@ describe('CreatorEmails', () => {
       eventKey: `content_scheduled:${CONTENT}`,
       template: 'content_scheduled',
       to: { email: 'rangga@example.com', name: 'Rangga Pratama' },
-      data: { contentId: CONTENT, contentName: 'Evg_1_Rangga', deadline: '2026-10-10' },
+      data: {
+        contentId: CONTENT,
+        contentName: 'Evg_1_Rangga',
+        deadline: '2026-10-10',
+      },
     });
   });
 
@@ -96,7 +109,9 @@ describe('CreatorEmails', () => {
   // AC 9: the action is already saved, so a failed lookup is logged, never thrown at it.
   it('never throws when the creator cannot be read', async () => {
     const { prisma, notifier, log, emails } = setup();
-    prisma.creators.findUnique.mockRejectedValue(new TypeError('connection lost'));
+    prisma.creators.findUnique.mockRejectedValue(
+      new TypeError('connection lost'),
+    );
 
     await expect(
       emails.proposalRejected({
@@ -107,7 +122,9 @@ describe('CreatorEmails', () => {
       }),
     ).resolves.toBeUndefined();
     expect(notifier.notify).not.toHaveBeenCalled();
-    expect(log.warn).toHaveBeenCalledWith('Email proposal_rejected failed (TypeError)');
+    expect(log.warn).toHaveBeenCalledWith(
+      'Email proposal_rejected failed (TypeError)',
+    );
   });
 });
 
@@ -121,18 +138,28 @@ describe('CreatorEmails, content events', () => {
   };
   const TO = { email: 'rangga@example.com', name: 'Rangga Pratama' };
 
-  function contentSetup(found: unknown = {
-    name: 'Promo Lebaran',
-    deadline: new Date('2026-11-25T00:00:00.000Z'),
-    contracts: { creators: CREATOR_ROW },
-  }) {
+  function contentSetup(
+    found: unknown = {
+      name: 'Promo Lebaran',
+      deadline: new Date('2026-11-25T00:00:00.000Z'),
+      contracts: { creators: CREATOR_ROW },
+    },
+  ) {
     const prisma = {
       creators: { findUnique: vi.fn() },
       contents: { findUnique: vi.fn().mockResolvedValue(found) },
-      contracts: { findUnique: vi.fn().mockResolvedValue({ creators: CREATOR_ROW }) },
+      contracts: {
+        findUnique: vi.fn().mockResolvedValue({ creators: CREATOR_ROW }),
+      },
     } satisfies CreatorEmailClient;
-    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
-    return { prisma, notifier, emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }) };
+    const notifier = {
+      notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+    };
+    return {
+      prisma,
+      notifier,
+      emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }),
+    };
   }
 
   it('reads the content with its name, deadline and creator', async () => {
@@ -162,23 +189,62 @@ describe('CreatorEmails, content events', () => {
   });
 
   it.each([
-    ['revisionRequested', { contentId: CONTENT, submissionId: 'sub-1' }, 'revision_requested:sub-1', 'revision_requested', { contentId: CONTENT, contentName: 'Promo Lebaran' }],
-    ['followUpAdded', { contentId: CONTENT, followUpId: 'fu-1' }, 'follow_up_added:fu-1', 'follow_up_added', { contentId: CONTENT, contentName: 'Promo Lebaran' }],
-    ['draftApproved', { contentId: CONTENT, submissionId: 'sub-1' }, 'draft_approved:sub-1', 'draft_approved', { contentId: CONTENT, contentName: 'Promo Lebaran' }],
+    [
+      'revisionRequested',
+      { contentId: CONTENT, submissionId: 'sub-1' },
+      'revision_requested:sub-1',
+      'revision_requested',
+      { contentId: CONTENT, contentName: 'Promo Lebaran' },
+    ],
+    [
+      'followUpAdded',
+      { contentId: CONTENT, followUpId: 'fu-1' },
+      'follow_up_added:fu-1',
+      'follow_up_added',
+      { contentId: CONTENT, contentName: 'Promo Lebaran' },
+    ],
+    [
+      'draftApproved',
+      { contentId: CONTENT, submissionId: 'sub-1' },
+      'draft_approved:sub-1',
+      'draft_approved',
+      { contentId: CONTENT, contentName: 'Promo Lebaran' },
+    ],
     // Review on #254: keyed by the edit itself, so a deadline moved back and forth is emailed each time.
-    ['contentRescheduled', { contentId: CONTENT, deadline: '2026-11-25', editId: 'event-7' }, 'content_rescheduled:event-7', 'content_rescheduled', { contentId: CONTENT, contentName: 'Promo Lebaran', deadline: '2026-11-25' }],
-  ] as const)('sends %s once per event', async (method, input, eventKey, template, data) => {
-    const { notifier, emails } = contentSetup();
+    [
+      'contentRescheduled',
+      { contentId: CONTENT, deadline: '2026-11-25', editId: 'event-7' },
+      'content_rescheduled:event-7',
+      'content_rescheduled',
+      {
+        contentId: CONTENT,
+        contentName: 'Promo Lebaran',
+        deadline: '2026-11-25',
+      },
+    ],
+  ] as const)(
+    'sends %s once per event',
+    async (method, input, eventKey, template, data) => {
+      const { notifier, emails } = contentSetup();
 
-    await (emails[method] as (value: typeof input) => Promise<void>)(input);
+      await (emails[method] as (value: typeof input) => Promise<void>)(input);
 
-    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({ eventKey, template, to: TO, data });
-  });
+      expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+        eventKey,
+        template,
+        to: TO,
+        data,
+      });
+    },
+  );
 
   it('sends nothing for content that no longer exists', async () => {
     const { notifier, emails } = contentSetup(null);
 
-    await emails.revisionRequested({ contentId: CONTENT, submissionId: 'sub-1' });
+    await emails.revisionRequested({
+      contentId: CONTENT,
+      submissionId: 'sub-1',
+    });
 
     expect(notifier.notify).not.toHaveBeenCalled();
   });
@@ -229,7 +295,9 @@ describe('CreatorEmails, content events', () => {
 
   it('never throws when the content cannot be read', async () => {
     const { prisma, notifier, emails } = contentSetup();
-    prisma.contents.findUnique.mockRejectedValue(new TypeError('connection lost'));
+    prisma.contents.findUnique.mockRejectedValue(
+      new TypeError('connection lost'),
+    );
 
     await expect(
       emails.followUpAdded({ contentId: CONTENT, followUpId: 'fu-1' }),
@@ -260,8 +328,13 @@ describe('CreatorEmails, account, contract and proposal events', () => {
       },
       contracts: { findUnique: vi.fn() },
     } satisfies CreatorEmailClient;
-    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
-    return { notifier, emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }) };
+    const notifier = {
+      notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+    };
+    return {
+      notifier,
+      emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }),
+    };
   }
 
   it('sends the account ready email once per creator', async () => {
@@ -291,7 +364,47 @@ describe('CreatorEmails, account, contract and proposal events', () => {
       eventKey: 'period_added:contract-2',
       template: 'period_added',
       to: TO,
-      data: { contractId: 'contract-2', startDate: '2027-01-01', endDate: '2027-03-31' },
+      data: {
+        contractId: 'contract-2',
+        startDate: '2027-01-01',
+        endDate: '2027-03-31',
+      },
+    });
+  });
+
+  // PBI-16: Ubah Data moved the period's end date or changed its quota. Keyed by the new value,
+  // so a retried save is one email and a second, different change is another.
+  it('sends the new end date of a period once per date', async () => {
+    const { notifier, emails } = eventSetup();
+
+    await emails.contractEndChanged({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      endDate: '2027-03-01',
+    });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: 'contract_end_changed:contract-1:2027-03-01',
+      template: 'contract_end_changed',
+      to: TO,
+      data: { contractId: 'contract-1', endDate: '2027-03-01' },
+    });
+  });
+
+  it('sends the new quota of a period once per quota', async () => {
+    const { notifier, emails } = eventSetup();
+
+    await emails.quotaChanged({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      quota: 8,
+    });
+
+    expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
+      eventKey: 'quota_changed:contract-1:8',
+      template: 'quota_changed',
+      to: TO,
+      data: { contractId: 'contract-1', quota: 8 },
     });
   });
 
@@ -310,7 +423,11 @@ describe('CreatorEmails, account, contract and proposal events', () => {
       eventKey: 'contract_ended_early:contract-1',
       template: 'contract_ended_early',
       to: TO,
-      data: { contractId: 'contract-1', lastDay: '2026-11-30', invoice: 'cancelled' },
+      data: {
+        contractId: 'contract-1',
+        lastDay: '2026-11-30',
+        invoice: 'cancelled',
+      },
     });
   });
 
@@ -347,11 +464,17 @@ describe('CreatorEmails, invoice events', () => {
     const prisma = {
       creators: { findUnique: vi.fn() },
       contents: { findUnique: vi.fn() },
-      contracts: { findUnique: vi.fn().mockResolvedValue({ creators: CREATOR_ROW }) },
+      contracts: {
+        findUnique: vi.fn().mockResolvedValue({ creators: CREATOR_ROW }),
+      },
     } satisfies CreatorEmailClient;
-    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+    const notifier = {
+      notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+    };
 
-    await new CreatorEmails(prisma, notifier, { warn: vi.fn() })[method]({ contractId: 'contract-1' });
+    await new CreatorEmails(prisma, notifier, { warn: vi.fn() })[method]({
+      contractId: 'contract-1',
+    });
 
     expect(prisma.contracts.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'contract-1' } }),
@@ -372,9 +495,13 @@ describe('CreatorEmails, a contract that is gone', () => {
       contents: { findUnique: vi.fn() },
       contracts: { findUnique: vi.fn().mockResolvedValue(null) },
     } satisfies CreatorEmailClient;
-    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
+    const notifier = {
+      notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+    };
 
-    await new CreatorEmails(prisma, notifier, { warn: vi.fn() }).invoiceFinalized({
+    await new CreatorEmails(prisma, notifier, {
+      warn: vi.fn(),
+    }).invoiceFinalized({
       contractId: 'contract-gone',
     });
 
@@ -398,15 +525,25 @@ describe('CreatorEmails, the Paid email', () => {
       contents: { findUnique: vi.fn() },
       contracts: { findUnique: vi.fn() },
     } satisfies CreatorEmailClient;
-    const notifier = { notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue() };
-    return { prisma, notifier, emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }) };
+    const notifier = {
+      notify: vi.fn<(event: EmailEvent) => Promise<void>>().mockResolvedValue(),
+    };
+    return {
+      prisma,
+      notifier,
+      emails: new CreatorEmails(prisma, notifier, { warn: vi.fn() }),
+    };
   }
   const PAID_AT = new Date('2026-11-25T03:00:00.000Z');
 
   it('reads the creator with every contract and its invoice, for the access rule', async () => {
     const { prisma, emails } = paidSetup([]);
 
-    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+    await emails.invoicePaid({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      paidAt: PAID_AT,
+    });
 
     expect(prisma.creators.findUnique).toHaveBeenCalledWith({
       where: { id: CREATOR },
@@ -416,7 +553,10 @@ describe('CreatorEmails, the Paid email', () => {
         last_name: true,
         users: { select: { email: true } },
         contracts: {
-          select: { end_date: true, invoice: { select: { status: true, paid_at: true } } },
+          select: {
+            end_date: true,
+            invoice: { select: { status: true, paid_at: true } },
+          },
         },
       },
     });
@@ -430,7 +570,11 @@ describe('CreatorEmails, the Paid email', () => {
       },
     ]);
 
-    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+    await emails.invoicePaid({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      paidAt: PAID_AT,
+    });
 
     expect(notifier.notify).toHaveBeenCalledExactlyOnceWith({
       eventKey: 'invoice_paid:contract-1',
@@ -442,14 +586,26 @@ describe('CreatorEmails, the Paid email', () => {
 
   it('names no day while another period keeps access open', async () => {
     const { notifier, emails } = paidSetup([
-      { end_date: new Date('2026-11-20T00:00:00.000Z'), invoice: { status: 'paid', paid_at: PAID_AT } },
-      { end_date: new Date('2027-02-28T00:00:00.000Z'), invoice: { status: 'running', paid_at: null } },
+      {
+        end_date: new Date('2026-11-20T00:00:00.000Z'),
+        invoice: { status: 'paid', paid_at: PAID_AT },
+      },
+      {
+        end_date: new Date('2027-02-28T00:00:00.000Z'),
+        invoice: { status: 'running', paid_at: null },
+      },
     ]);
 
-    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+    await emails.invoicePaid({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      paidAt: PAID_AT,
+    });
 
     expect(notifier.notify).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { contractId: 'contract-1', accessClosesOn: null } }),
+      expect.objectContaining({
+        data: { contractId: 'contract-1', accessClosesOn: null },
+      }),
     );
   });
 
@@ -457,7 +613,11 @@ describe('CreatorEmails, the Paid email', () => {
     const { prisma, notifier, emails } = paidSetup([]);
     prisma.creators.findUnique.mockResolvedValue(null);
 
-    await emails.invoicePaid({ creatorId: CREATOR, contractId: 'contract-1', paidAt: PAID_AT });
+    await emails.invoicePaid({
+      creatorId: CREATOR,
+      contractId: 'contract-1',
+      paidAt: PAID_AT,
+    });
 
     expect(notifier.notify).not.toHaveBeenCalled();
   });
