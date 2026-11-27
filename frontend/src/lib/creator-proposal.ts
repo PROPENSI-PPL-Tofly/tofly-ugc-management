@@ -100,18 +100,22 @@ export function proposalWindowFor(
 export function checkProposal(fields: ProposalFields, window: ProposalWindow): ProposalErrors {
   const errors: ProposalErrors = {};
 
-  if (fields.name.trim() === "") errors.name = "Nama konten wajib diisi";
-  else if (fields.name.length > PROPOSAL_NAME_MAX) errors.name = "Nama konten maksimal 100 karakter";
+  // Trimmed first, as the API counts it, so text inside the limit is never refused here only.
+  const name = fields.name.trim();
+  const brief = fields.brief.trim();
 
-  if (fields.brief.trim() === "") errors.brief = "Brief wajib diisi";
-  else if (fields.brief.length > PROPOSAL_BRIEF_MAX) errors.brief = "Brief maksimal 1.000 karakter";
+  if (name === "") errors.name = "Nama konten wajib diisi";
+  else if (name.length > PROPOSAL_NAME_MAX) errors.name = "Nama konten maksimal 100 karakter";
+
+  if (brief === "") errors.brief = "Brief wajib diisi";
+  else if (brief.length > PROPOSAL_BRIEF_MAX) errors.brief = "Brief maksimal 1.000 karakter";
 
   if (fields.deadline === "") errors.deadline = "Pilih deadline";
   else if (fields.deadline < window.first || fields.deadline > window.last) {
     errors.deadline = proposalWindowLabel(window);
   }
 
-  if (fields.notes.length > PROPOSAL_NOTES_MAX) errors.notes = "Catatan maksimal 500 karakter";
+  if (fields.notes.trim().length > PROPOSAL_NOTES_MAX) errors.notes = "Catatan maksimal 500 karakter";
 
   return errors;
 }

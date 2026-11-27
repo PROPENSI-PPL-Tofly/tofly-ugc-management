@@ -141,8 +141,8 @@ export function ProposeContent({ window }: Readonly<{ window: ProposalWindow }>)
     if (result.ok) {
       reset();
       show("Pengajuan terkirim. Tunggu persetujuan Admin.");
+      // The page is dynamic, so the push alone renders it again with the new proposal.
       router.push(WAITING_TAB);
-      router.refresh();
       return;
     }
     setErrors(result.errors);
