@@ -33,8 +33,20 @@ const VERIFY_PROBLEM: Record<Exclude<CodeVerifyOutcome["kind"], "signed_in" | "w
   failed: "Gagal masuk. Silakan coba lagi.",
 };
 
+const OUT_OF_TRIES =
+  "Kode salah dan percobaan sudah habis. Kirim ulang kode, atau hubungi tim Tofly kalau kode tidak pernah sampai.";
+
+/**
+ * PBI-23 AC 9 on this path: an address without access is never sent a code, and saying so would
+ * tell anyone which addresses have accounts (OWASP A07). So every address reads the same line,
+ * and the no-access message itself stays for a refusal after a right code.
+ */
+const NO_CODE_HELP =
+  "Kode tidak sampai? Bisa jadi akun ini tidak punya akses ke Tofly. Hubungi tim Tofly kalau ada pertanyaan.";
+
 function verifyProblem(outcome: Exclude<CodeVerifyOutcome, { kind: "signed_in" }>): string {
   if (outcome.kind !== "wrong") return VERIFY_PROBLEM[outcome.kind];
+  if (outcome.attemptsLeft === 0) return OUT_OF_TRIES;
   return outcome.attemptsLeft === undefined
     ? "Kode salah."
     : `Kode salah. Sisa ${outcome.attemptsLeft} percobaan.`;
@@ -245,6 +257,7 @@ function CodeStep({
         Masukkan 6 digit kode yang dikirim ke <span className="font-semibold text-ink">{email}</span>.
         Kode berlaku 10 menit.
       </p>
+      <p className="text-xs text-muted">{NO_CODE_HELP}</p>
       <div ref={boxesRef}>
         <CodeBoxes
           value={code}
