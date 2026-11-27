@@ -4,6 +4,7 @@
 
 import { isUuid } from "./creator-detail";
 import { EMPTY, formatDate, formatRupiah, formatTimestamp } from "./format";
+import { EARLY_END_REASON_LABELS } from "./contract-extension";
 import { INVOICE_PATH, INVOICE_STATUS_LABELS } from "./invoice";
 import { calendarDay, list, listOf, pageNumber, single, type SearchParams } from "./search-params";
 
@@ -270,69 +271,150 @@ export function auditChanges(
     .filter(({ from, to }) => from !== to);
 }
 
-const FIELD_LABELS = new Map<string, string>([
-  ["status", "Status"],
-  ["total", "Total"],
-  ["fixedRate", "Fixed Rate"],
-  ["specificBonus", "Bonus Spesifik"],
-  ["performanceBonus", "Bonus Performa"],
-  ["latePenaltyPerDay", "Denda per Hari"],
-  ["maxPenaltyDays", "Maks. Hari Denda"],
-  ["startDate", "Tanggal Mulai"],
-  ["endDate", "Tanggal Selesai"],
-  ["contractType", "Tipe Kontrak"],
-  ["interval", "Interval (hari)"],
-  ["quota", "Kuota"],
-  ["views", "Views"],
-  ["likes", "Likes"],
-  ["comments", "Komentar"],
-  ["shares", "Shares"],
-  ["platform", "Platform"],
-  ["fileName", "Nama File"],
-  ["name", "Nama"],
-  ["email", "Email"],
-  ["socialAccounts", "Akun Sosial"],
-  ["contract", "Kontrak"],
-]);
-
 // The backend logs a running invoice as "running"; the app's pipeline calls that step "accruing".
-const STATUS_LABELS = new Map<string, string>([
-  ...Object.entries(INVOICE_STATUS_LABELS),
-  ["running", INVOICE_STATUS_LABELS.accruing],
-]);
+// An Admin's account is logged active or inactive (PBI-23 AC 10).
+const STATUS_WORDS: Record<string, string> = {
+  ...INVOICE_STATUS_LABELS,
+  running: INVOICE_STATUS_LABELS.accruing,
+  active: "Aktif",
+  inactive: "Nonaktif",
+};
+const ROLE_WORDS: Record<string, string> = { admin: "Admin", super_admin: "Super Admin" };
+const CONTRACT_TYPE_WORDS: Record<string, string> = { regular: "Regular", probation: "Probation" };
+const PLATFORM_WORDS: Record<string, string> = { instagram: "Instagram", tiktok: "TikTok" };
+// PBI-37's choices, in the words its form uses.
+const INVOICE_CHOICE_WORDS: Record<string, string> = {
+  pay: "Bayar Sesuai Kontrak",
+  cancel: "Batalkan Invoice",
+};
+const UPCOMING_WORDS: Record<string, string> = { keep: "Pertahankan", delete: "Hapus" };
+
+type Format = (value: string) => string;
 
 const isNumeric = (value: string) => /^-?\d+(\.\d+)?$/.test(value);
-const asMoney = (value: string) => (isNumeric(value) ? formatRupiah(Number(value)) : value);
-const asCount = (value: string) => (isNumeric(value) ? Number(value).toLocaleString("id-ID") : value);
-const asDay = (value: string) => (calendarDay(value) ? formatDate(value) : value);
-const asStatus = (value: string) => STATUS_LABELS.get(value) ?? value;
+const asMoney: Format = (value) => (isNumeric(value) ? formatRupiah(Number(value)) : value);
+const asCount: Format = (value) => (isNumeric(value) ? Number(value).toLocaleString("id-ID") : value);
+const asDay: Format = (value) => (calendarDay(value) ? formatDate(value) : value);
+const counted =
+  (unit: string): Format =>
+  (value) =>
+    isNumeric(value) ? `${asCount(value)} ${unit}` : value;
+const inWords =
+  (words: Record<string, string>): Format =>
+  (value) =>
+    words[value] ?? value;
+const asHandle: Format = (value) => `@${value}`;
 
-const FIELD_FORMATS = new Map<string, (value: string) => string>([
-  ["status", asStatus],
-  ["total", asMoney],
-  ["fixedRate", asMoney],
-  ["specificBonus", asMoney],
-  ["latePenaltyPerDay", asMoney],
-  ["maxPenaltyDays", asCount],
-  ["startDate", asDay],
-  ["endDate", asDay],
-  ["interval", asCount],
-  ["quota", asCount],
-  ["views", asCount],
-  ["likes", asCount],
-  ["comments", asCount],
-  ["shares", asCount],
-]);
+/** A stored object or list read back, or undefined when it is not one. */
+function parsed(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+const asPeriods: Format = (value) => {
+  const numbers = parsed(value);
+  if (!Array.isArray(numbers) || !numbers.every((item) => Number.isInteger(item))) return value;
+  return numbers.length === 0 ? EMPTY : numbers.map((item) => `Periode ${String(item)}`).join(", ");
+};
+
+const asSocialAccounts: Format = (value) => {
+  const accounts = parsed(value);
+  if (!Array.isArray(accounts)) return value;
+  const shown = accounts.map((account: { platform?: unknown; username?: unknown }) =>
+    typeof account?.platform === "string" && typeof account.username === "string"
+      ? `${PLATFORM_WORDS[account.platform] ?? account.platform} @${account.username}`
+      : null,
+  );
+  if (shown.includes(null)) return value;
+  return shown.length === 0 ? EMPTY : shown.join(", ");
+};
+
+const asContract: Format = (value) => {
+  const terms = parsed(value) as Record<string, unknown> | undefined;
+  if (typeof terms !== "object" || terms === null || Array.isArray(terms)) return value;
+  const { contractType, startDate, endDate, quota, fixedRate } = terms;
+  if (typeof startDate !== "string" || typeof endDate !== "string") return value;
+  return [
+    typeof contractType === "string" ? (CONTRACT_TYPE_WORDS[contractType] ?? contractType) : null,
+    `${asDay(startDate)} – ${asDay(endDate)}`,
+    typeof quota === "number" ? `${quota} konten` : null,
+    typeof fixedRate === "number" ? formatRupiah(fixedRate) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
+};
+
+const asPerformanceBonus: Format = (value) => {
+  const byPlatform = parsed(value);
+  if (typeof byPlatform !== "object" || byPlatform === null || Array.isArray(byPlatform)) return value;
+  const platforms = Object.entries(byPlatform as Record<string, { metric?: unknown; tiers?: unknown }>);
+  if (platforms.length === 0) return EMPTY;
+  return platforms
+    .map(([platform, bonus]) => {
+      const name = PLATFORM_WORDS[platform] ?? platform;
+      const tiers = Array.isArray(bonus?.tiers) ? bonus.tiers.length : 0;
+      return typeof bonus?.metric === "string"
+        ? `${name}: ${bonus.metric}, ${tiers} tingkat`
+        : `${name}: belum diatur`;
+    })
+    .join(" · ");
+};
+
+/**
+ * Every field the backend's audit entries carry (the recordBy callers under backend/src), with the
+ * name and value format Log Aktivitas shows. One registry, so a field is named and read in one
+ * place; the "every logged action" test fails for a field the backend starts writing without one.
+ */
+const AUDIT_FIELDS: Record<string, { label: string; format?: Format }> = {
+  status: { label: "Status", format: inWords(STATUS_WORDS) },
+  role: { label: "Peran", format: inWords(ROLE_WORDS) },
+  name: { label: "Nama" },
+  email: { label: "Email" },
+  total: { label: "Total", format: asMoney },
+  fixedRate: { label: "Fixed Rate", format: asMoney },
+  specificBonus: { label: "Bonus Spesifik", format: asMoney },
+  performanceBonus: { label: "Bonus Performa", format: asPerformanceBonus },
+  latePenaltyPerDay: { label: "Denda per Hari", format: asMoney },
+  maxPenaltyDays: { label: "Maks. Hari Denda", format: asCount },
+  startDate: { label: "Tanggal Mulai", format: asDay },
+  endDate: { label: "Tanggal Selesai", format: asDay },
+  contractEnd: { label: "Akhir Kontrak", format: asDay },
+  contractType: { label: "Tipe Kontrak", format: inWords(CONTRACT_TYPE_WORDS) },
+  interval: { label: "Interval (hari)", format: asCount },
+  quota: { label: "Kuota", format: asCount },
+  bufferDays: { label: "Buffer Deadline", format: counted("hari") },
+  views: { label: "Views", format: asCount },
+  likes: { label: "Likes", format: asCount },
+  comments: { label: "Komentar", format: asCount },
+  shares: { label: "Shares", format: asCount },
+  platform: { label: "Platform", format: inWords(PLATFORM_WORDS) },
+  fileName: { label: "Nama File" },
+  socialAccounts: { label: "Akun Sosial", format: asSocialAccounts },
+  instagramUsername: { label: "Username Instagram", format: asHandle },
+  tiktokUsername: { label: "Username TikTok", format: asHandle },
+  contract: { label: "Kontrak", format: asContract },
+  reason: { label: "Alasan", format: inWords(EARLY_END_REASON_LABELS) },
+  invoice: { label: "Invoice", format: inWords(INVOICE_CHOICE_WORDS) },
+  upcomingPeriods: { label: "Periode Belum Dimulai", format: inWords(UPCOMING_WORDS) },
+  keptPeriods: { label: "Periode Dipertahankan", format: asPeriods },
+  deletedPeriods: { label: "Periode Dihapus", format: asPeriods },
+  closedContents: { label: "Konten Ditutup", format: counted("konten") },
+};
 
 // A change in the app's words. A field or value it cannot read stays as stored, because an audit
-// record never hides what happened.
+// record never hides what happened; a blank stays the dash.
 export function auditChangeShown({ field, from, to }: AuditChange): {
   label: string;
   from: string;
   to: string;
 } {
-  const format = FIELD_FORMATS.get(field) ?? ((value: string) => value);
-  return { label: FIELD_LABELS.get(field) ?? field, from: format(from), to: format(to) };
+  const spec = Object.hasOwn(AUDIT_FIELDS, field) ? AUDIT_FIELDS[field] : undefined;
+  const format = spec?.format ?? ((value: string) => value);
+  const shown = (value: string) => (value === EMPTY ? EMPTY : format(value));
+  return { label: spec?.label ?? field, from: shown(from), to: shown(to) };
 }
 
 export type AuditChangeView =
