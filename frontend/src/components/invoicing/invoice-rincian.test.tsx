@@ -484,3 +484,22 @@ describe("Bonus Performa, one line per link (PBI-28 AC 6)", () => {
     expect(lines[1]).toHaveTextContent("Dikunci pada 3 Nov 2026");
   });
 });
+
+// QA: a cancelled invoice drew the payment steps with none reached, as if it still had to walk them.
+describe("InvoiceRincian for an invoice an early end cancelled", () => {
+  it("shows a red Cancelled and why, in place of the payment steps", () => {
+    setup({ row: { ...ROW, invoiceStatus: "cancelled" } });
+
+    expect(screen.queryByRole("list", { name: "Progres invoice" })).toBeNull();
+    const notice = screen.getByRole("group", { name: "Status invoice" });
+    expect(within(notice).getByText("Cancelled")).toHaveClass("bg-red-wash");
+    expect(notice).toHaveTextContent("Kontrak diakhiri lebih awal dan invoice ini dibatalkan. Tidak ada yang dibayarkan.");
+    expect(screen.getByRole("group", { name: "Ringkasan invoice" })).toHaveTextContent("Dibatalkan, tidak dibayar");
+  });
+
+  it("says nothing of a bonus still to come", () => {
+    setup({ row: { ...ROW, invoiceStatus: "cancelled", bonusAmount: null } });
+
+    expect(screen.queryByText(/Belum termasuk bonus performa/)).toBeNull();
+  });
+});
