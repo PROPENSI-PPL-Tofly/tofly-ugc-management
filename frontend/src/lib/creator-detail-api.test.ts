@@ -666,3 +666,12 @@ describe("toCreatorDetailView for Ubah Data", () => {
     });
   });
 });
+
+describe("a content an early end closed", () => {
+  it("keeps the moment it was closed on the row, and null on one still open", () => {
+    const closed = { ...CONTENTS.items[0], status: "scheduled" as const, closedAt: "2026-11-20T03:00:00.000Z" };
+    const view = toCreatorDetailView(RAW, { ...CONTENTS, items: [closed, CONTENTS.items[0]] }, BARE);
+
+    expect(view.rows.map((row) => row.closedAt)).toEqual(["2026-11-20T03:00:00.000Z", null]);
+  });
+});

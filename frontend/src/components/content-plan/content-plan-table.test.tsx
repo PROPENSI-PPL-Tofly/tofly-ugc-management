@@ -406,3 +406,13 @@ describe("ContentPlanTable", () => {
     expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });
+
+describe("a content an early end closed", () => {
+  it("reads Ditutup in the status column, not the status it stopped at", () => {
+    renderTable([{ ...ROW, status: "scheduled", closedAt: "2026-11-20T03:00:00.000Z" }]);
+
+    const row = screen.getByText(ROW.name).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Ditutup")).toBeInTheDocument();
+    expect(within(row).queryByText("Scheduled")).not.toBeInTheDocument();
+  });
+});

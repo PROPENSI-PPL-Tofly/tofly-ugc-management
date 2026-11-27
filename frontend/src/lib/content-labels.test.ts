@@ -3,6 +3,7 @@ import {
   CONTENT_STATUS_TONES,
   CONTENT_TAG_LABELS,
   CONTENT_TAG_TONES,
+  contentStatusDisplay,
 } from "./content-labels";
 
 describe("CONTENT_STATUS_LABELS", () => {
@@ -52,5 +53,34 @@ describe("CONTENT_TAG_TONES", () => {
       late_submission: "redSoft",
       approval_bypassed: "amber",
     });
+  });
+});
+
+// QA: content an early end closed kept reading "Scheduled", as if the creator still owed it.
+describe("contentStatusDisplay", () => {
+  it("reads a closed content as Ditutup, in the quiet tone, whatever status it stopped at", () => {
+    expect(contentStatusDisplay({ status: "scheduled", closedAt: "2026-11-20T03:00:00.000Z" })).toEqual({
+      label: "Ditutup",
+      tone: "neutral",
+    });
+    expect(contentStatusDisplay({ status: "draft_revision", closedAt: "2026-11-20T03:00:00.000Z" })).toEqual({
+      label: "Ditutup",
+      tone: "neutral",
+    });
+  });
+
+  it("reads an open content by its status and that status's tone", () => {
+    expect(contentStatusDisplay({ status: "draft_revision", closedAt: null })).toEqual({
+      label: "Draft Perlu Revisi",
+      tone: "amber",
+    });
+    expect(contentStatusDisplay({ status: "link_submitted" })).toEqual({
+      label: "Content Link Submitted",
+      tone: "green",
+    });
+  });
+
+  it("shows a status newer than this build by its raw name, never a blank", () => {
+    expect(contentStatusDisplay({ status: "archived" as never })).toEqual({ label: "archived", tone: "neutral" });
   });
 });

@@ -414,3 +414,12 @@ describe("CreatorContentTable", () => {
     }
   });
 });
+
+describe("a content an early end closed", () => {
+  it("reads Ditutup in the status column, not the status it stopped at", () => {
+    renderTable([{ ...ROW, status: "scheduled", closedAt: "2026-11-20T03:00:00.000Z" }]);
+
+    expect(within(rowOf(ROW.name)).getByText("Ditutup")).toBeInTheDocument();
+    expect(within(rowOf(ROW.name)).queryByText("Scheduled")).not.toBeInTheDocument();
+  });
+});
