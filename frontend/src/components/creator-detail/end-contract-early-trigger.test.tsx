@@ -122,6 +122,34 @@ describe("EndContractEarlyTrigger", () => {
     expect(screen.queryByRole("button", { name: "Akhiri Kontrak Lebih Awal" })).not.toBeInTheDocument();
   });
 
+  // QA: the earliest last day followed the browser's clock, so an admin abroad could pick a
+  // day Jakarta had already left behind, which the API then refused.
+  it("starts the last day at Jakarta's today, whatever time zone the browser is in", () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    vi.setSystemTime(new Date("2026-11-24T18:00:00Z"));
+    try {
+      renderTrigger();
+      open();
+
+      expect(screen.getByLabelText(/hari terakhir/i)).toHaveAttribute("min", "2026-11-25");
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
+
+  // QA: why the fixed rate stays whole was only in a tooltip, easy to confirm without reading.
+  it("says beside the invoice line that the fixed rate stays whole, in plain sight", async () => {
+    renderTrigger();
+    open();
+    fill();
+    await goOn();
+
+    const dialog = screen.getByRole("dialog", { name: /Akhiri Kontrak\?/ });
+    expect(within(dialog).getByText("Fixed rate tetap penuh. Potong lewat penyesuaian sebelum finalize.")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Info Invoice" })).toBeNull();
+  });
+
   // AC 2: the form, "Bayar Sesuai Kontrak" by default.
   it("opens the form on the running period, paying as agreed by default", () => {
     renderTrigger();
