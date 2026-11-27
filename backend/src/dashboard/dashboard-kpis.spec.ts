@@ -39,6 +39,27 @@ describe("the executive dashboard's six KPIs", () => {
     expect(byKey.engagementRate.value).toBe(10);
   });
 
+  // The page shows a rate's move in percentage points (prototype: "▲ 1,2 pp"), which a ratio
+  // alone cannot give, so every card also carries the previous range's value.
+  it("carries the previous range's value next to the current one", () => {
+    const kpis = computeKpis(BASE, {
+      spending: 10_000_000,
+      unpaid: 0,
+      views: 0,
+      engagement: 0,
+      due: 10,
+      onTime: 10,
+    });
+    const byKey = Object.fromEntries(kpis.map((card) => [card.key, card]));
+
+    expect(byKey.totalSpending.previous).toBe(10_000_000);
+    expect(byKey.unpaid.previous).toBe(0);
+    expect(byKey.totalViews.previous).toBe(0);
+    expect(byKey.costPer1000Views.previous).toBeNull();
+    expect(byKey.onTimeRate.previous).toBe(100);
+    expect(byKey.engagementRate.previous).toBeNull();
+  });
+
   // A cost going up and a view count going up are opposite news for the same relative move.
   it('marks a rise as good for views and bad for costs, and a fall the other way', () => {
     const up = computeKpis(

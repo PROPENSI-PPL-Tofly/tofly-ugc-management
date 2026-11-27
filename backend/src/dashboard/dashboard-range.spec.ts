@@ -16,7 +16,16 @@ describe('the executive dashboard range', () => {
     }
   });
 
-  it.each([0, 1, 7, 13, -1, '6', null, 6.5])(
+  // A query string arrives as text: ?range=6 is "6", so the address form must be read too.
+  it.each([
+    ['3', 3],
+    ['6', 6],
+    ['12', 12],
+  ])('reads the query value %p as %p months', (value, months) => {
+    expect(checkDashboardRange(value)).toBe(months);
+  });
+
+  it.each([0, 1, 7, 13, -1, '7', '06', '6.0', ' 6', '', ['6'], null, 6.5])(
     'refuses the unsupported range %p with a 400',
     (value) => {
       expect(() => checkDashboardRange(value)).toThrow(BadRequestException);

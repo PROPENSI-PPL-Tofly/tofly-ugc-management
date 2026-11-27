@@ -161,7 +161,18 @@ describe('DashboardService', () => {
     const result = await service.executive(TODAY, 6);
 
     expect(result.creators).toEqual([]);
-    expect(result.charts.every((chart) => chart.months.length === 0)).toBe(true);
+    // Every month of the range is still a bar, at zero, so the charts keep their axis (AC 4).
+    for (const chart of result.charts) {
+      expect(chart.months.map((month) => month.month)).toEqual([
+        '2026-06',
+        '2026-07',
+        '2026-08',
+        '2026-09',
+        '2026-10',
+        '2026-11',
+      ]);
+      expect(chart.months.every((month) => month.total === 0)).toBe(true);
+    }
     expect(result.kpis.every((kpi) => kpi.value === null || kpi.value === 0)).toBe(true);
   });
 });

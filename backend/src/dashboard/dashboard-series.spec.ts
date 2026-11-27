@@ -38,6 +38,32 @@ describe("the executive dashboard's three monthly charts", () => {
     }
   });
 
+  // The charts' axis is the range: a month with nothing in it is a zero bar, never a gap, and the
+  // page refuses an answer whose months skip one (PBI-24 AC 4).
+  it('shows every month of the range, oldest first, with zeros where nothing happened', () => {
+    const charts = buildCharts(
+      [],
+      [link('2026-10', { platform: 'instagram', views: 500 })],
+      [],
+      TODAY,
+      ['2026-09', '2026-10', '2026-11'],
+    );
+
+    for (const chart of charts) {
+      expect(chart.months.map((month) => month.month)).toEqual(['2026-09', '2026-10', '2026-11']);
+    }
+    const views = charts.find((chart) => chart.key === 'views')!;
+    expect(views.months[0]).toEqual({
+      month: '2026-09',
+      parts: [
+        { key: 'instagram', label: 'Instagram', value: 0 },
+        { key: 'tiktok', label: 'TikTok', value: 0 },
+      ],
+      total: 0,
+    });
+    expect(views.months[1].total).toBe(500);
+  });
+
   it('groups spending by the finalized month and splits it into the three components', () => {
     const charts = buildCharts(
       [invoice('2026-10'), invoice('2026-11', { fixedRate: 10_000_000, total: 13_000_000 })],
