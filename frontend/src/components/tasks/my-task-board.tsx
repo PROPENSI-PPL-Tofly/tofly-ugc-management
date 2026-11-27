@@ -1,10 +1,11 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ContentDetailPanel } from "@/components/content-detail/content-detail-panel";
 import { DeadlineSortButton } from "@/components/content-plan/deadline-sort";
 import { FilteredEmpty } from "@/components/filters/filter-controls";
+import { useToast } from "@/components/ui/toast";
 import type { DeadlineSort } from "@/lib/content-plan";
 import {
   DEFAULT_MY_TASKS_SORT,
@@ -17,6 +18,7 @@ import { latestQuery, useUrlQuery } from "@/lib/url-query";
 import { MY_TASK_LIST_ID } from "./my-task-tab-bar";
 import { MyTaskTable } from "./my-task-table";
 import { TaskCalendar } from "./task-calendar";
+import { useCancelProposal } from "./use-cancel-proposal";
 
 /** The search parameter a notification or a bookmark uses to open one content's panel. */
 const CONTENT_PARAM = "content";
@@ -51,6 +53,21 @@ export function MyTaskBoard({
   // deep-link into it the way a notification would.
   const [detailContentId, setDetailContentId] = useState<string | null>(null);
   const listRef = useRef<HTMLElement>(null);
+  const router = useRouter();
+  const { show: notify, toast } = useToast();
+  // PBI-14 (14.3): withdrawing a proposal, from a row or from its panel. The board outlives both,
+  // so it keeps the toast and reads the list again.
+  const withdrawal = useCancelProposal({
+    onCancelled: (proposal) => {
+      if (proposal.id === detailContentId) closeDetail();
+      notify("Pengajuan dibatalkan.");
+      router.refresh();
+    },
+    onFailed: (message, stale) => {
+      notify(message);
+      if (stale) router.refresh();
+    },
+  });
 
   // A notification (or a bookmarked link) opens the panel straight from the URL; read on
   // the client because the search string only carries the real address after hydration.
@@ -145,6 +162,7 @@ export function MyTaskBoard({
             sort={sort}
             onSortToggle={toggleSort}
             onDetail={(task) => setDetailContentId(task.id)}
+            onCancelProposal={withdrawal.ask}
           />
         )}
       </section>
@@ -154,8 +172,11 @@ export function MyTaskBoard({
           contentId={detailContentId}
           role="creator"
           onClose={closeDetail}
+          ports={{ onCancelProposal: withdrawal.ask }}
         />
       ) : null}
+      {withdrawal.dialog}
+      {toast}
     </>
   );
 }

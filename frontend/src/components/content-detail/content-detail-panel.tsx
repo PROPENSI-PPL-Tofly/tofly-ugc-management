@@ -172,6 +172,8 @@ const OPENS_FORM: ReadonlySet<PanelActionKind> = new Set<PanelActionKind>([
   "submit_draft",
   "resubmit_draft",
   "submit_video",
+  // PBI-14 (14.3): it opens the host's confirmation; the host sends it and reads the list again.
+  "cancel_proposal",
 ]);
 
 /**
@@ -668,6 +670,8 @@ export function ContentDetailPanel({
     },
     // A creator hands in from this panel unless the touchpoint brings its own handler.
     onCreatorAction: ports.onCreatorAction ?? (role === "creator" ? (action) => setHandingIn(action) : undefined),
+    // PBI-14 (14.3): the host confirms and withdraws a pending proposal; without it, nothing shows.
+    onCancelProposal: ports.onCancelProposal,
   };
 
   const snapshot = () => ({ busy, note, noteHtml, uploading, imageIds });

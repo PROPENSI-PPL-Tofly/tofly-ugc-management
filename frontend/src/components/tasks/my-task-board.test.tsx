@@ -509,7 +509,7 @@ describe("MyTaskBoard, withdrawing a pending proposal", () => {
 
     const dialog = await confirmFromRow();
 
-    expect(dialog).toHaveTextContent("“Review Paket Kilat” akan dihapus dari daftar.");
+    expect(dialog).toHaveTextContent('"Review Paket Kilat" akan dihapus dari daftar.');
     expect(within(dialog).getByRole("button", { name: "Kembali" })).toBeInTheDocument();
     expect(cancelProposal).not.toHaveBeenCalled();
   });

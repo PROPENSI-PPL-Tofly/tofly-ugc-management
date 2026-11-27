@@ -5,6 +5,7 @@ import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { ContentTags } from "@/components/contents/content-tags";
 import { DueDate, badgeTags } from "@/components/contents/due-date";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
 import { Pill, StatusDot } from "@/components/ui/pill";
@@ -36,6 +37,7 @@ export function MyTaskTable({
   emptyHint = "Tugas baru muncul di sini begitu admin menjadwalkannya.",
   sort = "asc",
   onSortToggle,
+  onCancelProposal,
 }: Readonly<{
   tasks: MyTask[];
   /** Opens the row's content detail panel; every row can show its journey and hand in from it. */
@@ -50,6 +52,11 @@ export function MyTaskTable({
   sort?: DeadlineSort;
   /** Turns the deadline order over; given, the Deadline header becomes its button. */
   onSortToggle?: () => void;
+  /**
+   * Asks to withdraw a pending proposal (PBI-14, 14.3). Given, a row the API allows it on carries
+   * "Batalkan Pengajuan", as the prototype draws it; hand-ins stay in Detail Konten.
+   */
+  onCancelProposal?: (task: MyTask) => void;
 }>) {
   if (tasks.length === 0) {
     return (
@@ -60,6 +67,10 @@ export function MyTaskTable({
       />
     );
   }
+
+  const cancellable = (task: MyTask) => onCancelProposal !== undefined && task.actions.includes("cancel_proposal");
+  // Only a row with a move of its own needs the column; otherwise the table stays as it was.
+  const withActions = tasks.some(cancellable);
 
   return (
     <ScrollFrame>
@@ -88,6 +99,11 @@ export function MyTaskTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Platform
             </th>
+            {withActions ? (
+              <th role="columnheader" scope="col" className={HEAD}>
+                <span className="sr-only">Aksi</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         {/* Below lg the cards sit apart on the page colour, 12 px between them, so one task never
@@ -132,6 +148,22 @@ export function MyTaskTable({
               <td role="cell" data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
                 <PlatformIcons platforms={task.platforms} />
               </td>
+              {withActions ? (
+                <td role="cell" className={`${CELL} text-right max-lg:empty:hidden max-lg:pt-2`}>
+                  {cancellable(task) ? (
+                    <Button
+                      variant="danger-outline"
+                      onClick={(event) => {
+                        // The row opens Detail Konten; this button asks to withdraw instead.
+                        event.stopPropagation();
+                        onCancelProposal?.(task);
+                      }}
+                    >
+                      Batalkan Pengajuan
+                    </Button>
+                  ) : null}
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
