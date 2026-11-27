@@ -551,6 +551,7 @@ model email_log {
 
 enum email_status {
   pending
+  sending
   sent
   failed
 }

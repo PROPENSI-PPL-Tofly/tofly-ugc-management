@@ -26,6 +26,13 @@ export interface EmailLogStore {
   markFailed(eventKey: string, recipient: string, error: string, at: Date): Promise<void>;
   /** Templates or SMTP not set up: failed for now, with no attempt used, so it is sent once they are. */
   markNotReady(eventKey: string, recipient: string, at: Date): Promise<void>;
+  /** Marks the row sending just before the mail server is asked (review on #253, AC 8). */
+  startSending(eventKey: string, recipient: string, at: Date): Promise<void>;
+  /**
+   * Closes the rows left sending for 30 minutes at `at` as UnknownOutcome: they may have gone out,
+   * so they are never sent again. Answers how many it closed (review on #264).
+   */
+  closeStuckSending(at: Date): Promise<number>;
   /** The failed emails the 08:00 run may still try again at `at`, oldest first (11.3). */
   failedToRetry(at: Date): Promise<LoggedEmail[]>;
   /** Moves a retryable row to pending in one guarded update; false when another run got it. */
@@ -34,7 +41,10 @@ export interface EmailLogStore {
   abandon(eventKey: string, recipient: string, reason: string, at: Date): Promise<void>;
 }
 
-/** A pending row untouched this long was cut off mid-send (a crash or a lost mark): retry it. */
+/**
+ * A pending row untouched this long was cut off before the mail server was asked: retry it. A row
+ * left sending this long may have gone out: close it (review on #253).
+ */
 export const STALE_PENDING_MS = 30 * 60 * 1000;
 
 /**
@@ -139,6 +149,28 @@ export class PrismaEmailLogStore implements EmailLogStore {
       where: byEventAndRecipient(eventKey, recipient),
       data: { status: 'failed', last_error: 'PortNotReady', updated_at: at },
     });
+  }
+
+  async startSending(eventKey: string, recipient: string, at: Date): Promise<void> {
+    // No attempt yet: markSent or markFailed counts it once the mail server has answered.
+    await this.prisma.email_log.update({
+      where: byEventAndRecipient(eventKey, recipient),
+      data: { status: 'sending', updated_at: at },
+    });
+  }
+
+  async closeStuckSending(at: Date): Promise<number> {
+    // One statement for every stuck row, so the run reads nothing first and gets the count back.
+    const { count } = await this.prisma.email_log.updateMany({
+      where: { status: 'sending', updated_at: { lt: new Date(at.getTime() - STALE_PENDING_MS) } },
+      data: {
+        status: 'failed',
+        attempts: MAX_EMAIL_ATTEMPTS,
+        last_error: 'UnknownOutcome',
+        updated_at: at,
+      },
+    });
+    return count;
   }
 
   async failedToRetry(at: Date): Promise<LoggedEmail[]> {

@@ -1,14 +1,14 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { jakartaDay, joinName } from '../creators/evergreen.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EMAIL_LOG_STORE, type EmailLogStore, type LoggedEmail } from './email-log-store.js';
 import { EmailNotifier, type EmailEvent } from './email-notifier.js';
 
-// The daily 08:00 WIB email run of PBI-11 (11.3), started by Cloud Scheduler: it first tries the
-// failed emails again (AC 9, up to 3 attempts in total), then reminds each creator of content due
-// tomorrow that has no link yet (AC 2). Both go through the helper, so the unique event key keeps
-// a second run that day from sending anything twice (AC 8).
+// The daily 08:00 WIB email run of PBI-11 (11.3), started by Cloud Scheduler: it first reminds
+// each creator of content due tomorrow that has no link yet (AC 2), then tries the failed emails
+// again (AC 9, up to 3 attempts in total). Both go through the helper, so the unique event key
+// keeps a second run that day from sending anything twice (AC 8).
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -69,6 +69,8 @@ export interface DailyEmailReport {
   retried: number;
   resent: number;
   reminded: number;
+  /** Emails closed as UnknownOutcome: they may not have reached their recipient (review on #264). */
+  closed: number;
 }
 
 /** Tomorrow's calendar day in Jakarta, as Postgres stores a `date` (midnight UTC). */
@@ -86,15 +88,26 @@ export class DailyEmailRun {
       retry(email: LoggedEmail): Promise<boolean>;
     },
     @Inject(EMAIL_LOG_STORE)
-    private readonly store: Pick<EmailLogStore, 'failedToRetry' | 'abandon'>,
+    private readonly store: Pick<EmailLogStore, 'failedToRetry' | 'closeStuckSending' | 'abandon'>,
     @Optional()
     @Inject(DAILY_EMAIL_CLOCK)
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
+  private readonly log = new Logger(DailyEmailRun.name);
+
   async run(): Promise<DailyEmailReport> {
     const now = this.clock();
+    // Review on #253 (Kak Satria, AC 8): the mail server may have accepted a row left sending, as
+    // with a timeout, so it is closed rather than sent a second time. Review on #264 (OWASP A09):
+    // how many is answered and logged, since each may not have reached its creator.
+    const closed = await this.store.closeStuckSending(now);
+    if (closed > 0) this.log.warn(`${closed} email(s) closed as UnknownOutcome; check them by hand`);
+    // Read before reminding, so a reminder that fails this morning waits for tomorrow's run.
     const failed = await this.store.failedToRetry(now);
+    // Review on #253 (Kak Satria, AC 2): reminders first, since a slow mail server can use up the
+    // run's time, and a reminder cannot wait for tomorrow while a retry can.
+    const reminded = await this.remind(now);
     let retried = 0;
     let resent = 0;
     for (const email of failed) {
@@ -108,7 +121,7 @@ export class DailyEmailRun {
       if (await this.notifier.retry(email)) resent += 1;
     }
 
-    return { retried, resent, reminded: await this.remind(now) };
+    return { retried, resent, reminded, closed };
   }
 
   private async stillSomeones(email: string): Promise<boolean> {

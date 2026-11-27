@@ -156,7 +156,7 @@ describe("Login page", () => {
   });
 
   it.each([
-    ["an admin", "admin", "/admin/creators"],
+    ["an admin", "admin", "/admin/dashboard"],
     ["a creator", "creator", "/creator/dashboard"],
   ] as const)("sends %s who is already signed in to their own page", async (_label, role, path) => {
     vi.mocked(currentRole).mockResolvedValue(role);

@@ -30,7 +30,7 @@ export default async function AuditLogPage({
       <AccessDenied
         reason="Halaman ini hanya untuk Super Admin."
         home={homeFor("admin")}
-        homeLabel="Kembali ke Kreator"
+        homeLabel="Kembali ke Dashboard"
       />
     );
   }
