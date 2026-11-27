@@ -69,6 +69,16 @@ export const NOTIFICATION_SAMPLES: {
     startDate: '2027-03-01',
     endDate: '2027-05-31',
   },
+  contract_end_changed: {
+    recipientName: RANGGA,
+    periodNumber: 2,
+    endDate: '2027-03-01',
+  },
+  quota_changed: {
+    recipientName: RANGGA,
+    periodNumber: 2,
+    quota: 8,
+  },
   contract_ended_early: {
     recipientName: RANGGA,
     lastDay: '2026-12-15',

@@ -18,6 +18,8 @@ type Kind =
   /** A `YYYY-MM-DD` day that exists. */
   | 'day'
   | 'optionalDay'
+  /** A whole number above zero, such as a period's quota (PBI-16). */
+  | 'count'
   /** The early-end invoice outcome (PBI-37). */
   | 'invoiceOutcome'
   /** The creator an Admin email is about; a creator gone from the contract reads "Creator". */
@@ -42,6 +44,8 @@ const FIELDS: Record<NotificationTemplate, Readonly<Record<string, Kind>>> = {
   invoice_paid: { contractId: 'text', accessClosesOn: 'optionalDay' },
   period_added: { contractId: 'text', startDate: 'day', endDate: 'day' },
   contract_ended_early: { lastDay: 'day', invoice: 'invoiceOutcome' },
+  contract_end_changed: { contractId: 'text', endDate: 'day' },
+  quota_changed: { contractId: 'text', quota: 'count' },
   deadline_reminder: { ...CONTENT, deadline: 'day' },
   draft_submitted: { ...CONTENT, creatorName: 'creatorName' },
   proposal_submitted: {
@@ -77,6 +81,10 @@ function read(kind: Kind, value: unknown): unknown {
         : undefined;
     case 'optionalDay':
       return value === undefined || value === null ? null : read('day', value);
+    case 'count':
+      return Number.isInteger(value) && (value as number) > 0
+        ? value
+        : undefined;
     case 'invoiceOutcome':
       return value === 'paid' || value === 'cancelled' ? value : undefined;
     case 'creatorName':
