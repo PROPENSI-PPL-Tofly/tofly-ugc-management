@@ -11,6 +11,8 @@ import { MyContentsService } from './my-contents.service.js';
 import { MyInvoicePaymentsController } from './my-invoice-payments.controller.js';
 import { MyInvoicesController } from './my-invoices.controller.js';
 import { MyInvoicesService } from './my-invoices.service.js';
+import { MyProposalsController } from './my-proposals.controller.js';
+import { MyProposalsService } from './my-proposals.service.js';
 
 @Module({
   imports: [PrismaModule, InvoicePaymentsModule, InvoicesModule],
@@ -19,6 +21,7 @@ import { MyInvoicesService } from './my-invoices.service.js';
     MyContentsController,
     MyInvoicePaymentsController,
     MyInvoicesController,
+    MyProposalsController,
   ],
   providers: [
     MeDashboardService,
@@ -26,6 +29,7 @@ import { MyInvoicesService } from './my-invoices.service.js';
     ContentDetailService,
     DevCreatorGuard,
     MyInvoicesService,
+    MyProposalsService,
   ],
 })
 export class MeModule {}

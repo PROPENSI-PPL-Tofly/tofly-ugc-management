@@ -76,8 +76,9 @@ function stub(rows: MyContentRow[]) {
   return { client, service: new MyContentsService(client) };
 }
 
-// A pending proposal is not assigned work, so every read names the committed statuses.
+// Every status a creator's own content can hold: the proposal they made as well (PBI-14 AC 5).
 const COMMITTED = [
+  'pending',
   'scheduled',
   'draft_review',
   'draft_revision',
@@ -827,5 +828,46 @@ describe('MyContentsService.list', () => {
       total: 1,
       totalPages: 1,
     });
+  });
+});
+
+// PBI-14 AC 5, 6: the creator's pending proposal shows under Menunggu Admin and Semua as a row of
+// its own, whose only action is to withdraw it, and it is nobody's overdue work.
+describe('MyContentsService.list, a pending proposal', () => {
+  const proposal = () =>
+    row({ id: 'idea', name: 'Unboxing Paket', type: 'specific', status: 'pending', deadline: '2026-10-20' });
+
+  it('lists it under Semua and Menunggu Admin, and not under Perlu Dikerjakan', async () => {
+    const { service } = stub([proposal(), row({ id: 'todo', status: 'scheduled', deadline: '2026-10-25' })]);
+
+    const all = await service.list(CREATOR_ID, query(), NOW);
+    const waiting = await service.list(CREATOR_ID, query({ tab: 'waiting_admin' }), NOW);
+    const toDo = await service.list(CREATOR_ID, query({ tab: 'to_do' }), NOW);
+
+    expect(ids(all)).toEqual(['idea', 'todo']);
+    expect(ids(waiting)).toEqual(['idea']);
+    expect(ids(toDo)).toEqual(['todo']);
+    expect(all.tabCounts).toEqual({ all: 2, to_do: 1, waiting_admin: 1, done: 0 });
+  });
+
+  it('offers only "Batalkan Pengajuan" on it, and keeps it on the admin’s side', async () => {
+    const { service } = stub([proposal()]);
+
+    const { items, tabCounts } = await service.list(CREATOR_ID, query(), NOW);
+
+    expect(items[0]).toMatchObject({ status: 'pending', type: 'specific', actions: ['cancel_proposal'] });
+    expect(tabCounts.to_do).toBe(0);
+  });
+
+  it('tags it overdue never, even past its deadline: no one owes it yet', async () => {
+    const { service } = stub([row({ status: 'pending', type: 'specific', deadline: '2026-10-01' })]);
+
+    expect((await service.list(CREATOR_ID, query(), NOW)).items[0].tags).toEqual([]);
+  });
+
+  it('filters for it by status', async () => {
+    const { service } = stub([proposal(), row({ id: 'todo', status: 'scheduled' })]);
+
+    expect(ids(await service.list(CREATOR_ID, query({ statuses: ['pending'] }), NOW))).toEqual(['idea']);
   });
 });

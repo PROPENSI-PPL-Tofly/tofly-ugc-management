@@ -31,7 +31,7 @@ import {
   type MyTaskStatus,
   type MyTaskTab,
 } from './my-task-query.js';
-import { lastGraceDeadline, taskActions } from './task-actions.js';
+import { lastGraceDeadline, taskRowActions } from './task-actions.js';
 
 // Only what a row and its modals show. Selecting columns (rather than whole rows) keeps
 // performance numbers, video links and anything added later out of the response by construction.
@@ -89,7 +89,7 @@ interface DeadlineRange {
 
 interface MyContentsWhere {
   contracts: { creator_id: string; start_date: { lte: Date } };
-  // Always named: a pending proposal, which is not assigned work yet, never reaches Task Saya.
+  // Always named, so no status a creator's content cannot hold is ever asked for.
   status: { in: MyTaskStatus[] };
   /** PBI-37 (AC 7): content an early end closed leaves Task Saya. */
   closed_at: null;
@@ -137,12 +137,15 @@ function tagsOf(row: MyContentRow, now: Date): ContentTag[] {
 }
 
 /**
- * Whose turn a row is. A button waiting for the creator makes it theirs: a draft still in review
- * joins Perlu Dikerjakan once its H-1 link can be sent, since from then on the creator can
- * finish the content without the admin. Every other row follows its status.
+ * Whose turn a row is. A button that moves the work on makes it the creator's: a draft still in
+ * review joins Perlu Dikerjakan once its H-1 link can be sent, since from then on the creator can
+ * finish the content without the admin. Withdrawing a proposal moves nothing on, so a pending
+ * proposal stays with the admin. Every other row follows its status.
  */
 function tabOf(item: MyContentItem): MyStatusTab {
-  return item.actions.length > 0 ? 'to_do' : myTabOf(item.status);
+  return item.actions.some((action) => action !== 'cancel_proposal')
+    ? 'to_do'
+    : myTabOf(item.status);
 }
 
 /** Finished work: nothing is left for anyone to do on it. */
@@ -304,7 +307,7 @@ export class MyContentsService implements MyContentsLister {
       deadline,
       status: row.status as MyTaskStatus,
       tags,
-      actions: taskActions(row.status, deadline, today),
+      actions: taskRowActions(row.status, deadline, today),
       // Stale once the revision is handed in, so only a row awaiting a resubmit carries them.
       revisionNotes:
         row.status === 'draft_revision'

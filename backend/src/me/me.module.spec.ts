@@ -8,6 +8,8 @@ import { MyContentsService } from './my-contents.service.js';
 import { MyInvoicePaymentsController } from './my-invoice-payments.controller.js';
 import { MyInvoicesController } from './my-invoices.controller.js';
 import { MyInvoicesService } from './my-invoices.service.js';
+import { MyProposalsController } from './my-proposals.controller.js';
+import { MyProposalsService } from './my-proposals.service.js';
 
 describe('MeModule', () => {
   it('provides the Task Saya controller and service', async () => {
@@ -43,6 +45,20 @@ describe('MeModule', () => {
 
     expect(module.get(MyInvoicesController)).toBeDefined();
     expect(module.get(MyInvoicesService)).toBeDefined();
+  });
+
+  // PBI-14: "Ajukan Konten" and "Batalkan Pengajuan". Without the global deadline buffer module
+  // in this isolated module the service falls back to the default buffer, so it still builds.
+  it("provides the creator's proposal routes", async () => {
+    const module = await Test.createTestingModule({
+      imports: [MeModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
+
+    expect(module.get(MyProposalsController)).toBeDefined();
+    expect(module.get(MyProposalsService)).toBeDefined();
   });
 
   it('is part of the application', () => {
