@@ -1,7 +1,7 @@
 import { PortNotReady } from '../auth/google/unready-ports.js';
 import type { EmailMessage, EmailSender } from './email-sender.js';
 import type { EmailLogStore, LoggedEmail } from './email-log-store.js';
-import type { EmailTemplates } from './email-templates.js';
+import type { EmailTemplates, RenderedEmail } from './email-templates.js';
 import { EMAIL_TIMEOUT_MS, EmailNotifier, type EmailEvent } from './email-notifier.js';
 
 const NOW = new Date('2026-11-25T01:00:00.000Z');
@@ -19,6 +19,8 @@ function setup(overrides: { claim?: boolean; send?: EmailSender['send'] } = {}) 
     markSent: vi.fn<EmailLogStore['markSent']>().mockResolvedValue(),
     markFailed: vi.fn<EmailLogStore['markFailed']>().mockResolvedValue(),
     markNotReady: vi.fn<EmailLogStore['markNotReady']>().mockResolvedValue(),
+    startSending: vi.fn<EmailLogStore['startSending']>().mockResolvedValue(),
+    closeStuckSending: vi.fn<EmailLogStore['closeStuckSending']>().mockResolvedValue(0),
     failedToRetry: vi.fn<EmailLogStore['failedToRetry']>().mockResolvedValue([]),
     claimRetry: vi.fn<EmailLogStore['claimRetry']>().mockResolvedValue(true),
     abandon: vi.fn<EmailLogStore['abandon']>().mockResolvedValue(),
@@ -127,6 +129,107 @@ describe('EmailNotifier', () => {
     await done;
 
     expect(EMAIL_TIMEOUT_MS).toBe(10_000);
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'EmailTimeout', NOW);
+  });
+
+  // 11.4: the Paid email reads its invoice PDF while rendering, so a template may answer later.
+  it('waits for a template that answers later, then sends what it rendered', async () => {
+    const { sender, templates, notifier } = setup();
+    templates.render.mockResolvedValue({ subject: 'Pembayaran selesai', text: 'Halo', html: '<p>Halo</p>' });
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(true);
+
+    expect(sender.send).toHaveBeenCalledWith(expect.objectContaining({ subject: 'Pembayaran selesai' }));
+  });
+
+  // PBI-11 AC 3: the files a template attaches go out with the email.
+  it('sends the files a template attaches along with the email', async () => {
+    const { sender, templates, notifier } = setup();
+    const pdf = { filename: 'Invoice_Salsa_Periode1.pdf', content: Buffer.from('%PDF'), contentType: 'application/pdf' };
+    templates.render.mockResolvedValue({ subject: 'Pembayaran selesai', text: 'Halo', html: '<p>Halo</p>', attachments: [pdf] });
+
+    await notifier.notify(EVENT);
+
+    expect(sender.send).toHaveBeenCalledWith(expect.objectContaining({ attachments: [pdf] }));
+  });
+
+  // A slow PDF read holds the action no longer than a slow mail server does (11.1's 10 seconds).
+  it('counts a template that never answers against the same 10 seconds', async () => {
+    vi.useFakeTimers();
+    const { store, sender, templates, notifier } = setup();
+    templates.render.mockReturnValue(new Promise(() => {}));
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+
+    await expect(done).resolves.toBe(false);
+    expect(sender.send).not.toHaveBeenCalled();
+    // Not EmailTimeout: the mail server was never asked, so the 08:00 run may still send it (AC 8).
+    expect(store.startSending).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RenderTimeout', NOW);
+  });
+
+  // AC 8: once the email is marked failed the 08:00 run sends it, so a late render sends nothing.
+  it('sends nothing when a template answers after the 10 seconds ran out', async () => {
+    vi.useFakeTimers();
+    const { sender, templates, notifier } = setup();
+    let answer: (email: RenderedEmail) => void = () => {};
+    templates.render.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+    await done;
+    answer({ subject: 'Terlambat', text: 'Halo', html: '<p>Halo</p>' });
+    await vi.runAllTimersAsync();
+
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+
+  it('marks a template that answers with a failure failed, never throwing', async () => {
+    const { store, templates, notifier } = setup();
+    templates.render.mockRejectedValue(new RangeError('no invoice'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RangeError', NOW);
+  });
+
+  // A render that fails never reaches the mail server, so its row must not say sending: a row left
+  // sending is closed as UnknownOutcome and never sent (#264), and this one can still be sent.
+  it('never marks the row sending when the template cannot be rendered', async () => {
+    const { store, templates, notifier } = setup();
+    templates.render.mockRejectedValue(new PortNotReady('FRONTEND_URL is not set'));
+
+    await notifier.notify(EVENT);
+
+    expect(store.startSending).not.toHaveBeenCalled();
+    expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+  });
+
+  it('sends nothing when the sending mark lands after the 10 seconds ran out', async () => {
+    vi.useFakeTimers();
+    const { store, sender, notifier } = setup();
+    let marked: () => void = () => {};
+    store.startSending.mockReturnValue(new Promise<void>((resolve) => (marked = resolve)));
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+    await expect(done).resolves.toBe(false);
+    marked();
+    await vi.runAllTimersAsync();
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'RenderTimeout', NOW);
+  });
+
+  it('still calls a send that runs out of time after the mail server was asked EmailTimeout', async () => {
+    vi.useFakeTimers();
+    const { store, notifier } = setup({ send: () => new Promise(() => {}) });
+
+    const done = notifier.notify(EVENT);
+    await vi.advanceTimersByTimeAsync(EMAIL_TIMEOUT_MS);
+
+    await expect(done).resolves.toBe(false);
+    expect(store.startSending).toHaveBeenCalled();
     expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'EmailTimeout', NOW);
   });
 
@@ -339,6 +442,29 @@ describe('EmailNotifier, review follow-ups', () => {
 
     expect(store.markNotReady).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
     expect(store.markFailed).not.toHaveBeenCalled();
+  });
+
+  // Kak Satria (AC 8): the row says sending before the mail server is asked, so a send whose
+  // sent mark is lost is never taken for one that never started.
+  it('marks the row sending right before asking the mail server', async () => {
+    const { store, sender, notifier } = setup();
+
+    await notifier.notify(EVENT);
+
+    expect(store.startSending).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', NOW);
+    expect(store.startSending.mock.invocationCallOrder[0]).toBeLessThan(
+      sender.send.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('sends nothing when the row cannot be marked sending, and marks it failed', async () => {
+    const { store, sender, notifier } = setup();
+    store.startSending.mockRejectedValue(new TypeError('connection lost'));
+
+    await expect(notifier.notify(EVENT)).resolves.toBe(false);
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(EVENT.eventKey, 'salsa@example.com', 'TypeError', NOW);
   });
 
   // Davin: SMTP accepted it, so one more try at marking it sent keeps the log honest.

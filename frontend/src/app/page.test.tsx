@@ -13,7 +13,7 @@ describe("Home page", () => {
   // TC-09-01: opening Tofly's address signed out lands on the login page.
   it.each([
     ["a visitor who is not signed in", null, "/login"],
-    ["an admin", "admin", "/admin/creators"],
+    ["an admin", "admin", "/admin/dashboard"],
     ["a creator", "creator", "/creator/dashboard"],
   ] as const)("sends %s to their page", async (_label, role, path) => {
     vi.mocked(currentRole).mockResolvedValue(role);

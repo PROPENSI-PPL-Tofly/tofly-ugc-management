@@ -4,6 +4,8 @@ import { InvoicePaymentsModule } from '../invoices/invoice-payments.module.js';
 import { InvoicesModule } from '../invoices/invoices.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { ContentDetailService } from '../contents/content-detail.service.js';
+import { MeDashboardController } from './me-dashboard.controller.js';
+import { MeDashboardService } from './me-dashboard.service.js';
 import { MyContentsController } from './my-contents.controller.js';
 import { MyContentsService } from './my-contents.service.js';
 import { MyInvoicePaymentsController } from './my-invoice-payments.controller.js';
@@ -13,11 +15,13 @@ import { MyInvoicesService } from './my-invoices.service.js';
 @Module({
   imports: [PrismaModule, InvoicePaymentsModule, InvoicesModule],
   controllers: [
+    MeDashboardController,
     MyContentsController,
     MyInvoicePaymentsController,
     MyInvoicesController,
   ],
   providers: [
+    MeDashboardService,
     MyContentsService,
     ContentDetailService,
     DevCreatorGuard,

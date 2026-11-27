@@ -194,7 +194,7 @@ describe('Google sign-in (e2e)', () => {
   }
 
   it.each([
-    ['an admin', 'admin@example.com', '/admin/creators', 'user-admin'],
+    ['an admin', 'admin@example.com', '/admin/dashboard', 'user-admin'],
     ['a creator', 'creator@example.com', '/creator/dashboard', 'user-creator'],
   ])(
     'signs %s in end to end and lands them on their page',
@@ -233,7 +233,7 @@ describe('Google sign-in (e2e)', () => {
 
     const response = await callback({ code, state }, cookie);
 
-    expect(response.headers.location).toBe('/admin/creators');
+    expect(response.headers.location).toBe('/admin/dashboard');
   });
 
   it.each([
@@ -347,6 +347,6 @@ describe('Google sign-in (e2e)', () => {
     );
 
     expect(response.headers['cache-control']).toBe('no-store');
-    expect(response.headers.location).toBe('/admin/creators');
+    expect(response.headers.location).toBe('/admin/dashboard');
   });
 });

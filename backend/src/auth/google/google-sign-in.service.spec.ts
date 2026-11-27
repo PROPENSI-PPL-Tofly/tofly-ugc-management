@@ -58,7 +58,7 @@ function setup(
 describe('landingPath / loginErrorPath', () => {
   // The creator's home is the dashboard (PBI-7): the page `/` and the wordmark lead there too.
   it('sends an admin to the Creator Database and a creator to their dashboard', () => {
-    expect(landingPath(ADMIN)).toBe('/admin/creators');
+    expect(landingPath(ADMIN)).toBe('/admin/dashboard');
     expect(landingPath(CREATOR)).toBe('/creator/dashboard');
   });
 
@@ -76,7 +76,7 @@ describe('GoogleSignInService.complete', () => {
       setup();
 
     await expect(service.complete(CODE, FLOW, RESPONSE)).resolves.toBe(
-      '/admin/creators',
+      '/admin/dashboard',
     );
 
     expect(exchanger.exchange).toHaveBeenCalledWith(CODE, FLOW.verifier);

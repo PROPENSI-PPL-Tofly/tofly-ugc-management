@@ -19,6 +19,7 @@ export default defineConfig({
       exclude: [
         'src/main.ts',
         'src/email/send-test-email-cli.ts',
+        'src/email/notifications/preview-notifications-cli.ts',
         // Nest wiring is proven by booting the app. The email sign-in modules (PBI-39) are measured
         // instead: they choose which adapter (Prisma, a fail-closed sender) a request really gets.
         'src/*.module.ts',
@@ -107,6 +108,14 @@ export default defineConfig({
             functions: 100,
             statements: 100,
           },
+        // 24.1: the executive dashboard's formulas decide what management spends on, so every
+        // line and branch of the new module is held to full coverage from its first commit.
+        'src/dashboard/**': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+          statements: 100,
+        },
       },
     },
   },

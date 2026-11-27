@@ -18,6 +18,7 @@ import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
 import { DailyEmailRunModule } from './email/daily-email-run.module.js';
 import { EmailModule } from './email/email.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { MeModule } from './me/me.module.js';
@@ -58,6 +59,7 @@ export function validate(
     AuditModule,
     AuditLogsModule,
     DeadlineBufferModule,
+    DashboardModule,
     CreatorsModule,
     InvoicesModule,
     ContentsModule,

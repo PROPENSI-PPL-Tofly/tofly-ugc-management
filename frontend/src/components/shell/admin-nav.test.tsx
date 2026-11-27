@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ usePathname: vi.fn() }));
 
 describe("AdminNav", () => {
   // PBI-23 AC 1 and 3: the Super Admin menu stays hidden from everyone else.
-  it("adds Log Aktivitas for a Super Admin, as the sixth equal tile on a phone", () => {
+  it("adds Log Aktivitas for a Super Admin, the seventh tile, in two rows of four on a phone", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/log-aktivitas");
 
     render(
@@ -22,7 +22,8 @@ describe("AdminNav", () => {
     expect(link).toHaveAttribute("aria-current", "page");
     expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getAllByRole("link").at(-1)).toBe(link);
-    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-6");
+    // Seven across leaves about 45px a tile at 375px, which cuts off "Pembayaran" (seen locally).
+    expect(screen.getByRole("list")).toHaveClass("grid", "grid-cols-4");
   });
 
   it("hides Log Aktivitas from a regular Admin", () => {
@@ -153,16 +154,28 @@ describe("AdminNav", () => {
     );
   });
 
+  // Prototype (Sprint 4, PBI-24): the executive Dashboard is the admin's first place.
+  it("puts Dashboard first, linked to the executive dashboard and current there", () => {
+    vi.mocked(usePathname).mockReturnValue("/admin/dashboard");
+
+    render(<AdminNav />);
+
+    const link = screen.getByRole("link", { name: "Dashboard" });
+    expect(link).toHaveAttribute("href", "/admin/dashboard");
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(screen.getAllByRole("link")[0]).toBe(link);
+  });
+
   // The approved design replaces the phone's sideways-scrolling row (where "Pembayaran"
   // sat cut off at the edge) with equal tiles at the foot of the screen, one per place, so with
-  // Performa Konten there are four: every place is in sight, nothing to scroll to, no edge to fade.
-  it("lays the places out as four equal tiles on a phone, none of them cut off", () => {
+  // Dashboard there are five: every place is in sight, nothing to scroll to, no edge to fade.
+  it("lays the places out as five equal tiles on a phone, none of them cut off", () => {
     vi.mocked(usePathname).mockReturnValue("/admin/creators");
 
     render(<AdminNav />);
     const list = screen.getByRole("list");
 
-    expect(list).toHaveClass("grid", "grid-cols-4");
+    expect(list).toHaveClass("grid", "grid-cols-5");
     expect(list).not.toHaveClass("overflow-x-auto");
     expect(list).not.toHaveAttribute("data-more");
   });
@@ -178,6 +191,7 @@ describe("AdminNav", () => {
       expect(icon).toHaveAttribute("aria-hidden", "true");
     }
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Dashboard",
       "Kreator",
       "Content Plan",
       "Performa Konten",
@@ -206,10 +220,10 @@ describe("the Super Admin's extra place", () => {
     );
   }
 
-  it("keeps the four everyday places for an Admin and no Super Admin door", () => {
+  it("keeps the five everyday places for an Admin and no Super Admin door", () => {
     renderAs("admin");
 
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    expect(screen.getAllByRole("link")).toHaveLength(5);
     expect(screen.queryByRole("link", { name: "Pengguna Admin" })).toBeNull();
   });
 
@@ -221,6 +235,7 @@ describe("the Super Admin's extra place", () => {
       "/admin/users",
     );
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Dashboard",
       "Kreator",
       "Content Plan",
       "Performa Konten",

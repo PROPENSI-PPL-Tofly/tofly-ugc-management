@@ -1,4 +1,5 @@
 import type { EmailMessage } from './email-sender.js';
+import { escapeHtml } from './html.js';
 
 // The sign-in code email (PBI-39, 39.1): what a creator receives when they ask for a code.
 // Pure module — nothing is sent here — so the words and both bodies are tested without a
@@ -15,24 +16,6 @@ export const SIGN_IN_CODE_VALID_MINUTES = 10;
 
 /** Everything the message says beside its recipient: `send({ to, ...signInCodeEmail(code) })`. */
 export type SignInCodeEmail = Omit<EmailMessage, 'to'>;
-
-/** The five characters that would otherwise become markup in the HTML body. */
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => {
-    switch (character) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      default:
-        return '&#39;';
-    }
-  });
-}
 
 /** The two bodies' shared words, so the plain text and the HTML cannot drift apart. */
 function paragraphs(code: string): string[] {

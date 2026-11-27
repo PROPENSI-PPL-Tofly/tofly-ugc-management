@@ -122,7 +122,7 @@ describe('Email code sign-in (e2e)', () => {
 
   it.each([
     ['a creator', CREATOR, 'creator', '/creator/dashboard'],
-    ['an admin', ADMIN, 'admin', '/admin/creators'],
+    ['an admin', ADMIN, 'admin', '/admin/dashboard'],
   ])(
     'signs %s in with the emailed code and opens their home page (AC 3, 10)',
     async (_, email, role, home) => {

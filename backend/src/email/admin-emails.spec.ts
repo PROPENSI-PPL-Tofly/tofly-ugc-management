@@ -6,7 +6,12 @@ const CREATOR_NAMES = { first_name: 'Rangga', middle_name: null, last_name: 'Pra
 
 type AllEvent = Omit<EmailEvent, 'to'> & { to: readonly EmailRecipient[] };
 
-function setup(admins: { email: string }[] = [{ email: 'rina@tofly.id' }, { email: 'budi@tofly.id' }]) {
+function setup(
+  admins: { email: string; name: string | null }[] = [
+    { email: 'rina@tofly.id', name: 'Rina Wijaya' },
+    { email: 'budi@tofly.id', name: null },
+  ],
+) {
   const prisma = {
     users: { findMany: vi.fn().mockResolvedValue(admins) },
     contents: {
@@ -24,16 +29,15 @@ function setup(admins: { email: string }[] = [{ email: 'rina@tofly.id' }, { emai
 
 // PBI-11 (11.2, AC 5): every Admin hears when a creator hands in a draft or acknowledges an invoice.
 describe('AdminEmails', () => {
-  // Admins cannot be deactivated on this branch yet; once PBI-23's status is here, only the
-  // active ones are read (the one place to add it).
-  it('reads every Admin, in a stable order', async () => {
+  // PBI-23 is here now: a deactivated Admin hears nothing, and each Admin is greeted by name.
+  it('reads only the active Admins with their names, in a stable order', async () => {
     const { prisma, emails } = setup();
 
     await emails.invoiceAcknowledged({ contractId: 'contract-1' });
 
     expect(prisma.users.findMany).toHaveBeenCalledWith({
-      where: { is_admin: true },
-      select: { email: true },
+      where: { is_admin: true, is_active: true },
+      select: { email: true, name: true },
       orderBy: { email: 'asc' },
     });
   });
@@ -52,12 +56,12 @@ describe('AdminEmails', () => {
         },
       },
     });
-    // No Admin name exists on this branch, so the greeting uses the address (PBI-23 adds names).
+    // An Admin without a name is greeted by the address, as PBI-23 shows them elsewhere.
     expect(notifier.notifyAll).toHaveBeenCalledExactlyOnceWith({
       eventKey: 'draft_submitted:sub-1',
       template: 'draft_submitted',
       to: [
-        { email: 'rina@tofly.id', name: 'rina@tofly.id' },
+        { email: 'rina@tofly.id', name: 'Rina Wijaya' },
         { email: 'budi@tofly.id', name: 'budi@tofly.id' },
       ],
       data: { contentId: CONTENT, contentName: 'Promo Lebaran', creatorName: 'Rangga Pratama' },

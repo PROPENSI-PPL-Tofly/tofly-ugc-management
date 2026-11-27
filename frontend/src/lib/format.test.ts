@@ -13,7 +13,61 @@ import {
   formatRupiah,
   formatTimestamp,
   jakartaDay,
+  formatCompact,
+  formatCount,
+  formatRate,
+  formatRupiahShort,
 } from "./format";
+
+describe("formatRupiahShort", () => {
+  it("writes millions as the dashboard does: Rp12,4 jt (PBI-24, AC Behaviour)", () => {
+    expect(formatRupiahShort(12_400_000)).toBe("Rp12,4 jt");
+    expect(formatRupiahShort(12_000_000)).toBe("Rp12 jt");
+  });
+
+  it("writes thousands as rb and billions as M, one decimal at most", () => {
+    expect(formatRupiahShort(850_000)).toBe("Rp850 rb");
+    expect(formatRupiahShort(1_250_000_000)).toBe("Rp1,3 M");
+  });
+
+  it("keeps an amount under a thousand whole", () => {
+    expect(formatRupiahShort(500)).toBe("Rp500");
+    expect(formatRupiahShort(0)).toBe("Rp0");
+  });
+
+  it("moves up a unit when rounding reaches a thousand of the one below", () => {
+    expect(formatRupiahShort(999_960)).toBe("Rp1 jt");
+  });
+});
+
+describe("formatCompact", () => {
+  it("shortens a count the same way, without the Rp", () => {
+    expect(formatCompact(200_500)).toBe("200,5 rb");
+    expect(formatCompact(3_400_000)).toBe("3,4 jt");
+    expect(formatCompact(42)).toBe("42");
+  });
+});
+
+describe("formatCount", () => {
+  it("groups a whole count with dots", () => {
+    expect(formatCount(200_500)).toBe("200.500");
+  });
+
+  it("shows no data as the dash, never as 0", () => {
+    expect(formatCount(null)).toBe(EMPTY);
+  });
+});
+
+describe("formatRate", () => {
+  it("writes a share with a decimal comma", () => {
+    expect(formatRate(83.3)).toBe("83,3%");
+    expect(formatRate(100)).toBe("100%");
+  });
+
+  it("shows no data as the dash", () => {
+    expect(formatRate(null)).toBe(EMPTY);
+  });
+});
 
 describe("formatDate", () => {
   it("writes a calendar day the Indonesian way", () => {

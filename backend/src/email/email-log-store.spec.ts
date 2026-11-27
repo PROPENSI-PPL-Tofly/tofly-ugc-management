@@ -194,3 +194,33 @@ describe('PrismaEmailLogStore.abandon', () => {
     });
   });
 });
+
+// Review on #253 (Kak Satria, AC 8): a row is marked just before the mail server is asked, so a
+// send whose outcome was lost is told apart from one that never started, and is never sent again.
+describe('PrismaEmailLogStore.startSending', () => {
+  it('marks the row sending, without counting an attempt yet', async () => {
+    const prisma = client();
+
+    await new PrismaEmailLogStore(prisma).startSending('e1', 'salsa@example.com', AT);
+
+    expect(prisma.email_log.update).toHaveBeenCalledWith({
+      where: KEY,
+      data: { status: 'sending', updated_at: AT },
+    });
+  });
+});
+
+// Review on #264 (Kak Satria): one update closes every row left sending and says how many.
+describe('PrismaEmailLogStore.closeStuckSending', () => {
+  it('closes the rows left sending for 30 minutes as UnknownOutcome, every attempt used', async () => {
+    const prisma = client();
+    prisma.email_log.updateMany.mockResolvedValue({ count: 2 });
+
+    await expect(new PrismaEmailLogStore(prisma).closeStuckSending(AT)).resolves.toBe(2);
+
+    expect(prisma.email_log.updateMany).toHaveBeenCalledWith({
+      where: { status: 'sending', updated_at: { lt: new Date('2026-11-25T00:30:00.000Z') } },
+      data: { status: 'failed', attempts: 3, last_error: 'UnknownOutcome', updated_at: AT },
+    });
+  });
+});

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { LoggedEmail } from './email-log-store.js';
 import type { EmailEvent } from './email-notifier.js';
 import { DailyEmailRun, type DailyEmailClient } from './daily-email-run.service.js';
@@ -28,6 +29,7 @@ function setup({
   failed = [] as LoggedEmail[],
   due = [content()] as unknown[],
   resent = true,
+  closed = 0,
 } = {}) {
   const prisma = {
     contents: { findMany: vi.fn().mockResolvedValue(due) },
@@ -39,6 +41,7 @@ function setup({
   };
   const store = {
     failedToRetry: vi.fn<(at: Date) => Promise<LoggedEmail[]>>().mockResolvedValue(failed),
+    closeStuckSending: vi.fn<(at: Date) => Promise<number>>().mockResolvedValue(closed),
     abandon: vi.fn<(eventKey: string, recipient: string, reason: string, at: Date) => Promise<void>>()
       .mockResolvedValue(),
   };
@@ -139,7 +142,7 @@ describe('DailyEmailRun', () => {
   it('reports how many failed emails it tried, how many went out, and how many reminders', async () => {
     const { run } = setup({ failed: [FAILED, FAILED], due: [content(), content()], resent: false });
 
-    await expect(run.run()).resolves.toEqual({ retried: 2, resent: 0, reminded: 2 });
+    await expect(run.run()).resolves.toEqual({ retried: 2, resent: 0, reminded: 2, closed: 0 });
   });
 
   it('runs on the current time when no clock is given', async () => {
@@ -174,7 +177,7 @@ describe('DailyEmailRun, review follow-ups', () => {
     const { prisma, notifier, store, run } = setup({ failed: [FAILED], due: [] });
     prisma.users.findUnique.mockResolvedValue(null);
 
-    await expect(run.run()).resolves.toEqual({ retried: 0, resent: 0, reminded: 0 });
+    await expect(run.run()).resolves.toEqual({ retried: 0, resent: 0, reminded: 0, closed: 0 });
 
     expect(prisma.users.findUnique).toHaveBeenCalledWith({
       where: { email: 'salsa@example.com' },
@@ -182,6 +185,60 @@ describe('DailyEmailRun, review follow-ups', () => {
     });
     expect(store.abandon).toHaveBeenCalledWith(FAILED.eventKey, FAILED.recipient, 'RecipientGone', NOW);
     expect(notifier.retry).not.toHaveBeenCalled();
+  });
+
+  // Kak Satria (AC 8): a row left sending may have gone out, like a timeout, so it is closed.
+  it('closes the emails left sending for 30 minutes as UnknownOutcome, never sending them again', async () => {
+    const { notifier, store, run } = setup({ closed: 2, due: [] });
+
+    await run.run();
+
+    expect(store.closeStuckSending).toHaveBeenCalledWith(NOW);
+    expect(notifier.retry).not.toHaveBeenCalled();
+  });
+
+  // Review on #264 (Kak Satria, OWASP A09): an email that may not have reached its creator shows in
+  // the run's answer and in the log, so it can be checked by hand.
+  it('reports and logs how many emails it closed as UnknownOutcome', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { run } = setup({ closed: 2, due: [] });
+
+    await expect(run.run()).resolves.toEqual({ retried: 0, resent: 0, reminded: 0, closed: 2 });
+
+    expect(warn).toHaveBeenCalledWith('2 email(s) closed as UnknownOutcome; check them by hand');
+    warn.mockRestore();
+  });
+
+  it('logs nothing when no email was left sending', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { run } = setup({ due: [] });
+
+    await run.run();
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  // Kak Satria (AC 2): a slow mail server can use up the run's time, and a reminder cannot wait
+  // for tomorrow while a retry can.
+  it('sends the H-1 reminders before trying failed emails again', async () => {
+    const { notifier, run } = setup({ failed: [FAILED] });
+
+    await run.run();
+
+    expect(notifier.notify.mock.invocationCallOrder[0]).toBeLessThan(
+      notifier.retry.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('reads what to retry before reminding, so a reminder failing now is not retried at once', async () => {
+    const { notifier, store, run } = setup({ failed: [FAILED] });
+
+    await run.run();
+
+    expect(store.failedToRetry.mock.invocationCallOrder[0]).toBeLessThan(
+      notifier.notify.mock.invocationCallOrder[0],
+    );
   });
 
   // Davin: a reminder counts only once it went out.
