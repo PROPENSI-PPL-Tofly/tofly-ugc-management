@@ -29,7 +29,7 @@ function open() {
 
 function fill(dialog: HTMLElement, values: { name?: string; brief?: string; deadline?: string; notes?: string }) {
   const set = (label: string, value: string | undefined) => {
-    if (value !== undefined) fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
+    if (value !== undefined) fireEvent.change(within(dialog).getByLabelText(new RegExp(`^${label}`)), { target: { value } });
   };
   set("Nama Konten", values.name);
   set("Brief", values.brief);
@@ -45,24 +45,24 @@ describe("ProposeContent, the form", () => {
     const dialog = open();
 
     expect(screen.getByTestId("modal-eyebrow")).toHaveTextContent("Konten Specific");
-    expect(within(dialog).getByLabelText("Nama Konten")).toHaveAttribute("maxlength", "100");
-    expect(within(dialog).getByLabelText("Brief")).toHaveAttribute("maxlength", "1000");
-    expect(within(dialog).getByLabelText("Usulan Deadline")).toHaveAttribute("type", "date");
-    expect(within(dialog).getByLabelText("Catatan untuk Admin")).toHaveAttribute("maxlength", "500");
+    expect(within(dialog).getByLabelText(/^Nama Konten/)).toHaveAttribute("maxlength", "100");
+    expect(within(dialog).getByLabelText(/^Brief/)).toHaveAttribute("maxlength", "1000");
+    expect(within(dialog).getByLabelText(/^Usulan Deadline/)).toHaveAttribute("type", "date");
+    expect(within(dialog).getByLabelText(/^Catatan untuk Admin/)).toHaveAttribute("maxlength", "500");
   });
 
   it("uses the prototype's placeholders", () => {
     const dialog = open();
 
-    expect(within(dialog).getByLabelText("Nama Konten")).toHaveAttribute(
+    expect(within(dialog).getByLabelText(/^Nama Konten/)).toHaveAttribute(
       "placeholder",
       "mis. Review Sunscreen Gel di Pantai",
     );
-    expect(within(dialog).getByLabelText("Brief")).toHaveAttribute(
+    expect(within(dialog).getByLabelText(/^Brief/)).toHaveAttribute(
       "placeholder",
       "Ide konten, produk yang dipakai, gaya video…",
     );
-    expect(within(dialog).getByLabelText("Catatan untuk Admin")).toHaveAttribute("placeholder", "Opsional");
+    expect(within(dialog).getByLabelText(/^Catatan untuk Admin/)).toHaveAttribute("placeholder", "Opsional");
   });
 
   it("counts the characters of each text field against its limit", () => {
@@ -78,7 +78,7 @@ describe("ProposeContent, the form", () => {
   it("limits the date picker to the window and names it in the tooltip", () => {
     const dialog = open();
 
-    const deadline = within(dialog).getByLabelText("Usulan Deadline");
+    const deadline = within(dialog).getByLabelText(/^Usulan Deadline/);
     expect(deadline).toHaveAttribute("min", "2026-11-21");
     expect(deadline).toHaveAttribute("max", "2026-12-26");
     expect(within(dialog).getByRole("tooltip")).toHaveTextContent(
@@ -97,7 +97,18 @@ describe("ProposeContent, errors per field", () => {
     expect(dialog).toHaveTextContent("Brief wajib diisi");
     expect(dialog).toHaveTextContent("Pilih deadline");
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Nama Konten")).toHaveAttribute("aria-invalid", "true");
+    expect(within(dialog).getByLabelText(/^Nama Konten/)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("ties each message to its field, so a screen reader reads it out", () => {
+    const dialog = open();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim Pengajuan" }));
+
+    expect(within(dialog).getByLabelText(/^Nama Konten/)).toHaveAccessibleDescription(
+      expect.stringContaining("Nama konten wajib diisi"),
+    );
+    expect(within(dialog).getByLabelText(/^Usulan Deadline/)).toHaveAccessibleDescription("Pilih deadline");
   });
 
   it("names the window for a deadline outside it", () => {
@@ -143,7 +154,7 @@ describe("ProposeContent, sending", () => {
     fireEvent.click(screen.getByRole("button", { name: "Periksa Lagi" }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Nama Konten")).toHaveValue("Review Sunscreen Gel");
+    expect(within(dialog).getByLabelText(/^Nama Konten/)).toHaveValue("Review Sunscreen Gel");
     expect(submit).not.toHaveBeenCalled();
   });
 
@@ -219,7 +230,7 @@ describe("ProposeContent, sending", () => {
     });
 
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Pengajuan gagal dikirim. Coba lagi.");
-    expect(within(dialog).getByLabelText("Nama Konten")).toHaveValue("Review Sunscreen Gel");
+    expect(within(dialog).getByLabelText(/^Nama Konten/)).toHaveValue("Review Sunscreen Gel");
   });
 });
 
@@ -249,6 +260,6 @@ describe("ProposeContent, closing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "+ Ajukan Konten" }));
 
-    expect(within(screen.getByRole("dialog", { name: "Ajukan Konten" })).getByLabelText("Nama Konten")).toHaveValue("");
+    expect(within(screen.getByRole("dialog", { name: "Ajukan Konten" })).getByLabelText(/^Nama Konten/)).toHaveValue("");
   });
 });

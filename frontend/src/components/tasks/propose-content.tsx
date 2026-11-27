@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
+import { Field } from "@/components/creators/contract-terms-fields";
 import { Button } from "@/components/ui/button";
 import { CharLimit } from "@/components/ui/char-limit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { REQUIRED_MARK } from "@/components/ui/form-classes";
-import { InfoTip } from "@/components/ui/info-tip";
+import { ALERT } from "@/components/ui/form-classes";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
@@ -26,53 +26,11 @@ import { MY_TASKS_BASE } from "@/lib/my-tasks";
 
 const FIELD =
   "w-full rounded-(--radius-control) border border-rule bg-surface px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-ink-2 aria-invalid:border-red-ink";
-const ALERT =
-  "rounded-(--radius-control) border border-red-wash bg-red-wash px-3 py-2 text-[13px] text-red-ink";
 
 const EMPTY: ProposalFields = { name: "", brief: "", deadline: "", notes: "" };
 
 /** Where a sent proposal waits (AC 5), so the creator sees it land. */
 const WAITING_TAB = `${MY_TASKS_BASE}?tab=waiting`;
-
-function Field({
-  label,
-  required,
-  error,
-  errorId,
-  note,
-  hint,
-  children,
-}: Readonly<{
-  label: string;
-  required: boolean;
-  error?: string;
-  errorId: string;
-  /** The counter; outside the label so it stays out of the control's name. */
-  note?: ReactNode;
-  /** What the field means, behind an ⓘ beside the label. */
-  hint?: { label: string; text: string };
-  children: ReactNode;
-}>) {
-  return (
-    <div className="relative flex flex-col gap-1 text-[13px]">
-      {hint ? (
-        <span className="absolute right-0 top-0">
-          <InfoTip label={hint.label} text={hint.text} align="end" />
-        </span>
-      ) : null}
-      <label className="flex flex-col gap-1">
-        <span className={`font-semibold ${required ? REQUIRED_MARK : ""}`}>{label}</span>
-        {children}
-      </label>
-      {note}
-      {error ? (
-        <span id={errorId} className="text-xs text-red-ink">
-          {error}
-        </span>
-      ) : null}
-    </div>
-  );
-}
 
 /**
  * "+ Ajukan Konten" in Task Saya and its form (PBI-14, 14.2): a creator proposes a Specific
@@ -184,7 +142,6 @@ export function ProposeContent({ window }: Readonly<{ window: ProposalWindow }>)
 
           <Field
             label="Nama Konten"
-            required
             error={errors.name}
             errorId={`${ids.name}-error`}
             note={<CharLimit id={ids.nameCount} length={fields.name.length} max={PROPOSAL_NAME_MAX} />}
@@ -204,7 +161,6 @@ export function ProposeContent({ window }: Readonly<{ window: ProposalWindow }>)
 
           <Field
             label="Brief"
-            required
             error={errors.brief}
             errorId={`${ids.brief}-error`}
             note={<CharLimit id={ids.briefCount} length={fields.brief.length} max={PROPOSAL_BRIEF_MAX} />}
@@ -224,7 +180,6 @@ export function ProposeContent({ window }: Readonly<{ window: ProposalWindow }>)
 
           <Field
             label="Usulan Deadline"
-            required
             error={errors.deadline}
             errorId={`${ids.deadline}-error`}
             hint={{
@@ -247,7 +202,7 @@ export function ProposeContent({ window }: Readonly<{ window: ProposalWindow }>)
 
           <Field
             label="Catatan untuk Admin"
-            required={false}
+            optional
             error={errors.notes}
             errorId={`${ids.notes}-error`}
             note={<CharLimit id={ids.notesCount} length={fields.notes.length} max={PROPOSAL_NOTES_MAX} />}

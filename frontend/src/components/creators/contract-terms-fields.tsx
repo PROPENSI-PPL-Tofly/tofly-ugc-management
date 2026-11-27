@@ -42,6 +42,7 @@ export const FIELD =
 export function Field({
   label,
   error,
+  errorId,
   note,
   hint,
   optional = false,
@@ -51,6 +52,8 @@ export function Field({
   /** Left without the asterisk: the usernames, which the creator's connecting fills in later. */
   optional?: boolean;
   error?: string;
+  // The message's id, for a control that names it in aria-describedby.
+  errorId?: string;
   /** Rendered outside the label so it stays out of the control's accessible name. */
   note?: React.ReactNode;
   /** What the field means, behind an ⓘ at the end of the label row; outside the label so the
@@ -78,7 +81,11 @@ export function Field({
         {children}
       </label>
       {note}
-      {error ? <span className="text-xs text-red-ink">{error}</span> : null}
+      {error ? (
+        <span id={errorId} className="text-xs text-red-ink">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }
