@@ -86,12 +86,31 @@ function row(
   };
 }
 
+/**
+ * One entry per creator: a creator whose contracts in the range are two (a renewal) keeps one
+ * row, with the quotas added up, since their content in the range is counted across both.
+ */
+function perCreator(creators: readonly CreatorInput[]): CreatorInput[] {
+  const merged = new Map<string, CreatorInput>();
+  for (const creator of creators) {
+    if (creator.contract === null) continue;
+    const seen = merged.get(creator.creatorId);
+    merged.set(
+      creator.creatorId,
+      seen
+        ? { ...seen, contract: { ...seen.contract!, quota: seen.contract!.quota + creator.contract.quota } }
+        : creator,
+    );
+  }
+  return [...merged.values()];
+}
+
 function value(item: CreatorRow, key: CreatorSortKey): number | string | null {
   return item[key];
 }
 
 /**
- * One row per creator with a contract in the range. Null rates sort last whatever the direction,
+ * One row per creator with a contract in the range (however many). Null rates sort last whatever the direction,
  * and equal values break by name then id, so the order never depends on the database.
  */
 export function creatorRows(
@@ -104,8 +123,7 @@ export function creatorRows(
   today: Date,
 ): CreatorRow[] {
   const direction = order === 'asc' ? 1 : -1;
-  return creators
-    .filter((creator) => creator.contract !== null)
+  return perCreator(creators)
     .map((creator) => row(creator, invoices, links, contents, today))
     .sort((a, b) => {
       const left = value(a, sort);
