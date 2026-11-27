@@ -110,6 +110,18 @@ describe("EditCreatorTrigger", () => {
     expect(end).toHaveAttribute("max", "2026-12-31");
   });
 
+  // QA: Mulai Kontrak reads "19 Agu 2026" while the native picker shows the browser's own format;
+  // the picked end is spelled the same way beneath it.
+  it("spells the picked end date the way Mulai Kontrak reads, beneath the picker", () => {
+    open();
+    const end = screen.getByLabelText(/akhir kontrak/i);
+    expect(end).toHaveAccessibleDescription("15 Des 2026");
+
+    type(/akhir kontrak/i, "2026-12-20");
+
+    expect(screen.getByLabelText(/akhir kontrak/i)).toHaveAccessibleDescription("20 Des 2026");
+  });
+
   it("sets no last day when no period follows", () => {
     open({ periods: [period()] });
     expect(screen.getByLabelText(/akhir kontrak/i)).not.toHaveAttribute("max");
