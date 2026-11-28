@@ -21,6 +21,8 @@ export interface MetricsContent {
   videoSubmittedAt: Date | null;
   /** Creator-proposed content is not a commitment until an admin accepts it. */
   isProposal: boolean;
+  /** An Evergreen fills a slot of the quota; a Specific comes on top of it. */
+  type: 'evergreen' | 'specific';
   /** Draft hand-ins; the first is the original, so revisions are this minus one. */
   submissionCount: number;
 }
@@ -123,6 +125,27 @@ export function periodNumber(
   );
 }
 
+/**
+ * The renewal still to start after the current period (PBI-30 AC 10), so Creator Database can
+ * name it beside the period it shows; null when none waits or the current one is itself to start.
+ */
+export function nextPeriod(
+  contracts: MetricsContract[],
+  current: MetricsContract,
+  today: Date,
+): { periodNumber: number; startDate: Date } | null {
+  const cutoff = jakartaMidnight(today).getTime();
+  // A current period still to start is itself what the row shows: nothing waits beside it.
+  if (atMidnight(current.startDate) > cutoff) return null;
+
+  const next = contracts
+    .filter((contract) => atMidnight(contract.startDate) > cutoff)
+    .sort((a, b) => atMidnight(a.startDate) - atMidnight(b.startDate))[0];
+  return next
+    ? { periodNumber: periodNumber(contracts, next), startDate: next.startDate }
+    : null;
+}
+
 /** Days left before the contract ends; zero on the final day, negative once it has ended. */
 export function daysRemaining(contract: MetricsContract, today: Date): number {
   return Math.round(
@@ -151,17 +174,22 @@ function committed(contents: MetricsContent[]): MetricsContent[] {
   return contents.filter((content) => !content.isProposal);
 }
 
-export function computeProgress(contents: MetricsContent[]): Progress {
+/**
+ * What was handed in against what the contract owes (PBI-16): its Evergreen quota, scheduled or
+ * not, and every Specific content on top. A quota below the Evergreen already there owes those.
+ */
+export function computeProgress(contents: MetricsContent[], quota: number): Progress {
   const owed = committed(contents);
+  const evergreen = owed.filter((content) => content.type === 'evergreen').length;
+  const total = Math.max(quota, evergreen) + (owed.length - evergreen);
   const submitted = owed.filter(
     (content) => content.videoSubmittedAt !== null,
   ).length;
 
   return {
     submitted,
-    total: owed.length,
-    percent:
-      owed.length === 0 ? 0 : Math.round((submitted / owed.length) * 100),
+    total,
+    percent: total === 0 ? 0 : Math.round((submitted / total) * 100),
   };
 }
 

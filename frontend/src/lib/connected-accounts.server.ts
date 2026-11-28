@@ -10,6 +10,7 @@ import {
   toConnectedAccounts,
   type ConnectedAccount,
 } from "./connected-accounts";
+import { refusalCode } from "./response-body";
 
 /** Sent when a 200 carries a body the page cannot use. */
 const UNUSABLE_ANSWER = 502;
@@ -23,7 +24,7 @@ export async function fetchMyConnectedAccounts(): Promise<ConnectedAccount[]> {
   const response = await backendGet(MY_SOCIAL_ACCOUNTS_PATH);
 
   if (!response.ok) {
-    throw new ConnectedAccountsError(response.status);
+    throw new ConnectedAccountsError(response.status, await refusalCode(response));
   }
 
   let body: unknown;

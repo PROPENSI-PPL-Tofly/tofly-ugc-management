@@ -14,6 +14,7 @@ import type { MyTaskAction } from "./my-tasks";
 import { PLATFORM_LABELS, linkEventTitle, type ContentLink, type Platform } from "./platform-links";
 import type { EditWindow } from "./content-edit";
 import { formatDate } from "./format";
+import { ADMIN_LABEL } from "./admin-actor";
 
 export type DetailEventType =
   | "scheduled"
@@ -115,6 +116,8 @@ export interface RawContentDetail {
    * AC 1, 3, 9); null otherwise and on a creator's read, absent in an answer from before 25.2.
    */
   edit?: EditWindow | null;
+  /** When an early end closed the content (ISO time); null while it is open. */
+  closedAt?: string | null;
 }
 
 export type ContentDetail = RawContentDetail;
@@ -149,6 +152,9 @@ export interface JourneyStep {
   changes: string[];
 }
 
+/** The acting Admin as the API names them (PBI-23 AC 25); the role alone with no account behind. */
+const actingAdmin = (event: RawContentEvent) => event.actor.name ?? ADMIN_LABEL;
+
 // How each kind of event reads. The number is the draft's version or the revision round;
 // kinds that have neither ignore it. A kind without a link label never shows a link.
 //
@@ -163,8 +169,8 @@ const STEP_WORDING: Record<
   }
 > = {
   // A content starts with whoever made it: an admin adds it, a creator proposes it.
-  scheduled: (_ordinal, by) => ({
-    title: by === "creator" ? "Diajukan kreator" : "Ditambahkan Admin",
+  scheduled: (_ordinal, by, event) => ({
+    title: by === "creator" ? "Diajukan kreator" : `Ditambahkan ${actingAdmin(event)}`,
     linkLabel: null,
   }),
   draft_submitted: (version) => ({
@@ -178,19 +184,21 @@ const STEP_WORDING: Record<
   // A comment moves the content nowhere; its note is the whole point and reads signed.
   creator_comment: () => ({ title: "Komentar kreator", linkLabel: null }),
   performance_entered: (_ordinal, _by, event) => ({
-    title: `Angka ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "performa"} diisi manual`,
+    title: `Angka performa ${event.payload?.platform ? `${PLATFORM_LABELS[event.payload.platform]} ` : ""}diisi manual oleh ${actingAdmin(event)}`,
     linkLabel: null,
   }),
   performance_replaced: (_ordinal, _by, event) => ({
     title: `Angka manual diganti data ${event.payload?.platform ? PLATFORM_LABELS[event.payload.platform] : "platform"}`,
     linkLabel: null,
   }),
-  link_submitted: (_ordinal, _by, event) => ({
-    title: linkEventTitle(event.payload?.platform, event.payload?.replaced === true),
-    linkLabel: "Buka video",
-  }),
+  link_submitted: (_ordinal, by, event) => {
+    const replaced = event.payload?.replaced === true;
+    const title = linkEventTitle(event.payload?.platform, replaced);
+    const replacer = by === "creator" ? "kreator" : actingAdmin(event);
+    return { title: replaced ? `${title} oleh ${replacer}` : title, linkLabel: "Buka video" };
+  },
   // An admin's edit of scheduled content (PBI-25 AC 4); what changed is listed under it.
-  content_updated: () => ({ title: "Konten diubah", linkLabel: null }),
+  content_updated: (_ordinal, _by, event) => ({ title: `Diubah ${actingAdmin(event)}`, linkLabel: null }),
   // The follow-up itself reads under the note it adds to; this step only marks when.
   revision_followup_added: () => ({ title: "Catatan susulan ditambahkan", linkLabel: null }),
 };
@@ -211,7 +219,7 @@ function noteSignature(event: RawContentEvent): string | null {
     return null;
   }
   if (event.actor.role === "admin") {
-    // The admin's email when the API names one; the role alone when no account is behind it.
+    // The admin as the API names them; the role alone when no account is behind it.
     return `Catatan ${event.actor.name ?? "Admin"}`;
   }
   return `Catatan ${event.actor.name ?? "kreator"}`;

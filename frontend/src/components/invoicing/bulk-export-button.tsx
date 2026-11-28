@@ -4,8 +4,23 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api-client";
 
-const DEFAULT_FILENAME = "Rekap_Invoice.zip";
+const DEFAULT_FILENAME = "Rekap_Invoice.xlsx";
 export const EXPORT_FAILED = "Gagal membuat rekap. Coba lagi.";
+export const NOTHING_TO_EXPORT = "Tidak ada invoice yang bisa diunduh.";
+
+/** Thrown when the server found nothing it could put in the file (a row changed meanwhile). */
+class NothingToExport extends Error {}
+
+/** Whether a refusal is the server's "nothing to export"; any unreadable body is not. */
+async function isNothingToExport(response: Response): Promise<boolean> {
+  if (response.status !== 422) return false;
+  try {
+    const body = (await response.json()) as { code?: unknown };
+    return body.code === "INVOICE_EXPORT_EMPTY";
+  } catch {
+    return false;
+  }
+}
 
 /** The server's Content-Disposition is the name of the file the browser must save. */
 export function downloadFilename(header: string | null): string {
@@ -38,6 +53,11 @@ export function BulkExportButton({
   const [busy, setBusy] = useState(false);
 
   async function download() {
+    // Running and Cancelled never go in the file, so a selection of only those asks for nothing.
+    if (exportable === 0) {
+      onDone(NOTHING_TO_EXPORT);
+      return;
+    }
     setBusy(true);
     try {
       const response = await apiFetch("/api/invoices/bulk-export", {
@@ -45,7 +65,9 @@ export function BulkExportButton({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ invoiceIds: ids }),
       });
-      if (!response.ok) throw new Error("export failed");
+      if (!response.ok) {
+        throw (await isNothingToExport(response)) ? new NothingToExport() : new Error("export failed");
+      }
 
       const filename = downloadFilename(response.headers.get("content-disposition"));
       const url = URL.createObjectURL(await response.blob());
@@ -60,8 +82,8 @@ export function BulkExportButton({
         URL.revokeObjectURL(url);
       }
       onDone(`${filename} diunduh (${exportable ?? ids.length} invoice).`);
-    } catch {
-      onFailure(EXPORT_FAILED);
+    } catch (error) {
+      onFailure(error instanceof NothingToExport ? NOTHING_TO_EXPORT : EXPORT_FAILED);
     } finally {
       setBusy(false);
     }

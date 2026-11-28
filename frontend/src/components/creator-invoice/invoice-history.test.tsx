@@ -36,6 +36,16 @@ describe("InvoiceHistory", () => {
     expect(row).toHaveTextContent("Rp1.200.000");
   });
 
+  // PBI-30: a renewal's invoice exists from the day it is agreed, but nothing runs on it yet.
+  it("words the invoice of a period that has not started as Belum Dimulai, not Berjalan", () => {
+    const next = aCreatorInvoice({ contractId: "c-2", periodNumber: 2, status: "accruing", notStarted: true });
+    render(<InvoiceHistory invoices={[next]} onOpen={vi.fn()} />);
+
+    const [, row] = within(screen.getByRole("table", { name: "Riwayat Invoice" })).getAllByRole("row");
+    expect(row).toHaveTextContent("Belum Dimulai");
+    expect(row).not.toHaveTextContent("Berjalan");
+  });
+
   // PBI-37: the creator's word for an invoice an early end cancelled, never the internal one.
   it("calls a cancelled invoice Dibatalkan, not Cancelled", () => {
     render(<InvoiceHistory invoices={[{ ...PAID, status: "cancelled" }]} onOpen={vi.fn()} />);

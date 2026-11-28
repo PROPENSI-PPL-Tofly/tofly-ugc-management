@@ -1,17 +1,22 @@
 // Pure validation for the Add Creator form. Kept apart from the modal component so each
 // rule is testable without rendering anything, one RED/GREEN cycle at a time.
 
-import { getBufferWindow, getDeadlinePreview, type DeadlinePreview } from "./deadline-schedule";
+import {
+  getBufferWindow,
+  getDeadlinePreview,
+  type DeadlinePreview,
+} from "./deadline-schedule";
+import { DEFAULT_BUFFER_DAYS } from "./deadline-buffer";
 import { formatDate } from "./format";
-
-/** Days between max(today, contract start) and the first deadline; the API's default buffer. */
-export const BUFFER_DAYS = 5;
 
 // The same limits the API enforces (backend new-creator.ts), so the form never lets through
 // what the server would refuse, and says so while the admin is still typing.
 export const MAX_NAME_LENGTH = 100;
 export const MAX_EMAIL_LENGTH = 254;
 export const MAX_USERNAME_LENGTH = 100;
+
+/** A handle as Instagram and TikTok write them, the same rule the API keeps. */
+export const USERNAME_FORMAT = /^[A-Za-z0-9._]+$/;
 /** More contents than this in one contract is a typo, not a deal. */
 export const MAX_CONTENT_QUOTA = 100;
 
@@ -83,18 +88,30 @@ type ContractPeriod = Pick<CreatorFormInput, "contractStart" | "contractEnd">;
  * The first day a contract may end on: the buffer after max(today, start), which is also the
  * first day a deadline may fall on. Ending earlier leaves a contract no content can fit in.
  */
-export function earliestContractEnd(contractStart: string, today: string): string {
-  return getBufferWindow({ contractStart: contractStart || today, today, bufferDays: BUFFER_DAYS })
+export function earliestContractEnd(
+  contractStart: string,
+  today: string,
+  bufferDays: number,
+): string {
+  return getBufferWindow({
+    contractStart: contractStart || today,
+    today,
+    bufferDays,
+  })
     .firstAllowedDate.toISOString()
     .slice(0, 10);
 }
 
 /** The `min`/`max` of the date pickers, so an impossible contract cannot even be picked. */
-export function contractDateLimits({ contractStart, contractEnd }: ContractPeriod, today: string) {
+export function contractDateLimits(
+  { contractStart, contractEnd }: ContractPeriod,
+  today: string,
+  bufferDays: number,
+) {
   return {
     startMin: today,
     startMax: contractEnd || undefined,
-    endMin: earliestContractEnd(contractStart, today),
+    endMin: earliestContractEnd(contractStart, today, bufferDays),
   };
 }
 
@@ -102,9 +119,16 @@ export function contractDateLimits({ contractStart, contractEnd }: ContractPerio
 export function scheduleDeadlines(
   input: ContractPeriod & Pick<CreatorFormInput, "interval" | "quota">,
   today: string,
+  bufferDays: number,
 ): DeadlinePreview | null {
   const { contractStart, contractEnd, interval, quota } = input;
-  if (!contractStart || !contractEnd || contractStart > contractEnd || interval <= 0 || quota <= 0) {
+  if (
+    !contractStart ||
+    !contractEnd ||
+    contractStart > contractEnd ||
+    interval <= 0 ||
+    quota <= 0
+  ) {
     return null;
   }
 
@@ -112,14 +136,19 @@ export function scheduleDeadlines(
     contractStart,
     contractEnd,
     today,
-    bufferDays: BUFFER_DAYS,
+    bufferDays,
     intervalDays: interval,
     quota,
   });
 }
 
 /** A required text field's problem: empty (spaces count as empty) or longer than the API takes. */
-function textProblem(value: string, max: number, empty: string, label: string): string | undefined {
+function textProblem(
+  value: string,
+  max: number,
+  empty: string,
+  label: string,
+): string | undefined {
   if (value.trim() === "") return empty;
   if (value.length > max) return `${label} maksimal ${max} karakter`;
   return undefined;
@@ -129,6 +158,7 @@ function textProblem(value: string, max: number, empty: string, label: string): 
 function checkContractDates(
   { contractStart, contractEnd }: ContractPeriod,
   todayDay: string,
+  bufferDays: number,
   errors: CreatorFormErrors,
 ) {
   if (contractStart === "") {
@@ -150,9 +180,9 @@ function checkContractDates(
     return;
   }
 
-  const earliestEnd = earliestContractEnd(contractStart, todayDay);
+  const earliestEnd = earliestContractEnd(contractStart, todayDay, bufferDays);
   if (contractEnd < earliestEnd) {
-    errors.contractEnd = `Akhir kontrak paling cepat ${formatDate(earliestEnd)} (masa buffer ${BUFFER_DAYS} hari)`;
+    errors.contractEnd = `Akhir kontrak paling cepat ${formatDate(earliestEnd)} (masa buffer ${bufferDays} hari)`;
   }
 }
 
@@ -177,17 +207,29 @@ function fixedRateProblem(value: number | null): string | undefined {
  * problem. Until then the calendar would draw a contract that cannot be saved anyway.
  */
 export function scheduleReady(errors: CreatorFormErrors): boolean {
-  return !errors.contractStart && !errors.contractEnd && !errors.interval && !errors.quota;
+  return (
+    !errors.contractStart &&
+    !errors.contractEnd &&
+    !errors.interval &&
+    !errors.quota
+  );
 }
 
+/** `bufferDays` is the one a Super Admin set; the forms pass it from the admin area's context. */
 export function validateCreatorForm(
   input: CreatorFormInput,
   today: Date = new Date(),
   existingEmails: string[] = [],
+  bufferDays: number = DEFAULT_BUFFER_DAYS,
 ): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
 
-  const name = textProblem(input.name, MAX_NAME_LENGTH, "Nama wajib diisi", "Nama");
+  const name = textProblem(
+    input.name,
+    MAX_NAME_LENGTH,
+    "Nama wajib diisi",
+    "Nama",
+  );
   if (name) errors.name = name;
 
   if (input.email.length > MAX_EMAIL_LENGTH) {
@@ -195,15 +237,20 @@ export function validateCreatorForm(
   } else if (!EMAIL_FORMAT.test(input.email)) {
     errors.email = "Format email tidak valid";
   } else if (existingEmails.includes(input.email)) {
-    errors.email = "Email sudah terdaftar";
+    errors.email = "Email sudah dipakai";
   }
 
-  Object.assign(errors, validateContractTerms(input, today));
+  Object.assign(errors, validateContractTerms(input, today, bufferDays));
 
-  // Both usernames are optional; only one longer than the API stores is a problem.
+  // Both usernames are optional. One given is a handle as the API keeps it (OWASP A05):
+  // letters, digits, dots and underscores, an "@" typed before it left off, up to the stored length.
   for (const field of ["instagramUsername", "tiktokUsername"] as const) {
-    if (input[field].trim().length > MAX_USERNAME_LENGTH) {
+    const handle = input[field].trim().replace(/^@/, "");
+    if (handle.length > MAX_USERNAME_LENGTH) {
       errors[field] = `Username maksimal ${MAX_USERNAME_LENGTH} karakter`;
+    } else if (handle !== "" && !USERNAME_FORMAT.test(handle)) {
+      errors[field] =
+        "Username hanya boleh huruf, angka, titik, dan garis bawah";
     }
   }
 
@@ -213,7 +260,12 @@ export function validateCreatorForm(
 /** A contract's terms, without who the creator is: what Tambah Creator and a renewal both set. */
 export type ContractTermsInput = Pick<
   CreatorFormInput,
-  "contractStart" | "contractEnd" | "interval" | "quota" | "fixedRate" | "contractType"
+  | "contractStart"
+  | "contractEnd"
+  | "interval"
+  | "quota"
+  | "fixedRate"
+  | "contractType"
 >;
 
 /**
@@ -223,11 +275,12 @@ export type ContractTermsInput = Pick<
 export function validateContractTerms(
   input: ContractTermsInput,
   today: Date = new Date(),
+  bufferDays: number = DEFAULT_BUFFER_DAYS,
 ): CreatorFormErrors {
   const errors: CreatorFormErrors = {};
   const todayDay = localCalendarDay(today);
 
-  checkContractDates(input, todayDay, errors);
+  checkContractDates(input, todayDay, bufferDays, errors);
 
   if (input.interval <= 0) {
     errors.interval = "Jarak antar-deadline minimal 1 hari";

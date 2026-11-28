@@ -23,6 +23,10 @@ export interface SessionRepository {
     where: { idHash: string };
     data: { idleExpiresAt: Date };
   }): Promise<unknown>;
+  updateMany(args: {
+    where: { idHash: string };
+    data: { confirmedUntil: Date };
+  }): Promise<{ count: number }>;
   deleteMany(args: { where: { idHash: string } }): Promise<unknown>;
 }
 
@@ -70,7 +74,10 @@ export class AppSessionService {
   }
 
   /** A new random identifier is created after identity and access have been resolved. */
-  async start(response: Response, principal: Principal): Promise<{ id: string }> {
+  async start(
+    response: Response,
+    principal: Principal,
+  ): Promise<{ id: string }> {
     const id = randomBytes(32).toString('base64url');
     const now = this.now();
     const idleExpiresAt = new Date(now.getTime() + this.config.idleTimeoutMs);
@@ -139,6 +146,40 @@ export class AppSessionService {
       await this.sessions.deleteMany({ where: { idHash: sessionIdHash(id) } });
     }
     response.clearCookie(this.cookie.name, this.cookie.options);
+  }
+
+  /**
+   * Records that this session's Admin confirmed with an email code (PBI-23): a role change or a
+   * deactivation is let through until `until`. Only the session the id names, never the user's
+   * others. Answers false when the id names no session.
+   */
+  async confirm(id: unknown, until: Date): Promise<boolean> {
+    if (!validId(id)) return false;
+    const { count } = await this.sessions.updateMany({
+      where: { idHash: sessionIdHash(id) },
+      data: { confirmedUntil: until },
+    });
+    return count === 1;
+  }
+
+  /** Whether this session confirmed with an email code and the 15 minutes have not passed. */
+  async isConfirmed(id: unknown): Promise<boolean> {
+    return (await this.confirmedUntil(id)) !== null;
+  }
+
+  /**
+   * Until when this session stays confirmed, or null when it never was or the 15 minutes have
+   * passed, so a page loaded later can start from the confirmation the backend still holds.
+   */
+  async confirmedUntil(id: unknown): Promise<Date | null> {
+    if (!validId(id)) return null;
+    const row = (await this.sessions.findUnique({
+      where: { idHash: sessionIdHash(id) },
+    })) as { confirmedUntil?: Date | null } | null;
+    const until = row?.confirmedUntil;
+    return until instanceof Date && until.getTime() > this.now().getTime()
+      ? until
+      : null;
   }
 
   cookieName(): string {

@@ -549,6 +549,7 @@ describe("toCreatorDetailView", () => {
         tags: ["overdue"],
         revisionCount: 2,
         platforms: [],
+        closedAt: null,
       },
     ]);
     expect(view.page).toBe(2);
@@ -638,5 +639,40 @@ describe("toCreatorDetailView connections", () => {
       instagram: { connected: false, connectedAt: null, lastSyncAt: null },
       tiktok: { connected: false, connectedAt: null, lastSyncAt: null },
     });
+  });
+});
+
+// PBI-16: what Ubah Data reads of the creator and their periods.
+describe("toCreatorDetailView for Ubah Data", () => {
+  const view = (raw: Partial<RawCreatorDetail>) =>
+    toCreatorDetailView({ ...RAW, ...raw }, null, DEFAULT_CREATOR_DETAIL_PARAMS);
+
+  it("carries each period's invoice status and true Evergreen count", () => {
+    const [period_] = view({
+      contractHistory: [period(NEWEST, { evergreenCount: 9, invoiceStatus: "finalized" })],
+    }).periods;
+
+    // The count may pass the quota; evergreenCount stays within it for Tambah Konten.
+    expect(period_).toMatchObject({ evergreenPlanned: 9, invoiceStatus: "finalized", evergreenCount: 2 });
+  });
+
+  it("carries the server's username locks, or the connection's on an older answer", () => {
+    expect(view({ usernameLocks: { instagram: "link_submitted", tiktok: null } }).usernameLocks).toEqual({
+      instagram: "link_submitted",
+      tiktok: null,
+    });
+    expect(view({ socialConnections: { tiktok: { connected: true } } }).usernameLocks).toEqual({
+      instagram: null,
+      tiktok: "connected",
+    });
+  });
+});
+
+describe("a content an early end closed", () => {
+  it("keeps the moment it was closed on the row, and null on one still open", () => {
+    const closed = { ...CONTENTS.items[0], status: "scheduled" as const, closedAt: "2026-11-20T03:00:00.000Z" };
+    const view = toCreatorDetailView(RAW, { ...CONTENTS, items: [closed, CONTENTS.items[0]] }, BARE);
+
+    expect(view.rows.map((row) => row.closedAt)).toEqual(["2026-11-20T03:00:00.000Z", null]);
   });
 });

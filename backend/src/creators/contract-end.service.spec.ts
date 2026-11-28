@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   NotFoundException,
@@ -66,7 +67,10 @@ const PAY = {
 };
 const CANCEL = { ...PAY, invoice: 'cancel', reason: 'fraud', lastDay: undefined };
 
-function setup(contracts: unknown[] | null = periods()) {
+function setup(
+  contracts: unknown[] | null = periods(),
+  notifier?: Pick<CreatorNotifier, 'contractEndedEarly'>,
+) {
   const creator =
     contracts === null
       ? null
@@ -93,6 +97,7 @@ function setup(contracts: unknown[] | null = periods()) {
   const service = new ContractEndService(
     prisma as unknown as ContractEndClient,
     audit as ContractEndAudit,
+    notifier,
   );
   return { tx, prisma, audit, service };
 }
@@ -444,5 +449,40 @@ describe('ContractEndService.preview', () => {
     );
     const { body } = await refusal(setupResult.service.preview(CREATOR_ID, RUNNING_ID, PAY, NOW));
     expect(body).toEqual({ code: 'CONTRACT_ALREADY_ENDED', message: 'Kontrak sudah diakhiri' });
+  });
+});
+
+// PBI-11 (11.2, AC 1 and AC 4): the creator is told the last day and the invoice choice.
+describe('ContractEndService.end, the creator email', () => {
+  function emails() {
+    return { contractEndedEarly: vi.fn<CreatorNotifier['contractEndedEarly']>().mockResolvedValue() };
+  }
+
+  it.each([
+    ['paid', PAY, '2026-11-30'],
+    ['cancelled', CANCEL, '2026-11-24'],
+  ] as const)('tells the creator the last day and that the invoice is %s, once saved', async (invoice, body, lastDay) => {
+    const notifier = emails();
+    const { tx, service } = setup(periods(), notifier);
+    notifier.contractEndedEarly.mockImplementation(async () => {
+      expect(tx.contracts.update).toHaveBeenCalled();
+    });
+
+    await service.end(CREATOR_ID, RUNNING_ID, body, NOW, ADMIN_ID);
+
+    expect(notifier.contractEndedEarly).toHaveBeenCalledExactlyOnceWith({
+      creatorId: CREATOR_ID,
+      contractId: RUNNING_ID,
+      lastDay,
+      invoice,
+    });
+  });
+
+  it('tells nobody when the contract cannot be ended', async () => {
+    const notifier = emails();
+    const { service } = setup(null, notifier);
+
+    await expect(service.end(CREATOR_ID, RUNNING_ID, PAY, NOW, ADMIN_ID)).rejects.toThrow();
+    expect(notifier.contractEndedEarly).not.toHaveBeenCalled();
   });
 });

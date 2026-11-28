@@ -53,13 +53,16 @@ function contract(
     start_date: day(start),
     end_date: day(end),
     days_between: 14,
-    content_quota: contents.length,
+    content_quota: contents.filter(
+      (item) => item.type === 'evergreen' && item.status !== 'pending',
+    ).length,
     fixed_rate: new Prisma.Decimal('1500000'),
     contract_type: 'regular',
     original_end_date: null,
     end_reason: null,
     end_note: null,
     ended_at: null,
+    invoice: null,
     contents,
   };
 }
@@ -118,6 +121,37 @@ describe('toContractPeriods', () => {
     row.content_quota = 4;
 
     expect(toContractPeriods([row], TODAY)[0].remainingEvergreenQuota).toBe(2);
+  });
+
+  // PBI-16: what Ubah Data locks and floors by.
+  it('counts the Evergreen content itself, which the quota may not fall below', () => {
+    const row = contract('only', -30, 150, [
+      content({ id: 'a' }),
+      content({ id: 'b' }),
+      content({ id: 'c', type: 'specific' }),
+    ]);
+    row.content_quota = 1;
+
+    expect(toContractPeriods([row], TODAY)[0].evergreenCount).toBe(2);
+  });
+
+  it('counts progress against the quota', () => {
+    const row = contract('only', -30, 150, [content()]);
+    row.content_quota = 4;
+
+    expect(toContractPeriods([row], TODAY)[0]).toMatchObject({
+      progress: { submitted: 0, total: 4, percent: 0 },
+      total: 4,
+    });
+  });
+
+  it.each([
+    [null, 'running'],
+    [{ status: 'running' as const }, 'running'],
+    [{ status: 'finalized' as const }, 'finalized'],
+  ])('reads where the invoice %j stands as %s', (invoice, status) => {
+    const row = { ...contract('only', -30, 150), invoice };
+    expect(toContractPeriods([row], TODAY)[0].invoiceStatus).toBe(status);
   });
 
   it('never reports fewer than zero Evergreen slots left', () => {

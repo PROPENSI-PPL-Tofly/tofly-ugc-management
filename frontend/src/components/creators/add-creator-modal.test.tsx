@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import { DeadlineBufferProvider } from "@/components/settings/deadline-buffer-context";
 import { AddCreatorModal } from "./add-creator-modal";
 
 describe("AddCreatorModal", () => {
@@ -554,6 +555,26 @@ describe("AddCreatorModal", () => {
       expect(end).toHaveAttribute("min", "2026-10-06");
     });
 
+    // PBI-23 AC: the buffer a Super Admin set, not a fixed five days, holds the pickers,
+    // the message and the calendar's first and last deadline.
+    it("counts every line with the configured buffer", () => {
+      render(
+        <DeadlineBufferProvider bufferDays={8}>
+          <AddCreatorModal onClose={() => {}} onSubmit={() => {}} />
+        </DeadlineBufferProvider>,
+      );
+      expect(screen.getByLabelText(/akhir kontrak/i)).toHaveAttribute("min", "2026-10-02");
+
+      fillContract("2026-10-01", "2026-10-05", "1");
+      expect(
+        screen.getByText("Akhir kontrak paling cepat 9 Okt 2026 (masa buffer 8 hari)"),
+      ).toBeInTheDocument();
+
+      fillContract("2026-10-01", "2026-10-17", "1");
+      expect(screen.getByTestId("deadline-2026-10-09")).toBeInTheDocument();
+      expect(screen.getByText(/1 \/ 1 teralokasi/i)).toBeInTheDocument();
+    });
+
     // UAT: the calendar stayed on screen while the dates were still wrong.
     it("hides the calendar while the dates are wrong and says what to fix", () => {
       render(<AddCreatorModal onClose={() => {}} onSubmit={() => {}} />);
@@ -679,13 +700,13 @@ describe("AddCreatorModal", () => {
           onClose={() => {}}
           onSubmit={() => {}}
           serverErrors={{
-            email: "Email sudah terdaftar",
+            email: "Email sudah dipakai",
             contractEnd: "Tanggal berakhir tidak boleh sebelum hari ini",
           }}
         />,
       );
 
-      expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+      expect(screen.getByText("Email sudah dipakai")).toBeInTheDocument();
       expect(screen.getByText("Tanggal berakhir tidak boleh sebelum hari ini")).toBeInTheDocument();
     });
 
@@ -694,27 +715,27 @@ describe("AddCreatorModal", () => {
         <AddCreatorModal
           onClose={() => {}}
           onSubmit={() => {}}
-          serverErrors={{ email: "Email sudah terdaftar", name: "Nama terlalu panjang" }}
+          serverErrors={{ email: "Email sudah dipakai", name: "Nama terlalu panjang" }}
         />,
       );
 
       fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "baru@example.com" } });
 
-      expect(screen.queryByText("Email sudah terdaftar")).not.toBeInTheDocument();
+      expect(screen.queryByText("Email sudah dipakai")).not.toBeInTheDocument();
       expect(screen.getByText("Nama terlalu panjang")).toBeInTheDocument();
     });
 
     it("shows a fresh set of server messages even for a field edited before", () => {
       const { rerender } = render(
-        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah dipakai" }} />,
       );
       fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "lagi@example.com" } });
 
       rerender(
-        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah terdaftar" }} />,
+        <AddCreatorModal onClose={() => {}} onSubmit={() => {}} serverErrors={{ email: "Email sudah dipakai" }} />,
       );
 
-      expect(screen.getByText("Email sudah terdaftar")).toBeInTheDocument();
+      expect(screen.getByText("Email sudah dipakai")).toBeInTheDocument();
     });
 
     it("shows the server's schedule message as an alert", () => {

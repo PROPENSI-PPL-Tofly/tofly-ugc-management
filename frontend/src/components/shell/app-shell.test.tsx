@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { AppShell } from "./app-shell";
 import { FRAME_THEMES } from "./frame-theme";
+import { SuperAdminProvider } from "./super-admin-context";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/creators",
@@ -57,7 +58,7 @@ describe("AppShell", () => {
         </AppShell>,
     );
 
-    expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).toHaveAttribute("href", "/admin/creators");
+    expect(screen.getByRole("link", { name: "Tofly Creator Management System" })).toHaveAttribute("href", "/admin/dashboard");
     expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
   });
 
@@ -74,6 +75,41 @@ describe("AppShell", () => {
     expect(account).toHaveTextContent("Admin");
     expect(within(account).getByRole("button", { name: "Keluar" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Menu admin" })).not.toContainElement(account);
+  });
+
+  // QA: a Super Admin's frame said "Admin" on every page but Pengguna Admin, and "Masuk sebagai"
+  // named the role instead of the person. The role and the name come from the session the admin
+  // layout read, the same on every page.
+  describe("for a signed-in Admin", () => {
+    function renderAs(isSuperAdmin: boolean, name: string | null) {
+      render(
+        <SuperAdminProvider isSuperAdmin={isSuperAdmin} name={name}>
+          <AppShell title="Kreator">
+            <p>konten</p>
+          </AppShell>
+        </SuperAdminProvider>,
+      );
+    }
+
+    it("tags a Super Admin as Super Admin on any admin page and names the person", () => {
+      renderAs(true, "Rina Wijaya");
+
+      expect(screen.getByText("Super Admin", { selector: "[data-role-tag]" })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Akun" })).toHaveTextContent("Masuk sebagaiRina Wijaya");
+    });
+
+    it("tags an Admin as Admin", () => {
+      renderAs(false, "Bimo Saputra");
+
+      expect(screen.getByText("Admin", { selector: "[data-role-tag]" })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Akun" })).toHaveTextContent("Masuk sebagaiBimo Saputra");
+    });
+
+    it("names the role when the account has no name", () => {
+      renderAs(true, null);
+
+      expect(screen.getByRole("group", { name: "Akun" })).toHaveTextContent("Masuk sebagaiSuper Admin");
+    });
   });
 
   describe("for a creator", () => {

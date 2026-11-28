@@ -44,7 +44,7 @@ export default async function PerformancePage({
   const query = buildPerformanceLinksQuery(state);
 
   return (
-    <AppShell role="admin" title="Performa Konten">
+    <AppShell title="Performa Konten">
       {result === null ? (
         <>
           <PerformanceFilters creators={creators} />

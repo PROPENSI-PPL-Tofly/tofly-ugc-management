@@ -63,6 +63,17 @@
       transform: translateX(24px);
     }
   }
+
+  /* Loading bar sweep (the prototype's .skel): a light band moving across. It repeats forever,
+     which the reduced-motion rule below would only speed up, so a user of it adds
+     motion-reduce:animate-none. */
+  --animate-shimmer: shimmer 1.2s infinite;
+
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
 }
 
 /* Set by next/font on <html>, so it stays outside the static token block. */

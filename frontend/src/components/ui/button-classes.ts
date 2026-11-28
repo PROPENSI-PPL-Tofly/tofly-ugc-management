@@ -30,8 +30,10 @@ export const PRESS =
 /**
  * The button look on its own, for a link that should read as a button (e.g. a page's main way in).
  * A 44px press on a phone; a link or label drawn with it is an inline-flex box, so the height
- * applies and the text stays centred in it.
+ * applies and the text stays centred in it. `sm` is the prototype's .btn.sm, tighter padding for
+ * an action inside a small card; it keeps the 44px phone press.
  */
-export function buttonClasses(variant: Variant = "default"): string {
-  return `cursor-pointer rounded-(--radius-control) border px-3 py-1.5 text-[12.5px] font-semibold ${PRESS} disabled:cursor-not-allowed disabled:opacity-40 ${PHONE_TARGET} ${VARIANTS[variant]}`;
+export function buttonClasses(variant: Variant = "default", size: "md" | "sm" = "md"): string {
+  const padding = size === "sm" ? "px-2 py-1" : "px-3 py-1.5";
+  return `cursor-pointer rounded-(--radius-control) border ${padding} text-[12.5px] font-semibold ${PRESS} disabled:cursor-not-allowed disabled:opacity-40 ${PHONE_TARGET} ${VARIANTS[variant]}`;
 }

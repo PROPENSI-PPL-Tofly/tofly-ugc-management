@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { InfoTip } from "@/components/ui/info-tip";
 import {
+  CREATOR_INVOICE_STATUS_LABELS,
   creatorNextStep,
   invoiceActivity,
   invoiceSteps,
@@ -18,7 +19,7 @@ import { formatContractWindow } from "@/lib/format";
 import { InvoiceActivity } from "./invoice-activity";
 import { InvoiceParts, ProofLink } from "./invoice-parts";
 import { InvoiceTabs } from "./invoice-tabs";
-import { InvoiceTracker } from "./invoice-tracker";
+import { CancelledInvoiceNotice, InvoiceTracker } from "./invoice-tracker";
 
 /**
  * Whose turn the invoice is: the creator's, as a banner with the move beside the ask (and the
@@ -112,9 +113,15 @@ export function CreatorInvoiceView({
         <p className="mt-0.5 text-[26px] leading-tight font-bold tabular-nums">{total}</p>
       </div>
 
-      <InvoiceTracker steps={invoiceSteps(invoice)} />
-
-      <NextStep next={next} invoice={invoice} renderAction={renderAction} />
+      {/* A cancelled invoice has no steps and no move left: the notice says so once. */}
+      {invoice.status === "cancelled" ? (
+        <CancelledInvoiceNotice label={CREATOR_INVOICE_STATUS_LABELS.cancelled} />
+      ) : (
+        <>
+          <InvoiceTracker steps={invoiceSteps(invoice)} />
+          <NextStep next={next} invoice={invoice} renderAction={renderAction} />
+        </>
+      )}
 
       <InvoiceTabs
         tabs={[

@@ -15,7 +15,7 @@ import { ContentListService } from './content-list.service.js';
 import { CreatorCommentController } from './creator-comment.controller.js';
 import { CreatorCommentService } from './creator-comment.service.js';
 import { ContentsController } from './contents.controller.js';
-import { ContentCreationService } from './contents.service.js';
+import { CONTENT_NOTIFIER, ContentCreationService } from './contents.service.js';
 import { DraftSubmissionController } from './draft-submission.controller.js';
 import { DraftSubmissionService } from './draft-submission.service.js';
 import { CLEARED_PERFORMANCE } from '../performance/link-performance.js';
@@ -25,10 +25,16 @@ import {
 } from './link-change.service.js';
 import { VideoSubmissionController } from './video-submission.controller.js';
 import { VideoSubmissionService } from './video-submission.service.js';
+import { AdminEmails } from '../email/admin-emails.js';
+import { ADMIN_NOTIFIER } from '../email/admin-notifier.js';
+import { CreatorEmails } from '../email/creator-emails.js';
+import { CREATOR_NOTIFIER } from '../email/creator-notifier.js';
+import { EmailModule } from '../email/email.module.js';
 
 @Module({
-  // A saved link syncs its content in the background (PBI-27's sync, 27.4).
-  imports: [PerformanceSyncModule],
+  // A saved link syncs its content in the background (PBI-27's sync, 27.4); Add Content emails
+  // the creator (PBI-11).
+  imports: [PerformanceSyncModule, EmailModule],
   controllers: [
     ContentEditController,
     ContentLinksController,
@@ -41,6 +47,9 @@ import { VideoSubmissionService } from './video-submission.service.js';
   providers: [
     ContentEditService,
     ContentCreationService,
+    { provide: CONTENT_NOTIFIER, useExisting: CreatorEmails },
+    { provide: CREATOR_NOTIFIER, useExisting: CreatorEmails },
+    { provide: ADMIN_NOTIFIER, useExisting: AdminEmails },
     ContentDetailService,
     ContentEventHistoryService,
     ContentListService,

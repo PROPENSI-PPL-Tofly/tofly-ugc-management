@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  CREATOR_NOTIFIER,
+  noCreatorEmail,
+  type CreatorNotifier,
+} from '../email/creator-notifier.js';
 import { Prisma } from '@prisma/client';
 import { lockContractRow } from '../invoices/contract-lock.js';
 import { invoiceState } from '../invoices/invoice-lifecycle.js';
@@ -104,6 +109,9 @@ export class ContractEndService implements ContractEnder {
   constructor(
     @Inject(PrismaService) private readonly prisma: ContractEndClient,
     @Inject(CONTRACT_END_AUDIT) private readonly audit: ContractEndAudit,
+    @Optional()
+    @Inject(CREATOR_NOTIFIER)
+    private readonly notifier: Pick<CreatorNotifier, 'contractEndedEarly'> = noCreatorEmail,
   ) {}
 
   async preview(
@@ -116,14 +124,14 @@ export class ContractEndService implements ContractEnder {
     return plan;
   }
 
-  end(
+  async end(
     creatorId: string,
     contractId: string,
     body: unknown,
     now: Date,
     adminUserId?: string,
   ): Promise<EndedContract> {
-    return this.prisma.$transaction(async (tx) => {
+    const ended = await this.prisma.$transaction(async (tx): Promise<EndedContract> => {
       await tx.$queryRaw(
         Prisma.sql`SELECT id FROM creators WHERE id = ${creatorId}::uuid FOR UPDATE`,
       );
@@ -211,6 +219,14 @@ export class ContractEndService implements ContractEnder {
         ...plan,
       };
     });
+    // PBI-11 (AC 4, AC 9): once saved; the last day and the invoice choice, never the reason.
+    await this.notifier.contractEndedEarly({
+      creatorId,
+      contractId,
+      lastDay: ended.lastDay,
+      invoice: ended.invoiceStatus === 'cancelled' ? 'cancelled' : 'paid',
+    });
+    return ended;
   }
 
   /** Reads the creator's periods and the contract's content, then applies every rule to them. */

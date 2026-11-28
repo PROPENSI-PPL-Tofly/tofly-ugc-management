@@ -190,6 +190,18 @@ describe('checkEvergreenSlot', () => {
 
       expect(errors.deadline).toBe('Deadline paling cepat 11 Okt 2026');
     });
+
+    // PBI-23 AC 22 (SCRUM-298): the same buffer draws the latest line, so H-5 is H-N.
+    it('closes the window the buffer before the contract end, naming H-N', () => {
+      const context = { ...CONTEXT, bufferDays: 10 };
+
+      expect(
+        checkEvergreenSlot('evergreen', '2026-12-21', context, TODAY).deadline,
+      ).toBeUndefined();
+      expect(
+        checkEvergreenSlot('evergreen', '2026-12-22', context, TODAY).deadline,
+      ).toBe('Deadline paling lambat 21 Des 2026 (H-10 akhir kontrak)');
+    });
   });
 
   it('reports the quota and deadline errors independently, not just the first one found', () => {

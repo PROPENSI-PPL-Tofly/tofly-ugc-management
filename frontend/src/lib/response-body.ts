@@ -16,3 +16,9 @@ export function refusalText(response: Response, body: unknown): string | null {
   const message = (body as { message?: unknown } | null)?.message;
   return response.status < 500 && typeof message === "string" ? message : null;
 }
+
+/** The machine code of a refusal, such as PAYMENTS_ONLY, or null when it sends none. */
+export async function refusalCode(response: Response): Promise<string | null> {
+  const code = ((await readBody(response)) as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : null;
+}

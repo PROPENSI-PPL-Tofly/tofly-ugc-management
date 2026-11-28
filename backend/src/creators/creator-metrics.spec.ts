@@ -5,6 +5,7 @@ import {
   contractStatus,
   currentContract,
   daysRemaining,
+  nextPeriod,
   periodNumber,
   type MetricsContent,
   type MetricsContract,
@@ -22,6 +23,7 @@ function content(overrides: Partial<MetricsContent> = {}): MetricsContent {
     deadline: day(-10),
     videoSubmittedAt: day(-10),
     isProposal: false,
+    type: 'evergreen',
     submissionCount: 1,
     ...overrides,
   };
@@ -95,6 +97,39 @@ describe('currentContract', () => {
     expect(currentContract([contract('next', 10, 100), finished], TODAY)).toBe(
       finished,
     );
+  });
+});
+
+describe('nextPeriod', () => {
+  // PBI-30 AC 10: Creator Database shows the current period, and a renewal still to start beside it.
+  it('is the renewal still to start after the current period, with its number', () => {
+    const first = contract('a', -200, -100);
+    const current = contract('b', -10, 10);
+    const next = contract('c', 11, 100);
+
+    expect(nextPeriod([next, first, current], current, TODAY)).toEqual({
+      periodNumber: 3,
+      startDate: day(11),
+    });
+  });
+
+  it('is the earliest of several renewals still to start', () => {
+    const current = contract('a', -10, 10);
+    const later = contract('c', 101, 200);
+    const next = contract('b', 11, 100);
+
+    expect(nextPeriod([later, current, next], current, TODAY)).toEqual({
+      periodNumber: 2,
+      startDate: day(11),
+    });
+  });
+
+  it('is nothing when the current period is itself the one still to start, or none waits', () => {
+    const upcoming = contract('a', 5, 50);
+    const ended = contract('b', -100, -1);
+
+    expect(nextPeriod([upcoming, ended], upcoming, TODAY)).toBeNull();
+    expect(nextPeriod([ended], ended, TODAY)).toBeNull();
   });
 });
 
@@ -191,7 +226,7 @@ describe('computeProgress', () => {
       content({ videoSubmittedAt: null }),
       content({ videoSubmittedAt: null }),
     ];
-    expect(computeProgress(contents)).toEqual({
+    expect(computeProgress(contents, 3)).toEqual({
       submitted: 1,
       total: 3,
       percent: 33,
@@ -203,15 +238,42 @@ describe('computeProgress', () => {
       content(),
       content({ isProposal: true, videoSubmittedAt: null }),
     ];
-    expect(computeProgress(contents)).toEqual({
+    expect(computeProgress(contents, 1)).toEqual({
       submitted: 1,
       total: 1,
       percent: 100,
     });
   });
 
+  // PBI-16: the quota is what was agreed, so a raised one is owed before its slots are scheduled.
+  it('counts against the quota, unallocated Evergreen slots included', () => {
+    expect(computeProgress([content(), content({ videoSubmittedAt: null })], 8)).toEqual({
+      submitted: 1,
+      total: 8,
+      percent: 13,
+    });
+  });
+
+  it('adds Specific content on top of the quota', () => {
+    const contents = [
+      content(),
+      content({ type: 'specific' }),
+      content({ type: 'specific', videoSubmittedAt: null }),
+      content({ type: 'specific', isProposal: true, videoSubmittedAt: null }),
+    ];
+    expect(computeProgress(contents, 2)).toEqual({ submitted: 2, total: 4, percent: 50 });
+  });
+
+  it('never owes less than the Evergreen content already there', () => {
+    expect(computeProgress([content(), content()], 1)).toEqual({
+      submitted: 2,
+      total: 2,
+      percent: 100,
+    });
+  });
+
   it('is zero without content rather than dividing by zero', () => {
-    expect(computeProgress([])).toEqual({ submitted: 0, total: 0, percent: 0 });
+    expect(computeProgress([], 0)).toEqual({ submitted: 0, total: 0, percent: 0 });
   });
 });
 

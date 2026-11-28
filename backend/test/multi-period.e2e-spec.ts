@@ -243,6 +243,46 @@ describe('Contract periods that have not started (e2e)', () => {
       });
     });
 
+    it('refuses a comment on content of the period starting tomorrow, saving no event', async () => {
+      const next = await content(renewed.next, 'comment', 'scheduled', 20);
+
+      const response = await post(
+        `/contents/${next.id}/comments`,
+        renewed.creatorId,
+        {
+          comment: 'Boleh mulai lebih awal?',
+        },
+      );
+
+      expect(response.status).toBe(409);
+      expect(response.body).toMatchObject(PERIOD_NOT_STARTED);
+      await expect(
+        prisma.content_events.count({
+          where: { content_id: next.id, event_type: 'Creator Comment' },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it('answers the detail of content of the period starting tomorrow with 404, as Task Saya hides it', async () => {
+      const next = await content(renewed.next, 'detail', 'scheduled', 20);
+      const current = await content(
+        renewed.current,
+        'detail now',
+        'scheduled',
+        0,
+      );
+
+      const hidden = await request(app.getHttpServer())
+        .get(`/me/contents/${next.id}`)
+        .set(DEV_CREATOR_HEADER, renewed.creatorId);
+      const shown = await request(app.getHttpServer())
+        .get(`/me/contents/${current.id}`)
+        .set(DEV_CREATOR_HEADER, renewed.creatorId);
+
+      expect([hidden.status, shown.status]).toEqual([404, 200]);
+      expect(hidden.body).toMatchObject({ code: 'CONTENT_NOT_FOUND' });
+    });
+
     it("answers another creator's content of a period not started with the same 404 as before", async () => {
       const next = await content(renewed.next, 'not yours', 'scheduled', 20);
 

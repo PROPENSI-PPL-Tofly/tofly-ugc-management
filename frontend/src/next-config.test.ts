@@ -9,4 +9,24 @@ describe("next.config", () => {
     expect(PROOF_MAX_BYTES).toBe(5 * 1024 * 1024);
     expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe("6mb");
   });
+
+  // ZAP 90004: no document may embed a cross-origin resource that has not agreed to it.
+  // "credentialless" keeps the storage bucket's signed images working: they load without cookies.
+  it("isolates every document from cross-origin embeds that did not opt in", async () => {
+    const [rule] = (await nextConfig.headers?.()) ?? [];
+
+    expect(rule.source).toBe("/(.*)");
+    expect(rule.headers).toContainEqual({
+      key: "Cross-Origin-Embedder-Policy",
+      value: "credentialless",
+    });
+  });
+
+  // ZAP 90004, its other half: no window opened from elsewhere keeps a handle on a Tofly page.
+  // Google sign-in is a full-page redirect, never a popup, so nothing relies on that handle.
+  it("keeps every document in its own browsing context group", async () => {
+    const [rule] = (await nextConfig.headers?.()) ?? [];
+
+    expect(rule.headers).toContainEqual({ key: "Cross-Origin-Opener-Policy", value: "same-origin" });
+  });
 });

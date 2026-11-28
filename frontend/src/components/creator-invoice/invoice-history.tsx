@@ -3,6 +3,7 @@ import { InvoiceDocumentButtons } from "@/components/invoicing/invoice-pdf-butto
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { CREATOR_INVOICE_STATUS_LABELS, totalAmountLabel, type CreatorInvoice } from "@/lib/creator-invoice";
+import { PERIOD_STATUS_LABELS, PERIOD_STATUS_TONES } from "@/lib/creator-detail";
 import { formatContractWindow } from "@/lib/format";
 import { ScrollFrame } from "@/components/ui/scroll-frame";
 
@@ -69,7 +70,12 @@ export function InvoiceHistory({
                   </span>
                 </td>
                 <td data-label="Status" className={`${CELL} ${LABELLED}`}>
-                  <Pill tone={INVOICE_TONES[invoice.status]}>{CREATOR_INVOICE_STATUS_LABELS[invoice.status]}</Pill>
+                  {/* A renewal's invoice is agreed but not running yet: it reads as its period does. */}
+                  {invoice.notStarted ? (
+                    <Pill tone={PERIOD_STATUS_TONES.upcoming}>{PERIOD_STATUS_LABELS.upcoming}</Pill>
+                  ) : (
+                    <Pill tone={INVOICE_TONES[invoice.status]}>{CREATOR_INVOICE_STATUS_LABELS[invoice.status]}</Pill>
+                  )}
                 </td>
                 <td
                   data-label="Total"

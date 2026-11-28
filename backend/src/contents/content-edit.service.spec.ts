@@ -1,3 +1,4 @@
+import type { CreatorNotifier } from '../email/creator-notifier.js';
 import {
   ConflictException,
   NotFoundException,
@@ -41,7 +42,10 @@ function row(overrides: Partial<EditableRow> = {}): EditableRow {
   };
 }
 
-function setup(found: EditableRow | null = row()) {
+function setup(
+  found: EditableRow | null = row(),
+  notifier?: Pick<CreatorNotifier, 'contentRescheduled' | 'contentDeleted'>,
+) {
   const calls: string[] = [];
   const transaction = {
     $queryRaw: vi.fn(async (query: Prisma.Sql) => {
@@ -63,7 +67,7 @@ function setup(found: EditableRow | null = row()) {
       })),
       delete: vi.fn(async () => ({})),
     },
-    content_events: { create: vi.fn(async () => ({})) },
+    content_events: { create: vi.fn(async () => ({ id: 'event-1' })) },
   };
   const client: ContentEditClient = {
     $transaction: vi.fn(async (work, options) => {
@@ -75,7 +79,7 @@ function setup(found: EditableRow | null = row()) {
     // 08:00 in Jakarta on 5 Nov: the day the buffer counts from.
     today: () => new Date('2026-11-05T01:00:00Z'),
     bufferDays: async () => 5,
-  });
+  }, notifier);
   return { service, transaction, calls };
 }
 
@@ -245,5 +249,93 @@ describe('ContentEditService defaults', () => {
         errors: { deadline: expect.stringMatching(/^Deadline paling cepat /) },
       },
     });
+  });
+});
+
+// PBI-11 (11.2, AC 1): Admin changes the deadline of or deletes the creator's content.
+describe('ContentEditService, the creator email', () => {
+  function emails() {
+    return {
+      contentRescheduled: vi.fn<CreatorNotifier['contentRescheduled']>().mockResolvedValue(),
+      contentDeleted: vi.fn<CreatorNotifier['contentDeleted']>().mockResolvedValue(),
+    };
+  }
+
+  it('tells the creator the new deadline after it is saved', async () => {
+    const notifier = emails();
+    const { service, transaction } = setup(row(), notifier);
+    notifier.contentRescheduled.mockImplementation(async () => {
+      expect(transaction.content_events.create).toHaveBeenCalled();
+    });
+
+    await service.update(CONTENT_ID, { deadline: '2026-11-25' }, ADMIN_ID);
+
+    expect(notifier.contentRescheduled).toHaveBeenCalledExactlyOnceWith({
+      contentId: CONTENT_ID,
+      deadline: '2026-11-25',
+      editId: 'event-1',
+    });
+  });
+
+  // Review on #254 (Davin, Gunta): each edit is its own email, so 10 → 12 → 10 → 12 sends three.
+  it('names each deadline change by the history event it recorded', async () => {
+    const notifier = emails();
+    const { service, transaction } = setup(row(), notifier);
+    transaction.content_events.create
+      .mockResolvedValueOnce({ id: 'event-1' })
+      .mockResolvedValueOnce({ id: 'event-2' });
+
+    await service.update(CONTENT_ID, { deadline: '2026-11-25' }, ADMIN_ID);
+    await service.update(CONTENT_ID, { deadline: '2026-11-26' }, ADMIN_ID);
+
+    expect(notifier.contentRescheduled.mock.calls.map(([input]) => input.editId)).toEqual([
+      'event-1',
+      'event-2',
+    ]);
+  });
+
+  // AC 1 names the deadline only, so a brief or name change sends nothing.
+  it('tells nobody when only the brief changes', async () => {
+    const notifier = emails();
+    const { service } = setup(row(), notifier);
+
+    await service.update(CONTENT_ID, { brief: 'Brief baru' }, ADMIN_ID);
+
+    expect(notifier.contentRescheduled).not.toHaveBeenCalled();
+  });
+
+  it('tells nobody when the edit is refused', async () => {
+    const notifier = emails();
+    const { service } = setup(null, notifier);
+
+    await expect(service.update(CONTENT_ID, { deadline: '2026-11-25' }, ADMIN_ID)).rejects.toThrow();
+    expect(notifier.contentRescheduled).not.toHaveBeenCalled();
+  });
+
+  it('tells the creator what was deleted, read before the row is gone', async () => {
+    const notifier = emails();
+    const { service, transaction } = setup(row(), notifier);
+    notifier.contentDeleted.mockImplementation(async () => {
+      expect(transaction.contents.delete).toHaveBeenCalled();
+    });
+
+    await service.remove(CONTENT_ID);
+
+    expect(notifier.contentDeleted).toHaveBeenCalledExactlyOnceWith({
+      contractId: CONTRACT_ID,
+      contentId: CONTENT_ID,
+      contentName: 'Promo Lebaran',
+      deadline: '2026-11-20',
+    });
+  });
+
+  it('tells nobody when the delete is refused', async () => {
+    const notifier = emails();
+    const finalized = row();
+    finalized.contracts.invoice = { status: 'finalized' };
+    const { service } = setup(finalized, notifier);
+
+    await expect(service.remove(CONTENT_ID)).rejects.toThrow();
+    expect(notifier.contentDeleted).not.toHaveBeenCalled();
   });
 });

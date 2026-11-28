@@ -278,6 +278,21 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-30 AC 1: the renewal is offered on the Periode Kontrak panel, for this creator.
+  // PBI-16 AC 1.
+  it("offers Ubah Data in the creator's profile", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf());
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Data" })).toBeInTheDocument();
+  });
+
+  it("offers Ubah Data for a creator without a contract", async () => {
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [], current: null, selected: null }));
+    await renderPage();
+
+    expect(screen.getByRole("button", { name: "Ubah Data" })).toBeInTheDocument();
+  });
+
   it("offers Perpanjang Kontrak on the Periode Kontrak panel while the contract runs", async () => {
     await renderPage();
 
@@ -294,14 +309,23 @@ describe("Creator Detail page", () => {
   });
 
   // PBI-30 AC 8-9: a renewal still to start is changed or deleted from the same panel.
-  it("offers to change or delete the next period while it has not started", async () => {
+  it("offers to change or delete the next period while it has not started and is open", async () => {
     const next: CreatorPeriod = { ...NEWEST, contractId: "33333333-3333-4333-8333-333333333333", periodNumber: 3, status: "upcoming" };
-    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST] }));
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST], selected: next }));
 
     await renderPage();
 
     expect(screen.getByRole("button", { name: "Ubah Periode" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hapus Periode" })).toBeInTheDocument();
+  });
+
+  it("keeps those actions off the active period's view, where they would read as its own", async () => {
+    const next: CreatorPeriod = { ...NEWEST, contractId: "33333333-3333-4333-8333-333333333333", periodNumber: 3, status: "upcoming" };
+    vi.mocked(fetchCreatorDetail).mockResolvedValue(viewOf({ periods: [next, NEWEST, OLDEST], selected: NEWEST }));
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "Hapus Periode" })).not.toBeInTheDocument();
   });
 
   // PBI-37 AC 1: the early end is offered on the same panel, only while the contract runs.

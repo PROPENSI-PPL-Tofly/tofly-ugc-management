@@ -1,0 +1,45 @@
+// What an Ubah Data edit hands on (PBI-16): its "Log Aktivitas" entries to PBI-23's AuditLogger and
+// its creator emails to PBI-11. Both are ports with the shape of those classes (DIP): the audit one
+// is bound with `useExisting: AuditLogger`, as contract-end-audit.ts is for an early end; the email
+// one waits until CreatorEmails answers these two events.
+
+/** The actions an edit records, as PBI-23's AUDIT_ACTIONS names them. */
+export type CreatorEditAuditAction = 'creator_changed' | 'period_changed';
+
+export interface CreatorEditAuditEntry {
+  action: CreatorEditAuditAction;
+  target: { id?: string; label: string };
+  creatorId?: string;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
+}
+
+/** Writes one entry on the transaction of the edit it records, so the two land or fail together. */
+export interface CreatorEditAudit {
+  recordBy(
+    tx: unknown,
+    userId: string | null | undefined,
+    entry: CreatorEditAuditEntry,
+  ): Promise<void>;
+}
+
+/** Nest injection token for CreatorEditAudit, since an interface does not exist at runtime. */
+export const CREATOR_EDIT_AUDIT = Symbol('CREATOR_EDIT_AUDIT');
+
+/** The emails an edit sends once saved. Like every CreatorNotifier method, neither ever rejects. */
+export interface CreatorEditNotifier {
+  contractEndChanged(input: {
+    creatorId: string;
+    contractId: string;
+    /** YYYY-MM-DD */
+    endDate: string;
+  }): Promise<void>;
+  quotaChanged(input: {
+    creatorId: string;
+    contractId: string;
+    quota: number;
+  }): Promise<void>;
+}
+
+/** Nest injection token for CreatorEditNotifier. */
+export const CREATOR_EDIT_NOTIFIER = Symbol('CREATOR_EDIT_NOTIFIER');

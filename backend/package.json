@@ -27,7 +27,8 @@
     "db:seed": "prisma db seed",
     "db:seed:files": "prisma db execute --file prisma/seeds/local-admin.sql --schema prisma/schema.prisma && prisma db execute --file prisma/seeds/demo.sql --schema prisma/schema.prisma",
     "db:reset": "prisma migrate reset --force",
-    "email:test": "npm run build && node dist/email/send-test-email-cli.js"
+    "email:test": "npm run build && node dist/email/send-test-email-cli.js",
+    "email:preview": "npm run build && node dist/email/notifications/preview-notifications-cli.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.22.0",

@@ -1,20 +1,32 @@
 // Server-side only: who the browser is signed in as, for routing before a page renders. It reads
 // the session cookie through next/headers, so it stays apart from modules client code imports.
 
+import { cache } from "react";
 import type { Role } from "./session";
 import { appSessionCookieHeader } from "./session-cookie";
 
 export type { Role };
 
+export interface Session {
+  role: "admin" | "creator";
+  isSuperAdmin: boolean;
+  /** An Admin's own name for the frame's "Masuk sebagai", or null (a creator, or no name set). */
+  name: string | null;
+}
+
+function nameOf(raw: unknown): string | null {
+  return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : null;
+}
+
 function withoutTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-/**
- * The signed-in role, or null when nobody is: no session cookie, or one the backend refuses
- * (expired, signed out, revoked). Anything else the backend says is an error, not a guess.
- */
-export async function currentRole(): Promise<Role | null> {
+// Who is signed in, or null when nobody is: no session cookie, or one the backend refuses
+// (expired, signed out, revoked). Anything else the backend says is an error, not a guess. Only
+// the exact "super_admin" on an Admin opens Super Admin pages (OWASP A01:2025). Cached per render,
+// so the layout and its page ask the backend once.
+export const currentSession = cache(async (): Promise<Session | null> => {
   const cookie = await appSessionCookieHeader();
   if (!cookie) return null;
 
@@ -32,9 +44,36 @@ export async function currentRole(): Promise<Role | null> {
     throw new Error(`Reading the session failed with HTTP ${response.status}`);
   }
 
-  const { role } = (await response.json()) as { role?: unknown };
+  const { role, adminRole, name } = (await response.json()) as {
+    role?: unknown;
+    adminRole?: unknown;
+    name?: unknown;
+  };
   if (role !== "admin" && role !== "creator") {
     throw new Error("The session answer named no known role");
   }
-  return role;
+  return {
+    role,
+    isSuperAdmin: role === "admin" && adminRole === "super_admin",
+    name: role === "admin" ? nameOf(name) : null,
+  };
+});
+
+/** The signed-in role, or null when nobody is. A Super Admin reads as "admin" here. */
+export async function currentRole(): Promise<Role | null> {
+  return (await currentSession())?.role ?? null;
+}
+
+/**
+ * Whether the signed-in Admin is a Super Admin (PBI-23), the one role that sees "Atur Buffer
+ * Deadline". It reads `adminRole` from the same session answer, which 23.1 adds; anything short
+ * of an Admin named super_admin, an error included, is false, so the setting fails closed. The
+ * backend's SuperAdminGuard still refuses everyone else.
+ */
+export async function isSuperAdmin(): Promise<boolean> {
+  try {
+    return (await currentSession())?.isSuperAdmin ?? false;
+  } catch {
+    return false;
+  }
 }

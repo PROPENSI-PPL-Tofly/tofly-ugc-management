@@ -1,4 +1,22 @@
+import { Pill } from "@/components/ui/pill";
 import type { InvoiceStep, StepState } from "@/lib/creator-invoice";
+
+/** Why a cancelled invoice has no steps to walk, worded the same for the admin and the creator. */
+export const CANCELLED_INVOICE_NOTE =
+  "Kontrak diakhiri lebih awal dan invoice ini dibatalkan. Tidak ada yang dibayarkan.";
+
+/**
+ * An invoice an early end cancelled is off the pipeline, so in place of the steps it shows its
+ * status as a red pill and one line on what that means. `label` is the reader's own word for it.
+ */
+export function CancelledInvoiceNotice({ label }: Readonly<{ label: string }>) {
+  return (
+    <div role="group" aria-label="Status invoice" className="mt-4 mb-1 flex flex-wrap items-center gap-2">
+      <Pill tone="red">{label}</Pill>
+      <p className="text-xs text-muted">{CANCELLED_INVOICE_NOTE}</p>
+    </div>
+  );
+}
 
 /** The dot and the line into it, per state, as the prototype's tracker draws them. */
 const DOT: Record<StepState, string> = {

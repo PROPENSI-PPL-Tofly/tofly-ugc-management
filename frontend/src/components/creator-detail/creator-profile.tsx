@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ConnectionBadge } from "@/components/ui/connection-badge";
 import { Panel } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
@@ -33,6 +34,7 @@ export function CreatorProfilePanel({
   today = jakartaDay(),
   // An answer with no connections reads every account as not connected.
   connections = readConnections(undefined),
+  action,
 }: Readonly<{
   creator: CreatorProfile;
   /** The creator's latest contract; null for a creator without one. */
@@ -40,6 +42,8 @@ export function CreatorProfilePanel({
   /** Jakarta calendar day, injected by the server so the access state is deterministic. */
   today?: string;
   connections?: SocialConnections;
+  /** A control under the creator's state, such as "Ubah Data" (PBI-16). */
+  action?: ReactNode;
 }>) {
   const accounts = PLATFORMS.filter(({ key }) => creator.socials[key]);
   const access = creatorAccess(creator.accessRevokeDate, current?.endDate ?? null, today);
@@ -94,6 +98,7 @@ export function CreatorProfilePanel({
               {access.note ? <p className="mt-1 max-w-64 text-xs text-muted">{access.note}</p> : null}
             </dd>
           </dl>
+          {action ? <div className="mt-3 flex justify-end">{action}</div> : null}
         </div>
       </div>
     </Panel>

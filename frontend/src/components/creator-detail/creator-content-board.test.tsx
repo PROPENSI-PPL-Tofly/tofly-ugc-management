@@ -407,3 +407,21 @@ describe("CreatorContentBoard", () => {
     expect(note.parentElement).toContainElement(screen.getByRole("button", { name: "+ Tambah Konten" }));
   });
 });
+
+// QA: a period ended early still asked for its unallocated Evergreen slots and offered
+// Tambah Konten, though the early end had closed everything left in it.
+describe("a period ended early", () => {
+  const ENDED_EARLY = {
+    ...PERIOD,
+    remainingEvergreenQuota: 2,
+    earlyEndReason: "other" as const,
+    earlyEnd: { originalEndDate: "2027-03-31", reason: "other" as const },
+  };
+
+  it("asks for no Evergreen slot and offers no Tambah Konten, even before its last day", () => {
+    renderBoard(viewOf(3, 1, ENDED_EARLY));
+
+    expect(screen.queryByText(/slot Evergreen belum dialokasikan/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ Tambah Konten" })).toBeNull();
+  });
+});

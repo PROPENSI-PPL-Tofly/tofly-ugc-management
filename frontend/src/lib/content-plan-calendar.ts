@@ -5,7 +5,7 @@
 //
 // Pure module with no clock of its own: callers pass "today" (Jakarta time), so tests pin it.
 
-import { CONTENT_STATUS_LABELS } from "./content-labels";
+import { contentStatusDisplay } from "./content-labels";
 import type { ContentPlanRow } from "./content-plan";
 import { creatorCalendarGroup } from "./creator-calendar";
 import type { CalendarMonth } from "./task-calendar";
@@ -25,7 +25,7 @@ export const CALENDAR_MAX_ITEMS = CALENDAR_PAGE_LIMIT * CALENDAR_PAGE_SIZE;
 export const OVERDUE_LABEL = "Overdue";
 export const PENDING_PROPOSAL_LABEL = "Menunggu persetujuan";
 
-type ChipRow = Pick<ContentPlanRow, "name" | "creatorName" | "status" | "tags">;
+type ChipRow = Pick<ContentPlanRow, "name" | "creatorName" | "status" | "tags" | "closedAt">;
 
 /** The month the address names ("YYYY-MM", already checked), or today's when it names none. */
 export function shownMonth(month: string, today: string): CalendarMonth {
@@ -80,7 +80,7 @@ export function calendarChipTitle(row: ChipRow): string {
   return [
     row.name,
     (row.creatorName ?? "").trim(),
-    CONTENT_STATUS_LABELS[row.status] ?? row.status,
+    contentStatusDisplay(row).label,
     isCalendarOverdue(row) ? OVERDUE_LABEL : "",
     isPendingProposal(row) ? PENDING_PROPOSAL_LABEL : "",
   ]

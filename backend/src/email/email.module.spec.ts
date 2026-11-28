@@ -1,4 +1,11 @@
+import { MODULE_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
+import { PrismaModule } from '../prisma/prisma.module.js';
+import { AdminEmails } from './admin-emails.js';
+import { CreatorEmails } from './creator-emails.js';
+import { EmailNotifier } from './email-notifier.js';
+import { EMAIL_TEMPLATES, unreadyEmailTemplates, type EmailTemplates } from './email-templates.js';
+import { NotificationEmailTemplates } from './notifications/notification-email-templates.js';
 import { createTransport } from 'nodemailer';
 import { PortNotReady } from '../auth/google/unready-ports.js';
 import { EMAIL_SENDER, type EmailSender } from './email-sender.js';
@@ -31,7 +38,8 @@ function logger() {
 async function builtSender(
   log: ReturnType<typeof logger>,
 ): Promise<EmailSender> {
-  const module = await Test.createTestingModule({ imports: [EmailModule] })
+  // PrismaModule as AppModule has it: the email_log store needs PrismaService (PBI-11).
+  const module = await Test.createTestingModule({ imports: [EmailModule, PrismaModule] })
     .overrideProvider(EMAIL_LOG)
     .useValue(log)
     .compile();
@@ -82,6 +90,32 @@ describe('EmailModule', () => {
     expect(log.warn).toHaveBeenCalledExactlyOnceWith(
       'Email delivery failed (Error)',
     );
+  });
+
+  // PBI-11 (11.1): the services that send event emails import this module for CreatorEmails.
+  it('exports the creator emails, sent through the logged helper', () => {
+    const exported = Reflect.getMetadata(MODULE_METADATA.EXPORTS, EmailModule) as unknown[];
+    const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, EmailModule) as {
+      provide?: unknown;
+      useValue?: unknown;
+    }[];
+
+    expect(exported).toEqual(expect.arrayContaining([EMAIL_SENDER, CreatorEmails, AdminEmails]));
+    expect(providers.some((provider) => provider.provide === EmailNotifier)).toBe(true);
+    expect(providers.some((provider) => provider.provide === CreatorEmails)).toBe(true);
+  });
+
+  // PBI-11 (11.4): the helper renders with the real templates, no longer the unready ones.
+  it('binds EMAIL_TEMPLATES to the 11.4 notification templates', async () => {
+    vi.stubEnv('FRONTEND_URL', 'https://tofly.example');
+    const module = await Test.createTestingModule({ imports: [EmailModule, PrismaModule] }).compile();
+    const templates = module.get<EmailTemplates>(EMAIL_TEMPLATES);
+
+    expect(templates).toBeInstanceOf(NotificationEmailTemplates);
+    expect(templates).not.toBe(unreadyEmailTemplates);
+    await expect(templates.render('account_ready', { recipientName: 'Rangga' })).resolves.toMatchObject({
+      subject: 'Akun Tofly kamu sudah siap',
+    });
   });
 
   it('binds EMAIL_SENDER fail-closed while no account is configured, and logs the refusal (AC 6)', async () => {

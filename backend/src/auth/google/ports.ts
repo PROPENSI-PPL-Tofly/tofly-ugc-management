@@ -19,9 +19,22 @@ export interface IdTokenVerifier {
   verify(idToken: string, nonce: string): Promise<GoogleIdentity>;
 }
 
-/** Who the whitelist says the person is. The role comes from the whitelist, never from Google. */
+/** PBI-23: Super Admin can do everything Admin can, plus the Super Admin pages. */
+export type AdminRole = 'admin' | 'super_admin';
+
+/**
+ * Who the whitelist says the person is. The role comes from the whitelist, never from Google.
+ * `adminRole` is read from the whitelist on each request; a session record does not keep it, so a
+ * role change applies on the next request.
+ */
 export type Principal =
-  | { userId: string; role: 'admin' }
+  | {
+      userId: string;
+      role: 'admin';
+      adminRole?: AdminRole;
+      /** The Admin's own name, for the frame's "Masuk sebagai"; absent when none is set. */
+      name?: string;
+    }
   | {
       userId: string;
       role: 'creator';

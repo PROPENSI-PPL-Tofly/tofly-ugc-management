@@ -54,18 +54,21 @@ function row(overrides: Partial<CreatorRow> = {}): CreatorRow {
         invoice: null,
         contents: [
           {
+            type: 'evergreen',
             deadline: day(-30),
             video_submitted_at: day(-31),
             status: 'link_submitted',
             _count: { submissions: 1 },
           },
           {
+            type: 'evergreen',
             deadline: day(-10),
             video_submitted_at: day(-8),
             status: 'link_submitted',
             _count: { submissions: 2 },
           },
           {
+            type: 'evergreen',
             deadline: day(20),
             video_submitted_at: null,
             status: 'scheduled',
@@ -210,11 +213,13 @@ describe('CreatorsService', () => {
       count: vi.fn(),
       findUnique: vi.fn(),
     },
+    content_links: { findMany: vi.fn() },
     $queryRaw: vi.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    prisma.content_links.findMany.mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -270,12 +275,14 @@ describe('CreatorsService', () => {
             periodNumber: 1,
             contentQuota: 6,
             type: 'regular',
+            next: null,
             earlyEnd: null,
           },
           progress: {
             submitted: 2,
-            total: 3,
-            percent: 67,
+            // Against the quota of 6, not the three contents scheduled so far (PBI-16).
+            total: 6,
+            percent: 33,
           },
           performance: {
             onTimeRate: 50,
@@ -296,6 +303,7 @@ describe('CreatorsService', () => {
     const withProposal = row();
     withProposal.contracts[0].contents.push({
       // Past its deadline with nothing handed in: counted, it would drag every number down.
+      type: 'evergreen',
       deadline: day(-5),
       video_submitted_at: null,
       status: 'pending',
@@ -308,8 +316,8 @@ describe('CreatorsService', () => {
 
     expect(result.items[0].progress).toEqual({
       submitted: 2,
-      total: 3,
-      percent: 67,
+      total: 6,
+      percent: 33,
     });
     expect(result.items[0].performance).toMatchObject({
       onTimeRate: 50,
@@ -325,6 +333,7 @@ describe('CreatorsService', () => {
 
     const { select } = prisma.creators.findMany.mock.calls[0][0];
     expect(select.contracts.select.contents.select).toEqual({
+      type: true,
       deadline: true,
       video_submitted_at: true,
       status: true,
@@ -350,7 +359,7 @@ describe('CreatorsService', () => {
 
     const result = await service.findOne('creator-1', TODAY);
 
-    expect(result.contractHistory[0]).toMatchObject({ completed: 1, total: 2 });
+    expect(result.contractHistory[0]).toMatchObject({ completed: 1, total: 7 });
   });
 
   it('tags each content in the detail as a late submission, overdue or approval bypassed', async () => {
@@ -394,6 +403,24 @@ describe('CreatorsService', () => {
       'content-2': [],
       'content-late-bypassed': ['late_submission', 'approval_bypassed'],
       'content-overdue': ['overdue'],
+    });
+  });
+
+  // PBI-16 AC 7: the same locks PATCH refuses by.
+  it('says why each username is read-only, or that it is not', async () => {
+    prisma.creators.findUnique.mockResolvedValue(detailRow());
+    expect((await service.findOne('creator-1', TODAY)).usernameLocks).toEqual({
+      instagram: null,
+      tiktok: null,
+    });
+
+    const detail = detailRow();
+    Object.assign(detail.social_accounts[0], { is_connected: true, platform_user_id: 'ig-1' });
+    prisma.creators.findUnique.mockResolvedValue(detail);
+    prisma.content_links.findMany.mockResolvedValue([{ platform: 'tiktok' }]);
+    expect((await service.findOne('creator-1', TODAY)).usernameLocks).toEqual({
+      instagram: 'connected',
+      tiktok: 'link_submitted',
     });
   });
 
@@ -540,6 +567,47 @@ describe('CreatorsService', () => {
       type: 'probation',
     });
   });
+
+  it('names a renewal still to start beside the current period (PBI-30 AC 10)', async () => {
+    prisma.creators.findMany.mockResolvedValue([
+      row({
+        contracts: [
+          {
+            id: 'next',
+            start_date: day(31),
+            end_date: day(120),
+            content_quota: 3,
+            contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
+            contents: [],
+          },
+          {
+            id: 'current',
+            start_date: day(-30),
+            end_date: day(30),
+            content_quota: 4,
+            contract_type: 'regular',
+            original_end_date: null,
+            end_reason: null,
+            invoice: null,
+            contents: [],
+          },
+        ],
+      }),
+    ]);
+    prisma.creators.count.mockResolvedValue(1);
+
+    const { items } = await service.list({ page: 1, pageSize: 10 }, TODAY);
+
+    expect(items[0].contract).toMatchObject({
+      status: 'active',
+      periodNumber: 1,
+      next: { periodNumber: 2, startDate: '2026-10-19' },
+    });
+  });
+
 
   // PBI-37 AC 18: the Creator Database shows "Berakhir Lebih Awal" with the reason type.
   it('tells the current contract was ended early, with its original end and reason', async () => {
@@ -701,6 +769,7 @@ describe('CreatorsService', () => {
             invoice: null,
             contents: [
               {
+                type: 'evergreen',
                 deadline: day(-30),
                 video_submitted_at: null,
                 status: 'scheduled',
@@ -846,7 +915,7 @@ describe('CreatorsService', () => {
           remainingEvergreenQuota: 5,
           type: 'regular',
           completed: 1,
-          total: 2,
+          total: 7,
           isCurrent: true,
         }),
       ],

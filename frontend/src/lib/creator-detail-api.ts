@@ -9,13 +9,15 @@
 
 import { toContentListQuery, type RawContentList, type RawContentListItem } from "./content-list-api";
 import { DEFAULT_CONTENT_PLAN_PARAMS, type ContentPlanParams } from "./content-plan";
-import type {
-  CreatorContentRow,
-  CreatorDetailParams,
-  CreatorDetailView,
-  CreatorPeriod,
-  CreatorProfile,
+import {
+  defaultPeriodOf,
+  type CreatorContentRow,
+  type CreatorDetailParams,
+  type CreatorDetailView,
+  type CreatorPeriod,
+  type CreatorProfile,
 } from "./creator-detail";
+import { readUsernameLocks } from "./creator-edit";
 import { EARLY_END_REASONS, type ContractPeriod, type EarlyEndReason } from "./creators";
 import { readEarlyEnd } from "./early-end-display";
 import type { RawInvoiceDetail } from "./invoice-api";
@@ -43,6 +45,8 @@ export type RawCreatorPeriod = Pick<
   | "earlyEndReason"
   | "earlyEnd"
   | "remainingEvergreenQuota"
+  | "evergreenCount"
+  | "invoiceStatus"
   | "progress"
   | "performance"
 > &
@@ -58,6 +62,8 @@ export interface RawCreatorDetail {
   socials: Partial<Record<"instagram" | "tiktok", string>>;
   // Sent by 19.3; read only through readConnections.
   socialConnections?: unknown;
+  // Sent by 16.1; read only through readUsernameLocks.
+  usernameLocks?: unknown;
   accessRevokeDate?: string | null;
   /** Oldest first. */
   contractHistory: RawCreatorPeriod[];
@@ -75,21 +81,8 @@ export function openContractId(raw: RawCreatorDetail, state: CreatorDetailParams
   const found = raw.contractHistory.find((period) => period.id.toLowerCase() === named);
   if (found) return found.id;
 
-  // contractHistory arrives oldest first.
-  const periods = raw.contractHistory;
-
-  // Priority 1: the active period.
-  const active = periods.find((p) => p.status === "active");
-  if (active) return active.id;
-
-  // Priority 2: the next upcoming period (earliest start date).
-  const upcoming = periods
-    .filter((p) => p.status === "upcoming")
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
-  if (upcoming) return upcoming.id;
-
-  // Priority 3: the most recent period.
-  return periods.at(-1)?.id ?? null;
+  // The same default the period switcher links the bare address to.
+  return defaultPeriodOf(raw.contractHistory)?.id ?? null;
 }
 
 /**
@@ -170,6 +163,8 @@ function toPeriod(period: RawCreatorPeriod): CreatorPeriod {
     // What Tambah Konten checks against the quota: full exactly when no room is left.
     evergreenCount: period.contentQuota - remaining,
     remainingEvergreenQuota: remaining,
+    evergreenPlanned: period.evergreenCount,
+    invoiceStatus: period.invoiceStatus,
     daysBetween: period.daysBetween,
     fixedRate: period.fixedRate,
     // Only a reason the app knows reaches the renewal's warning; anything else reads as none.
@@ -194,6 +189,7 @@ function toRow(item: RawContentListItem): CreatorContentRow {
     tags: item.tags,
     revisionCount: item.revisionCount,
     platforms: item.platforms,
+    closedAt: item.closedAt ?? null,
   };
 }
 
@@ -218,6 +214,7 @@ export function toCreatorDetailView(
   const open = openContractId(raw, state);
   // An empty table is still one page: the pagination stays on show and needs a page to name.
   const totalPages = Math.max(1, contents?.totalPages ?? 1);
+  const connections = readConnections(raw.socialConnections);
 
   return {
     creator: toProfile(raw),
@@ -240,6 +237,7 @@ export function toCreatorDetailView(
     earnings: invoice
       ? { amount: invoice.floored ? 0 : invoice.total, status: invoice.invoiceStatus }
       : null,
-    connections: readConnections(raw.socialConnections),
+    connections,
+    usernameLocks: readUsernameLocks(raw.usernameLocks, connections),
   };
 }

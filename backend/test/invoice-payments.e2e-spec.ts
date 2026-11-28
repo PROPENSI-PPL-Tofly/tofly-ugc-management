@@ -209,6 +209,8 @@ describe('Invoice payment proof and comments (e2e)', () => {
         fileName: 'Transfer Agustus ✅.pdf',
         url: `/api/invoices/${nadiaContract}/payment-proof`,
         uploadedAt: uploaded.body.uploadedAt,
+        // PBI-23, 23.10: an Admin with no name yet is named by email.
+        uploadedBy: `${MARKER}-signed-in-admin@example.com`,
       });
 
       const asAdmin = await admin

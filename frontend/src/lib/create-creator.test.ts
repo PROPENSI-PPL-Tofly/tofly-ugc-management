@@ -41,24 +41,24 @@ describe("createCreator", () => {
   it("hands back the message for each field the server rejected", async () => {
     respond(422, {
       message: "Data creator tidak valid",
-      errors: { email: "Email sudah terdaftar", contractStart: "Tanggal mulai tidak boleh sebelum hari ini" },
+      errors: { email: "Email sudah dipakai", contractStart: "Tanggal mulai tidak boleh sebelum hari ini" },
     });
 
     await expect(createCreator(request)).resolves.toEqual({
       ok: false,
       message: "Data creator tidak valid",
-      errors: { email: "Email sudah terdaftar", contractStart: "Tanggal mulai tidak boleh sebelum hari ini" },
+      errors: { email: "Email sudah dipakai", contractStart: "Tanggal mulai tidak boleh sebelum hari ini" },
     });
   });
 
   // Only form fields the modal can show are kept; anything else in the body is dropped.
   it("keeps only string messages for fields the form knows", async () => {
-    respond(422, { errors: { email: "Email sudah terdaftar", is_admin: "x", quota: 3 } });
+    respond(422, { errors: { email: "Email sudah dipakai", is_admin: "x", quota: 3 } });
 
     await expect(createCreator(request)).resolves.toEqual({
       ok: false,
       message: "Data creator tidak valid",
-      errors: { email: "Email sudah terdaftar" },
+      errors: { email: "Email sudah dipakai" },
     });
   });
 

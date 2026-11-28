@@ -7,6 +7,7 @@ import { REQUIRED_MARK } from "@/components/ui/form-classes";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Modal } from "@/components/ui/modal";
 import { useDiscardGuard } from "@/components/ui/use-discard-guard";
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import {
     createContent,
     type ContentFieldErrors,
@@ -17,7 +18,6 @@ import { getBufferWindow } from "@/lib/deadline-schedule";
 import { latestDeadline } from "@/lib/platform-links";
 import { formatDate } from "@/lib/format";
 
-const BUFFER_DAYS = 5;
 // Same limits as the contents API (backend new-content.ts).
 const MAX_NAME_LENGTH = 100;
 const MAX_BRIEF_LENGTH = 2000;
@@ -66,13 +66,13 @@ function Field({
     );
 }
 
-function firstAllowedDeadline(contractStart: string): string {
+function firstAllowedDeadline(contractStart: string, bufferDays: number): string {
     const today = localCalendarDay(new Date());
 
     return getBufferWindow({
         contractStart,
         today,
-        bufferDays: BUFFER_DAYS,
+        bufferDays,
     }).firstAllowedDate.toISOString().slice(0, 10);
 }
 
@@ -82,6 +82,7 @@ export function AddContentModal({
                                     quota,
                                     contractStart,
                                     contractEnd,
+                                    periodNumber,
                                     onClose,
                                     onSaved,
                                 }: {
@@ -90,13 +91,17 @@ export function AddContentModal({
     quota: number;
     contractStart: string;
     contractEnd: string;
+    /** The period the content goes to, named above the title once a creator has more than one. */
+    periodNumber?: number;
     onClose: () => void;
     onSaved: () => void;
 }) {
     const evergreenFull = evergreenCount >= quota && quota > 0;
-    const firstAllowed = firstAllowedDeadline(contractStart);
-    // The H-5 line: no deadline may fall later than the contract end minus the buffer (AC 14).
-    const lastAllowed = latestDeadline(contractEnd);
+    // The buffer a Super Admin set (PBI-23) draws both lines of the picker.
+    const bufferDays = useDeadlineBuffer();
+    const firstAllowed = firstAllowedDeadline(contractStart, bufferDays);
+    // The H-n line: no deadline may fall later than the contract end minus the buffer (AC 14).
+    const lastAllowed = latestDeadline(contractEnd, bufferDays);
 
     const [type, setType] = useState<ContentType>(
         evergreenFull ? "specific" : "evergreen",
@@ -165,7 +170,7 @@ export function AddContentModal({
             clientErrors.deadline =
                 deadline < firstAllowed
                     ? `Deadline paling cepat ${formatDate(firstAllowed)}`
-                    : `Deadline paling lambat ${formatDate(lastAllowed)} (H-5 akhir kontrak)`;
+                    : `Deadline paling lambat ${formatDate(lastAllowed)} (H-${bufferDays} akhir kontrak)`;
         }
 
         if (Object.keys(clientErrors).length > 0) {
@@ -203,6 +208,7 @@ export function AddContentModal({
         <>
         <Modal
             title="Tambah Konten"
+            eyebrow={periodNumber === undefined ? undefined : `Periode ${periodNumber}`}
             onClose={saving ? () => undefined : requestClose}
             footer={
                 <>
@@ -304,8 +310,8 @@ export function AddContentModal({
                 label="Deadline"
                 error={errors.deadline}
                 hint={{
-                    label: "Tentang batas H-5",
-                    text: `Deadline paling lambat ${formatDate(lastAllowed)} (H-5 akhir kontrak)`,
+                    label: `Tentang batas H-${bufferDays}`,
+                    text: `Deadline paling lambat ${formatDate(lastAllowed)} (H-${bufferDays} akhir kontrak)`,
                 }}
             >
                 <input
@@ -324,7 +330,7 @@ export function AddContentModal({
             </Field>
 
             <p className="text-xs text-muted">
-                Deadline harus minimal {BUFFER_DAYS} hari setelah hari ini atau tanggal
+                Deadline harus minimal {bufferDays} hari setelah hari ini atau tanggal
                 mulai kontrak, mana yang lebih akhir.
             </p>
         </Modal>

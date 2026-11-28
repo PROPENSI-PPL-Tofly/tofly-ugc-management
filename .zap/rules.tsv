@@ -8,3 +8,5 @@
 # Both rules become real findings the day this scans the HTTPS staging URL.
 10011	IGNORE	(Cookie Without Secure Flag - plain-HTTP scan target)
 10038	IGNORE	(Strict-Transport-Security Header Not Set - plain-HTTP scan target)
+10049	INFO	(Non-Storable Content - informational in ZAP: pages carry session-bound data and are no-store on purpose)
+10109	INFO	(Modern Web Application - informational in ZAP: the app is a Next.js SPA by design)

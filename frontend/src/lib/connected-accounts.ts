@@ -23,7 +23,14 @@ export const MY_SOCIAL_ACCOUNTS_PATH = "/me/social-accounts";
 export class ConnectedAccountsError extends Error {
   readonly status: number;
 
-  constructor(status: number) {
+  /**
+   * @param code the backend's refusal code, such as PAYMENTS_ONLY (PBI-37, AC 13), or null. Its
+   * message is never kept, so no server text reaches a page (OWASP A10).
+   */
+  constructor(
+    status: number,
+    readonly code: string | null = null,
+  ) {
     super(`Loading your connected accounts failed with HTTP ${status}`);
     this.name = "ConnectedAccountsError";
     this.status = status;

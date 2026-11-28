@@ -7,6 +7,7 @@
 
 import { formatDate, formatDeduction, formatJakartaDay, formatRupiah, formatTimestamp } from "./format";
 import { DATA_STATE_LABELS, type DataState } from "./link-performance";
+import type { RateChange } from "./rate-change";
 
 /** The columns that open a popup, in the table's order. */
 export const BREAKDOWN_KINDS = ["fixed", "extra", "bonus", "penalty"] as const;
@@ -107,6 +108,8 @@ export interface PenaltyLine {
 /** One creator's running invoice, column by column, as the popups read it. */
 export interface InvoiceBreakdown {
   creatorName: string;
+  /** Every change of the fixed rate while the invoice ran (PBI-16). */
+  rateChanges?: RateChange[];
   fixed: {
     period: FixedPeriod;
     total: number;
@@ -124,6 +127,10 @@ export interface InvoiceBreakdown {
     lockedOn?: string | null;
   };
   penalty: { lines: PenaltyLine[]; total: number };
+  /** The Admin who finalized it (PBI-23, 23.10); absent when the API names no one. */
+  finalizedBy?: string;
+  /** The total at Finalize (PBI-23, AC 25), unmoved by later adjustments; absent on older invoices. */
+  finalizedTotal?: number;
 }
 
 export type BreakdownTone = "plain" | "danger";

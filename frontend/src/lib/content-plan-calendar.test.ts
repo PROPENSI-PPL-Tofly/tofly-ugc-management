@@ -219,3 +219,11 @@ describe("Content Plan calendar chips", () => {
     expect(isPendingProposal(row({ status: "draft_review" }))).toBe(false);
   });
 });
+
+describe("calendarChipTitle for a content an early end closed", () => {
+  it("says Ditutup where the status goes", () => {
+    expect(calendarChipTitle(row({ closedAt: "2026-11-20T03:00:00.000Z" }))).toBe(
+      "Review Serum Pagi · Salsa Wijaya · Ditutup",
+    );
+  });
+});

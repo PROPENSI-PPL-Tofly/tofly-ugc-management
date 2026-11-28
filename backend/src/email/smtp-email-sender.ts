@@ -1,6 +1,11 @@
 import { createTransport } from 'nodemailer';
 import { smtpConfig, type SmtpConfig } from './email-config.js';
-import { unreadyEmailSender, type EmailMessage, type EmailSender } from './email-sender.js';
+import {
+  unreadyEmailSender,
+  type EmailAttachment,
+  type EmailMessage,
+  type EmailSender,
+} from './email-sender.js';
 
 /** The one call the adapter makes of a transport, so a test can fake delivery. */
 export interface MailTransport {
@@ -10,6 +15,7 @@ export interface MailTransport {
     subject: string;
     text: string;
     html?: string;
+    attachments?: EmailAttachment[];
   }): Promise<unknown>;
 }
 
@@ -32,6 +38,7 @@ export class SmtpEmailSender implements EmailSender {
       subject: message.subject,
       text: message.text,
       ...(message.html === undefined ? {} : { html: message.html }),
+      ...(message.attachments === undefined ? {} : { attachments: message.attachments }),
     });
   }
 }

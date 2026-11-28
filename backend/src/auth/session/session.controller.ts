@@ -13,9 +13,17 @@ import {
 import type { Request, Response } from 'express';
 import { assertSameOrigin } from '../same-origin.js';
 import { unauthenticated } from '../creator-request.js';
-import type { Principal } from '../google/ports.js';
+import type { AdminRole } from '../google/ports.js';
 import { ACCESS_CHECK, type AccessCheck } from './access-check.js';
 import { AppSessionService } from './session.service.js';
+
+/**
+ * What a page needs to know about who is signed in: the role, and for an Admin the name the frame
+ * shows ("Masuk sebagai"). Never an id, an email or a session detail.
+ */
+export type SessionAnswer =
+  | { role: 'admin'; adminRole: AdminRole; name: string | null }
+  | { role: 'creator' };
 
 @Controller('auth')
 export class SessionController {
@@ -29,14 +37,15 @@ export class SessionController {
   /**
    * Who is signed in, by role only, so pages can send a signed-out visitor to /login and tell a
    * signed-in one when a page is not theirs. Like the guards, it asks the whitelist again, so a
-   * revoked or demoted user reads as signed out.
+   * revoked or demoted user reads as signed out. An Admin's role (PBI-23) comes from that same
+   * read, so a Super Admin demoted since sign-in loses the Super Admin menus on the next load.
    */
   @Get('session')
   @Header('Cache-Control', 'no-store')
   async session(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<{ role: Principal['role'] }> {
+  ): Promise<SessionAnswer> {
     const principal = await this.sessions.authenticate(
       (request.cookies as Record<string, unknown> | undefined)?.[
         this.sessions.cookieName()
@@ -56,7 +65,14 @@ export class SessionController {
     ) {
       throw unauthenticated();
     }
-    return { role: principal.role };
+    // Fails closed: an Admin the whitelist gives no role reads as a plain Admin.
+    return current.role === 'admin'
+      ? {
+          role: 'admin',
+          adminRole: current.adminRole ?? 'admin',
+          name: current.name ?? null,
+        }
+      : { role: 'creator' };
   }
 
   @Post('session/activity')

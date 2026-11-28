@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/pill";
-import { CONTENT_STATUS_LABELS } from "@/lib/content-labels";
+import { contentStatusDisplay } from "@/lib/content-labels";
 import { statusInTab } from "@/lib/content-plan";
 import {
   CREATOR_CALENDAR_GROUPS,
@@ -58,7 +58,7 @@ function sameMonth(a: CalendarMonth, b: CalendarMonth): boolean {
 }
 
 function spoken(entry: CreatorContentRow): string {
-  return `${entry.name} · ${CONTENT_STATUS_LABELS[entry.status]}`;
+  return `${entry.name} · ${contentStatusDisplay(entry).label}`;
 }
 
 function filterEntries(entries: readonly CreatorContentRow[], state: CreatorDetailParams) {

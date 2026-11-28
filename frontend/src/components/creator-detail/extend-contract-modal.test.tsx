@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { DeadlineBufferProvider } from "@/components/settings/deadline-buffer-context";
 import type { PreviousPeriod } from "@/lib/contract-extension";
 import type { CreatorPeriod } from "@/lib/creator-detail";
 import { ExtendContractModal } from "./extend-contract-modal";
@@ -20,6 +21,7 @@ function renderModal(props: Partial<Parameters<typeof ExtendContractModal>[0]> =
     <ExtendContractModal
       creatorName="Rani Kusuma"
       previous={PREVIOUS}
+      periodNumber={2}
       onClose={onClose}
       onSubmit={onSubmit}
       {...props}
@@ -63,6 +65,26 @@ describe("ExtendContractModal", () => {
     expect(screen.getByLabelText(/jarak antar-deadline/i)).toHaveValue("14");
     expect(screen.getByLabelText(/jumlah konten/i)).toHaveValue("");
     expect(screen.getByLabelText(/jenis kontrak/i)).toHaveValue("regular");
+  });
+
+  // PBI-23 AC: a renewal holds its dates to the buffer a Super Admin set, as Tambah Creator does.
+  it("holds the end to the configured buffer after the new start", () => {
+    render(
+      <DeadlineBufferProvider bufferDays={10}>
+        <ExtendContractModal
+          creatorName="Rani Kusuma"
+          previous={PREVIOUS}
+          periodNumber={2}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      </DeadlineBufferProvider>,
+    );
+
+    expect(screen.getByLabelText(/akhir kontrak/i)).toHaveAttribute("min", "2027-01-11");
+    fill({ end: "2027-01-05" });
+    fireEvent.blur(screen.getByLabelText(/akhir kontrak/i));
+    expect(screen.getByText("Akhir kontrak paling cepat 11 Jan 2027 (masa buffer 10 hari)")).toBeInTheDocument();
   });
 
   it("asks for the contract's terms only: who the creator is does not change", () => {
@@ -122,6 +144,7 @@ describe("ExtendContractModal", () => {
     const confirm = screen.getByRole("alertdialog", { name: "Perpanjang kontrak?" });
     expect(confirm).toHaveTextContent("Kontrak dan invoice periode sebelumnya tidak berubah.");
     expect(within(confirm).getByText("Rani Kusuma")).toBeInTheDocument();
+    expect(within(confirm).getByText("Periode 2")).toBeInTheDocument();
     expect(within(confirm).getByText("1 Jan – 31 Mar 2027")).toBeInTheDocument();
     expect(within(confirm).getByText("Regular")).toBeInTheDocument();
     expect(within(confirm).getByText("6 konten, tiap 14 hari")).toBeInTheDocument();
@@ -199,6 +222,7 @@ describe("ExtendContractModal", () => {
     const props = {
       creatorName: "Rani Kusuma",
       previous: PREVIOUS,
+      periodNumber: 2,
       onClose: vi.fn(),
       onSubmit: vi.fn(),
     };
@@ -263,6 +287,7 @@ describe("ExtendContractModal changing a period that has not started", () => {
       <ExtendContractModal
         creatorName="Rani Kusuma"
         previous={previous}
+        periodNumber={UPCOMING.periodNumber}
         editing={UPCOMING}
         onClose={onClose}
         onSubmit={onSubmit}

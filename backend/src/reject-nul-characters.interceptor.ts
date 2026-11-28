@@ -10,7 +10,8 @@ import type { Observable } from 'rxjs';
 // PostgreSQL text cannot hold the NUL character (U+0000), but JSON can carry it as \u0000. Left
 // alone it passes every field check and fails inside the database, and the request ends in a 500
 // (found by ZAP's API scan, docs/security/tofly-security-assessment.md). Refusing it here, once,
-// answers every endpoint with a clear 400 before any handler or query runs (OWASP A10:2025).
+// answers every endpoint with a clear 400 before any handler or query runs (OWASP A10:2025). The
+// query string is read too: a search box sends %00 straight into a LIKE query (#230 review).
 
 const NUL = '\u0000';
 
@@ -30,8 +31,10 @@ function holdsNul(value: unknown): boolean {
 export class RejectNulCharactersInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() === 'http') {
-      const { body } = context.switchToHttp().getRequest<{ body?: unknown }>();
-      if (holdsNul(body)) {
+      const { body, query } = context
+        .switchToHttp()
+        .getRequest<{ body?: unknown; query?: unknown }>();
+      if (holdsNul(body) || holdsNul(query)) {
         throw new BadRequestException({
           code: 'INVALID_CHARACTERS',
           message: 'Teks berisi karakter yang tidak diizinkan',

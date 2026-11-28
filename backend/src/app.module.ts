@@ -4,15 +4,22 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AdminUsersModule } from './admin-users/admin-users.module.js';
+import { AuditModule } from './audit/audit.module.js';
+import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
+import { DeadlineBufferModule } from './deadline-buffer/deadline-buffer.module.js';
 import { EmailVerifyModule } from './auth/email/email-verify.module.js';
 import { requireLoginCodeSecretInProduction } from './auth/email/login-code-config.js';
 import { requireGoogleConfigInProduction } from './auth/google/google-config.js';
 import { GoogleAuthModule } from './auth/google/google-auth.module.js';
 import { SessionModule } from './auth/session/session.module.js';
+import { SuperAdminModule } from './auth/super-admin/super-admin.module.js';
 import { EmailRequestModule } from './auth/email/email-request.module.js';
 import { ContentsModule } from './contents/contents.module.js';
 import { CreatorsModule } from './creators/creators.module.js';
+import { DailyEmailRunModule } from './email/daily-email-run.module.js';
 import { EmailModule } from './email/email.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { MeModule } from './me/me.module.js';
@@ -51,6 +58,10 @@ export function validate(
       validate,
     }),
     PrismaModule,
+    AuditModule,
+    AuditLogsModule,
+    DeadlineBufferModule,
+    DashboardModule,
     CreatorsModule,
     InvoicesModule,
     ContentsModule,
@@ -59,11 +70,14 @@ export function validate(
     RateFormulaModule,
     MeModule,
     SessionModule,
+    SuperAdminModule,
+    AdminUsersModule,
     GoogleAuthModule,
     EmailVerifyModule,
     SocialModule,
     PerformanceModule,
     EmailModule,
+    DailyEmailRunModule,
     EmailRequestModule,
   ],
   controllers: [AppController, HealthController],

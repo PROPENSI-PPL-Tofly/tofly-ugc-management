@@ -1,5 +1,6 @@
 "use client";
 
+import { useDeadlineBuffer } from "@/components/settings/deadline-buffer-context";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -68,6 +69,7 @@ const WORDING = {
 export function ExtendContractModal({
   creatorName,
   previous,
+  periodNumber,
   editing,
   onClose,
   onSubmit,
@@ -78,6 +80,8 @@ export function ExtendContractModal({
   creatorName: string;
   /** The period the new or changed one follows. */
   previous: PreviousPeriod;
+  /** The number the new or changed period carries, so the confirmation names it. */
+  periodNumber: number;
   /** A renewal still "Belum Dimulai", to change instead of adding a new one (AC 8). */
   editing?: CreatorPeriod;
   onClose: () => void;
@@ -94,9 +98,11 @@ export function ExtendContractModal({
   const [terms, setTerms] = useState<ContractTermsInput>(initial);
   const [confirming, setConfirming] = useState(false);
 
-  const { allocation, picks, setPicks } = useDeadlineAllocation(terms, today);
+  // The buffer a Super Admin set (PBI-23), the same one Tambah Creator counts with.
+  const bufferDays = useDeadlineBuffer();
+  const { allocation, picks, setPicks } = useDeadlineAllocation(terms, today, bufferDays);
   const remaining = allocation?.remaining ?? 0;
-  const liveErrors = validateContractExtension(terms, previous.endDate);
+  const liveErrors = validateContractExtension(terms, previous.endDate, undefined, bufferDays);
   const isValid = Object.keys(liveErrors).length === 0;
   const { markTouched, markEdited, fieldError } = useFieldErrors<keyof CreatorFormErrors>(
     liveErrors,
@@ -192,7 +198,8 @@ export function ExtendContractModal({
           warning={editing ? undefined : (earlyEndWarning(previous.earlyEndReason) ?? undefined)}
           details={[
             ["Creator", creatorName],
-            ["Periode", formatContractWindow(request.contractStart, request.contractEnd)],
+            ["Periode", `Periode ${periodNumber}`],
+            ["Tanggal", formatContractWindow(request.contractStart, request.contractEnd)],
             ["Jenis Kontrak", CONTRACT_TYPE_LABELS[request.contractType]],
             ["Konten", `${request.quota} konten, tiap ${request.interval} hari`],
             ["Fixed Rate", formatRupiah(request.fixedRate)],

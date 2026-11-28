@@ -20,7 +20,9 @@ import {
   type PerformanceLinksPage,
   type PerformanceLinksState,
 } from "@/lib/performance-links";
+import { CREATOR_INVOICES_PATH } from "@/lib/creator-invoice";
 import { MY_TASKS_BASE } from "@/lib/my-tasks";
+import { redirect } from "next/navigation";
 import { fetchMyPerformanceLinks } from "@/lib/performance-links.server";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +33,11 @@ export const metadata = {
   title: "Performa Konten — Tofly",
 };
 
-type Loaded = { kind: "ok"; accounts: ConnectedAccount[] } | { kind: "signed_out" } | { kind: "failed" };
+type Loaded =
+  | { kind: "ok"; accounts: ConnectedAccount[] }
+  | { kind: "signed_out" }
+  | { kind: "payments_only" }
+  | { kind: "failed" };
 
 type Links = { kind: "ok"; page: PerformanceLinksPage } | { kind: "failed" };
 
@@ -39,9 +45,10 @@ async function load(): Promise<Loaded> {
   try {
     return { kind: "ok", accounts: await fetchMyConnectedAccounts() };
   } catch (error) {
-    return error instanceof ConnectedAccountsError && error.status === 401
-      ? { kind: "signed_out" }
-      : { kind: "failed" };
+    if (!(error instanceof ConnectedAccountsError)) return { kind: "failed" };
+    if (error.status === 401) return { kind: "signed_out" };
+    // PBI-37 (AC 13): the backend opens only Pembayaran while an invoice is all that is left.
+    return error.code === "PAYMENTS_ONLY" ? { kind: "payments_only" } : { kind: "failed" };
   }
 }
 
@@ -72,6 +79,7 @@ export default async function CreatorPerformancePage({
   const state = parsePerformanceLinksParams(params);
   const [loaded, links] = await Promise.all([accounts, loadLinks(state)]);
   const isFiltered = state.platform.length > 0 || state.dataState.length > 0;
+  if (loaded.kind === "payments_only") redirect(CREATOR_INVOICES_PATH);
 
   return (
     <AppShell role="creator" title="Performa Konten">

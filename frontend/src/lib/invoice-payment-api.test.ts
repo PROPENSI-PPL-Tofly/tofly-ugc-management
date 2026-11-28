@@ -1,4 +1,4 @@
-import { toInvoicePayment, type RawInvoicePayment } from "./invoice-payment-api";
+import { toInvoicePayment, toPaymentProof, type RawInvoicePayment } from "./invoice-payment-api";
 
 // An invoice the creator has acknowledged, paid for and confirmed, as the API would answer it.
 function raw(over: Partial<RawInvoicePayment> = {}): RawInvoicePayment {
@@ -80,5 +80,23 @@ describe("the proof's link", () => {
         raw({ paymentProof: { fileName: "bukti.pdf", url: "javascript:alert(1)", uploadedAt: "2026-10-20T08:00:00.000Z" } }),
       ).proof,
     ).toEqual({ fileName: "bukti.pdf", href: null, uploadedAt: "2026-10-20T08:00:00.000Z" });
+  });
+});
+
+// PBI-23, 23.11: who sent the proof, for the invoice's activity.
+describe("toPaymentProof's sender", () => {
+  const PROOF = { fileName: "bukti.pdf", url: "/api/invoices/c/payment-proof", uploadedAt: "2026-10-20T08:00:00.000Z" };
+
+  it("carries the Admin who sent it", () => {
+    expect(toPaymentProof({ ...PROOF, uploadedBy: "Sinta Dewi" }).uploadedBy).toBe("Sinta Dewi");
+  });
+
+  // An upload's own answer names no sender; the table's next read does.
+  it.each([
+    ["missing", undefined],
+    ["null", null],
+    ["blank", " "],
+  ])("names no sender when it is %s", (_label, uploadedBy) => {
+    expect(toPaymentProof({ ...PROOF, uploadedBy })).not.toHaveProperty("uploadedBy");
   });
 });

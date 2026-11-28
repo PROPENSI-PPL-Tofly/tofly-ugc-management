@@ -408,7 +408,7 @@ jobs:
             --service-account "${{ vars.RUN_BACKEND_SA }}" \
             --add-cloudsql-instances "${{ vars.CLOUDSQL_INSTANCE }}" \
             --set-secrets "DATABASE_URL=${{ vars.DB_SECRET }}:latest,DIRECT_URL=${{ vars.DB_SECRET }}:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,PERFORMANCE_SYNC_SECRET=$SYNC_SECRET:latest,$SOCIAL_SECRETS,LOGIN_CODE_SECRET=$LOGIN_SECRET:latest$SMTP_SECRETS,SENTRY_DSN=SENTRY_DSN:latest" \
-            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }}" \
+            --set-env-vars "GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.GOOGLE_REDIRECT_URI }},STORAGE_BUCKET=${{ vars.STORAGE_BUCKET }},TIKTOK_CLIENT_KEY=${{ vars.TIKTOK_CLIENT_KEY }},TIKTOK_REDIRECT_URI=${{ vars.TIKTOK_REDIRECT_URI }},INSTAGRAM_APP_ID=${{ vars.INSTAGRAM_APP_ID }},INSTAGRAM_REDIRECT_URI=${{ vars.INSTAGRAM_REDIRECT_URI }},SMTP_HOST=${{ vars.SMTP_HOST }},SMTP_PORT=${{ vars.SMTP_PORT }},EMAIL_FROM=${{ vars.EMAIL_FROM }},SUPER_ADMIN_EMAIL=${{ vars.SUPER_ADMIN_EMAIL }}" \
             --allow-unauthenticated \
             --memory 512Mi --cpu 1 --cpu-boost --concurrency 80 \
             --timeout 600 \
@@ -464,3 +464,24 @@ jobs:
             gcloud scheduler jobs create http "$JOB" "${ARGS[@]}" --headers "x-sync-secret=$VALUE" --quiet >/dev/null
           fi
           echo "scheduled $JOB: 02:00 Asia/Jakarta -> $URL/internal/performance-sync"
+
+      # The daily email run (PBI-11, 11.3): Cloud Scheduler POSTs /internal/email-run at 08:00 WIB
+      # for the H-1 reminders and the retries of failed emails. It sends the performance sync's
+      # secret header, so no new secret is needed; created and updated like the sync's job above.
+      - name: Schedule the daily email run
+        env:
+          DB_SECRET: ${{ vars.DB_SECRET }}
+        run: |
+          SYNC_SECRET="PERFORMANCE_SYNC_SECRET_${DB_SECRET#DB_URL_}"
+          VALUE="$(gcloud secrets versions access latest --secret "$SYNC_SECRET")"
+          echo "::add-mask::$VALUE"
+          URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
+          JOB="email-run-$SERVICE"
+          ARGS=(--location "$REGION" --schedule "0 8 * * *" --time-zone "Asia/Jakarta"
+            --uri "$URL/internal/email-run" --http-method POST --attempt-deadline 600s)
+          if gcloud scheduler jobs describe "$JOB" --location "$REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$JOB" "${ARGS[@]}" --update-headers "x-sync-secret=$VALUE" --quiet >/dev/null
+          else
+            gcloud scheduler jobs create http "$JOB" "${ARGS[@]}" --headers "x-sync-secret=$VALUE" --quiet >/dev/null
+          fi
+          echo "scheduled $JOB: 08:00 Asia/Jakarta -> $URL/internal/email-run"

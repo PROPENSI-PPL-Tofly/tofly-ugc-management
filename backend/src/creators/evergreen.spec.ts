@@ -3,9 +3,9 @@ import {
   evergreenName,
   jakartaDay,
   joinName,
-  latestDeadline,
   splitName,
 } from './evergreen.js';
+import { DEFAULT_BUFFER_DAYS } from '../deadline-buffer/deadline-window.js';
 
 describe('evergreenName', () => {
   it('numbers the content, then names the creator and the deadline as DDMMYYYY', () => {
@@ -78,21 +78,6 @@ describe('jakartaDay', () => {
   });
 });
 
-// PBI-38 AC 14: no deadline falls later than the contract end minus the H-5 buffer.
-describe('latestDeadline', () => {
-  it('is five days before the contract end', () => {
-    expect(latestDeadline('2026-12-31')).toBe('2026-12-26');
-  });
-
-  it('counts back across a month end', () => {
-    expect(latestDeadline('2026-12-03')).toBe('2026-11-28');
-  });
-
-  it('counts back across a leap day', () => {
-    expect(latestDeadline('2028-03-02')).toBe('2028-02-26');
-  });
-});
-
 describe('checkSchedule', () => {
   const TODAY = '2026-09-12';
   const valid = {
@@ -103,7 +88,7 @@ describe('checkSchedule', () => {
   };
 
   it('accepts deadlines that match the quota and sit inside the contract', () => {
-    expect(checkSchedule(valid, TODAY)).toEqual({});
+    expect(checkSchedule(valid, TODAY, DEFAULT_BUFFER_DAYS)).toEqual({});
   });
 
   it('accepts deadlines on the first day of the contract and on the H-5 line', () => {
@@ -111,19 +96,28 @@ describe('checkSchedule', () => {
       checkSchedule(
         { ...valid, quota: 2, deadlines: ['2026-09-12', '2026-11-07'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({});
   });
 
   it('rejects a contract that starts before today', () => {
     expect(
-      checkSchedule({ ...valid, contractStart: '2026-09-11' }, TODAY),
+      checkSchedule(
+        { ...valid, contractStart: '2026-09-11' },
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
+      ),
     ).toEqual({ contractStart: 'Tanggal mulai tidak boleh sebelum hari ini' });
   });
 
   it('rejects a contract that starts after it ends', () => {
     expect(
-      checkSchedule({ ...valid, contractStart: '2026-11-13' }, TODAY),
+      checkSchedule(
+        { ...valid, contractStart: '2026-11-13' },
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
+      ),
     ).toEqual({
       contractStart: 'Tanggal mulai tidak boleh setelah tanggal berakhir',
     });
@@ -131,10 +125,18 @@ describe('checkSchedule', () => {
 
   it('rejects contract dates that are not real calendar days', () => {
     expect(
-      checkSchedule({ ...valid, contractEnd: '2026-02-30' }, TODAY),
+      checkSchedule(
+        { ...valid, contractEnd: '2026-02-30' },
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
+      ),
     ).toEqual({ contractEnd: 'Format tanggal tidak valid' });
     expect(
-      checkSchedule({ ...valid, contractStart: '12-09-2026' }, TODAY),
+      checkSchedule(
+        { ...valid, contractStart: '12-09-2026' },
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
+      ),
     ).toEqual({ contractStart: 'Format tanggal tidak valid' });
   });
 
@@ -143,6 +145,7 @@ describe('checkSchedule', () => {
       checkSchedule(
         { ...valid, deadlines: ['2026-09-26', '2026-13-01', '2026-10-24'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({ deadlines: 'Format tanggal deadline tidak valid' });
   });
@@ -153,6 +156,7 @@ describe('checkSchedule', () => {
       checkSchedule(
         { ...valid, deadlines: ['2026-09-26', '2026-09-26', '2026-10-24'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({});
   });
@@ -163,12 +167,14 @@ describe('checkSchedule', () => {
       checkSchedule(
         { ...valid, deadlines: ['2026-09-26', '2026-10-10', '2026-11-07'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({});
     expect(
       checkSchedule(
         { ...valid, deadlines: ['2026-09-26', '2026-10-10', '2026-11-08'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({
       deadlines: 'Deadline paling lambat 7 Nov 2026 (H-5 akhir kontrak)',
@@ -180,22 +186,31 @@ describe('checkSchedule', () => {
       checkSchedule(
         { ...valid, deadlines: ['2026-09-26', '2026-10-10', '2026-11-13'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({ deadlines: 'Deadline harus di dalam periode kontrak' });
   });
 
   it('rejects fewer deadlines than the content quota', () => {
     expect(
-      checkSchedule({ ...valid, deadlines: ['2026-09-26'] }, TODAY),
+      checkSchedule(
+        { ...valid, deadlines: ['2026-09-26'] },
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
+      ),
     ).toEqual({
       deadlines: 'Jumlah deadline harus sama dengan jumlah konten (3)',
     });
   });
 
   it('rejects a quota below one even when no deadline is sent', () => {
-    expect(checkSchedule({ ...valid, quota: 0, deadlines: [] }, TODAY)).toEqual(
-      { quota: 'Jumlah konten harus lebih dari 0' },
-    );
+    expect(
+      checkSchedule(
+        { ...valid, quota: 0, deadlines: [] },
+        TODAY,
+        DEFAULT_BUFFER_DAYS,
+      ),
+    ).toEqual({ quota: 'Jumlah konten harus lebih dari 0' });
   });
 
   it('skips the deadline checks while the contract period itself is invalid', () => {
@@ -203,6 +218,7 @@ describe('checkSchedule', () => {
       checkSchedule(
         { ...valid, contractStart: '2026-09-01', deadlines: ['bad'] },
         TODAY,
+        DEFAULT_BUFFER_DAYS,
       ),
     ).toEqual({ contractStart: 'Tanggal mulai tidak boleh sebelum hari ini' });
   });
@@ -219,5 +235,24 @@ describe('joinName', () => {
     expect(
       joinName({ first_name: 'Bagas', middle_name: null, last_name: null }),
     ).toBe('Bagas');
+  });
+});
+
+// PBI-23 AC 22 (SCRUM-298): onboarding re-checks the schedule against the same stored buffer.
+describe('checkSchedule with the stored buffer', () => {
+  const valid = {
+    contractStart: '2026-09-12',
+    contractEnd: '2026-11-12',
+    quota: 1,
+    deadlines: ['2026-11-03'],
+  };
+
+  it('closes the schedule the stored buffer before the end, naming H-N', () => {
+    expect(checkSchedule(valid, '2026-09-12', 9)).toEqual({});
+    expect(
+      checkSchedule({ ...valid, deadlines: ['2026-11-04'] }, '2026-09-12', 9),
+    ).toEqual({
+      deadlines: 'Deadline paling lambat 3 Nov 2026 (H-9 akhir kontrak)',
+    });
   });
 });

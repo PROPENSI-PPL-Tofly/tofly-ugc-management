@@ -233,8 +233,8 @@ describe('Creator detail hierarchy (e2e)', () => {
           fixedRate: 3000000,
           // One Evergreen scheduled out of two; the Specific proposal takes no slot.
           remainingEvergreenQuota: 1,
-          // The pending proposal owes nothing yet.
-          progress: { submitted: 0, total: 1, percent: 0 },
+          // Both agreed Evergreen are owed; the pending proposal owes nothing yet.
+          progress: { submitted: 0, total: 2, percent: 0 },
         },
       ]);
       expect(detail.contractHistory[0].performance.productivity).toBe('good');

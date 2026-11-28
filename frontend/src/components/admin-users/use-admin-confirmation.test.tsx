@@ -1,0 +1,268 @@
+import { StrictMode } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { requestConfirmation, verifyConfirmation } from "@/lib/admin-users-api";
+import { AdminConfirmationProvider, useAdminConfirmation } from "./use-admin-confirmation";
+
+vi.mock("@/lib/admin-users-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/admin-users-api")>();
+  return { ...actual, requestConfirmation: vi.fn(), verifyConfirmation: vi.fn() };
+});
+
+/** A page's one row action, with the hook standing between it and the backend. */
+function Harness({ run, label = "Ubah peran" }: { run: () => void; label?: string }) {
+  const { withConfirmation, prompt } = useAdminConfirmation();
+
+  return (
+    <>
+      <button onClick={() => withConfirmation("role_change", run)}>{label}</button>
+      {prompt}
+    </>
+  );
+}
+
+function codeIsSent(expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()) {
+  vi.mocked(requestConfirmation).mockResolvedValue({
+    kind: "sent",
+    message: "Kode dikirim ke email kamu.",
+    validMinutes: 10,
+  });
+  vi.mocked(verifyConfirmation).mockResolvedValue({ kind: "confirmed", expiresAt });
+}
+
+async function typeCode(code: string) {
+  // The boxes arrive after the code has been sent; the first render only says it is sending.
+  const first = await screen.findByLabelText("Digit 1 dari 6");
+  fireEvent.change(first, { target: { value: code } });
+}
+
+async function confirm() {
+  const button = await screen.findByRole("button", { name: "Konfirmasi" });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
+
+describe("the confirmation before a sensitive action", () => {
+  beforeEach(() => {
+    vi.mocked(requestConfirmation).mockReset();
+    vi.mocked(verifyConfirmation).mockReset();
+    codeIsSent();
+  });
+
+  it("sends a code and runs nothing until it is accepted", async () => {
+    const run = vi.fn();
+    render(<Harness run={run} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+    expect(run).not.toHaveBeenCalled();
+
+    await typeCode("123456");
+    await confirm();
+
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    expect(verifyConfirmation).toHaveBeenCalledWith("123456");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // AC 11: one confirmation covers the role change and the deactivation for 15 minutes.
+  it("lets the next action through on the same confirmation without another code", async () => {
+    const run = vi.fn();
+    render(<Harness run={run} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+    await typeCode("123456");
+    await confirm();
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("asks for a new code once the one it holds has run out", async () => {
+    codeIsSent(new Date(Date.now() - 1000).toISOString());
+    const run = vi.fn();
+    render(<Harness run={run} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+    await typeCode("123456");
+    await confirm();
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(requestConfirmation).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs nothing when the Super Admin cancels the prompt", async () => {
+    const run = vi.fn();
+    render(<Harness run={run} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("tells the caller the prompt was cancelled, so it can undo its own waiting", async () => {
+    const run = vi.fn();
+    const cancelled = vi.fn();
+    function Cancelling() {
+      const { withConfirmation, prompt } = useAdminConfirmation();
+      return (
+        <>
+          <button onClick={() => withConfirmation("role_change", run, cancelled)}>Ubah peran</button>
+          {prompt}
+        </>
+      );
+    }
+    render(<Cancelling />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("keeps a wrong code on screen with the tries the backend left", async () => {
+    vi.mocked(verifyConfirmation).mockResolvedValue({ kind: "wrong", attemptsLeft: 2 });
+    const run = vi.fn();
+    render(<Harness run={run} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+    await typeCode("000000");
+    await confirm();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Kode salah. Sisa 2 percobaan.");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("says an expired code must be sent again", async () => {
+    vi.mocked(verifyConfirmation).mockResolvedValue({ kind: "expired" });
+    render(<Harness run={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByRole("dialog");
+    await typeCode("123456");
+    await confirm();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Kode sudah kedaluwarsa. Kirim ulang kode.",
+    );
+    expect(screen.getByRole("button", { name: "Kirim ulang kode" })).toBeInTheDocument();
+  });
+});
+
+describe("the confirmation's incomplete answer", () => {
+  beforeEach(() => {
+    vi.mocked(requestConfirmation).mockReset();
+    vi.mocked(verifyConfirmation).mockReset();
+    codeIsSent();
+  });
+
+  it("will not check a code that is not six digits", async () => {
+    render(<Harness run={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    const first = await screen.findByLabelText("Digit 1 dari 6");
+    fireEvent.change(first, { target: { value: "123" } });
+    const button = screen.getByRole("button", { name: "Konfirmasi" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Masukkan 6 digit kode.");
+    expect(verifyConfirmation).not.toHaveBeenCalled();
+  });
+});
+
+describe("one confirmation for the whole page", () => {
+  beforeEach(() => {
+    vi.mocked(requestConfirmation).mockReset();
+    vi.mocked(verifyConfirmation).mockReset();
+    codeIsSent();
+  });
+
+  // Tambah Admin and the table's rows each hold the hook; the backend confirms the session once
+  // for both, so the page asks once too.
+  it("lets another part of the page through on a code entered in one part", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    render(
+      <AdminConfirmationProvider>
+        <Harness run={first} label="Tambah Super Admin" />
+        <Harness run={second} label="Nonaktifkan" />
+      </AdminConfirmationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tambah Super Admin" }));
+    await typeCode("123456");
+    await confirm();
+    await waitFor(() => expect(first).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
+
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  // The backend keeps the confirmation on the session, so a reload or a later visit within the
+  // 15 minutes starts from it instead of emailing another code (AC 11).
+  it("lets an action through without a code while the session the page loaded with is confirmed", () => {
+    const run = vi.fn();
+    render(
+      <AdminConfirmationProvider confirmedUntil={new Date(Date.now() + 5 * 60_000).toISOString()}>
+        <Harness run={run} />
+      </AdminConfirmationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(requestConfirmation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a confirmation that has run out", new Date(Date.now() - 60_000).toISOString()],
+    ["no confirmation", null],
+    ["a time it cannot read", "not-a-time"],
+  ])("asks for a code when the page loaded with %s", async (_label, confirmedUntil) => {
+    const run = vi.fn();
+    render(
+      <AdminConfirmationProvider confirmedUntil={confirmedUntil}>
+        <Harness run={run} />
+      </AdminConfirmationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByLabelText("Digit 1 dari 6");
+
+    expect(run).not.toHaveBeenCalled();
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  // StrictMode runs an effect twice in development; two emails would leave the first code dead.
+  it("emails one code per opening, even when React runs the opening twice", async () => {
+    render(
+      <StrictMode>
+        <Harness run={vi.fn()} />
+      </StrictMode>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ubah peran" }));
+    await screen.findByLabelText("Digit 1 dari 6");
+
+    expect(requestConfirmation).toHaveBeenCalledTimes(1);
+  });
+});

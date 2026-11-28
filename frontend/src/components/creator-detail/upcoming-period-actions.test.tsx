@@ -51,8 +51,13 @@ const NEXT = period({
   fixedRate: 3_000_000,
 });
 
-function renderActions(periods: CreatorPeriod[] = [NEXT, CURRENT]) {
-  render(<UpcomingPeriodActions creatorId={CREATOR} creatorName="Rani Kusuma" periods={periods} />);
+function renderActions(
+  periods: CreatorPeriod[] = [NEXT, CURRENT],
+  selected: CreatorPeriod | null = periods[0] ?? null,
+) {
+  render(
+    <UpcomingPeriodActions creatorId={CREATOR} creatorName="Rani Kusuma" periods={periods} selected={selected} />,
+  );
 }
 
 describe("UpcomingPeriodActions", () => {
@@ -83,6 +88,12 @@ describe("UpcomingPeriodActions", () => {
     ["the creator has no contract", []],
   ])("offers neither while %s", (_label, periods) => {
     renderActions(periods);
+
+    expect(screen.queryByRole("button", { name: /periode/i })).not.toBeInTheDocument();
+  });
+
+  it("offers neither while another period is open, so an action is never read as the open one's", () => {
+    renderActions([NEXT, CURRENT], CURRENT);
 
     expect(screen.queryByRole("button", { name: /periode/i })).not.toBeInTheDocument();
   });
@@ -154,7 +165,7 @@ describe("UpcomingPeriodActions", () => {
 
       const confirm = screen.getByRole("alertdialog", { name: "Hapus Periode 2?" });
       expect(confirm).toHaveTextContent(
-        "Slot Evergreen dan invoice kosong periode ini ikut terhapus. Penghapusan tercatat di Log Aktivitas.",
+        "Slot Evergreen dan invoice kosong periode ini ikut terhapus.",
       );
       expect(within(confirm).getByText("1 Jan – 31 Mar 2027")).toBeInTheDocument();
       expect(deleteContract).not.toHaveBeenCalled();
@@ -173,7 +184,7 @@ describe("UpcomingPeriodActions", () => {
       const confirm = screen.getByRole("alertdialog", { name: "Hapus Periode 2?" });
       expect(fetchPeriodSpecifics).toHaveBeenCalledWith(NEXT_ID);
       expect(confirm).toHaveTextContent(
-        "Slot Evergreen, invoice kosong dan 2 konten Specific periode ini ikut terhapus. Penghapusan tercatat di Log Aktivitas.",
+        "Slot Evergreen, invoice kosong dan 2 konten Specific periode ini ikut terhapus.",
       );
       expect(within(confirm).getByText("Tofly x komunitas lari, Review sepatu")).toBeInTheDocument();
     });
@@ -200,6 +211,17 @@ describe("UpcomingPeriodActions", () => {
       expect(screen.getByRole("alertdialog")).toHaveTextContent(
         "Slot Evergreen, invoice kosong dan konten Specific periode ini (kalau ada) ikut terhapus.",
       );
+    });
+
+    it("promises no Log Aktivitas entry, which nothing records yet", async () => {
+      fetchPeriodSpecifics.mockResolvedValue({ names: [], total: 0 });
+      renderActions();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Hapus Periode" }));
+      });
+
+      expect(screen.getByRole("alertdialog")).not.toHaveTextContent("Log Aktivitas");
     });
 
     it("deletes nothing when the admin backs out", () => {

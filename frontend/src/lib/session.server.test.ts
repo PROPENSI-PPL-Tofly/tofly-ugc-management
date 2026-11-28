@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { currentRole } from "./session.server";
+import { currentRole, currentSession, isSuperAdmin } from "./session.server";
 
 vi.mock("next/headers", () => ({
   // No session unless a test says otherwise.
@@ -17,6 +17,62 @@ function backendAnswers(status: number, body: unknown = {}) {
     .spyOn(globalThis, "fetch")
     .mockResolvedValue(new Response(JSON.stringify(body), { status }));
 }
+
+describe("currentSession", () => {
+  beforeEach(() => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001/");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("reads a Super Admin from the backend's answer", async () => {
+    browserHasSession();
+    backendAnswers(200, { role: "admin", adminRole: "super_admin", name: "Rina Wijaya" });
+
+    await expect(currentSession()).resolves.toEqual({
+      role: "admin",
+      isSuperAdmin: true,
+      name: "Rina Wijaya",
+    });
+  });
+
+  // The frame names who is signed in; anything but a usable name falls back to the role.
+  it.each([[null], [""], ["   "], [42], [undefined]])(
+    "reads no name from an answer whose name is %j",
+    async (name) => {
+      browserHasSession();
+      backendAnswers(200, { role: "admin", adminRole: "admin", name });
+
+      await expect(currentSession()).resolves.toMatchObject({ name: null });
+    },
+  );
+
+  // OWASP A01:2025: anything but the exact role reads as no Super Admin access.
+  it.each([
+    ["a regular Admin", { role: "admin", adminRole: "admin" }],
+    ["an answer from before adminRole existed", { role: "admin" }],
+    ["an unknown role", { role: "admin", adminRole: "SUPER_ADMIN" }],
+  ])("gives no Super Admin access to %s", async (_label, body) => {
+    browserHasSession();
+    backendAnswers(200, body);
+
+    await expect(currentSession()).resolves.toEqual({ role: "admin", isSuperAdmin: false, name: null });
+  });
+
+  it("never reads a creator as a Super Admin", async () => {
+    browserHasSession();
+    backendAnswers(200, { role: "creator", adminRole: "super_admin", name: "Creator" });
+
+    await expect(currentSession()).resolves.toEqual({ role: "creator", isSuperAdmin: false, name: null });
+  });
+
+  it("reads no session as nobody signed in", async () => {
+    await expect(currentSession()).resolves.toBeNull();
+  });
+});
 
 describe("currentRole", () => {
   beforeEach(() => {
@@ -72,5 +128,43 @@ describe("currentRole", () => {
     browserHasSession();
 
     await expect(currentRole()).rejects.toThrow("BACKEND_URL is not configured");
+  });
+});
+
+describe("isSuperAdmin", () => {
+  beforeEach(() => {
+    vi.stubEnv("BACKEND_URL", "http://backend:3001");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("is true only for an Admin the session names a Super Admin (PBI-23 AC)", async () => {
+    browserHasSession();
+    backendAnswers(200, { role: "admin", adminRole: "super_admin" });
+
+    await expect(isSuperAdmin()).resolves.toBe(true);
+  });
+
+  it.each([
+    ["an Admin", 200, { role: "admin", adminRole: "admin" }],
+    ["an Admin from before roles existed", 200, { role: "admin" }],
+    ["a creator", 200, { role: "creator", adminRole: "super_admin" }],
+    ["a refused session", 401, {}],
+    ["a server error", 500, {}],
+  ])("is false for %s, so the setting stays hidden", async (_label, status, body) => {
+    browserHasSession();
+    backendAnswers(status, body);
+
+    await expect(isSuperAdmin()).resolves.toBe(false);
+  });
+
+  it("is false without asking the backend when there is no session", async () => {
+    const fetchSpy = backendAnswers(200, { role: "admin", adminRole: "super_admin" });
+
+    await expect(isSuperAdmin()).resolves.toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

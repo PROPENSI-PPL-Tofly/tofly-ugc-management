@@ -5,7 +5,9 @@ import {
     waitFor,
 } from "@testing-library/react";
 import { AddContentModal } from "./add-content-modal";
+import { DeadlineBufferProvider } from "@/components/settings/deadline-buffer-context";
 import { createContent } from "@/lib/contents";
+import { getBufferWindow } from "@/lib/deadline-schedule";
 
 vi.mock("@/lib/contents", () => ({
     createContent: vi.fn(),
@@ -38,6 +40,7 @@ const defaultProps = {
     quota: 6,
     contractStart: "2026-06-10",
     contractEnd: "2026-12-07",
+    periodNumber: undefined as number | undefined,
     onClose: vi.fn(),
     onSaved: vi.fn(),
 };
@@ -54,6 +57,13 @@ function openModal(
 }
 
 describe("AddContentModal", () => {
+    // PBI-30: with a renewal on the page, the admin must see which period the content goes to.
+    it("names the period it adds to above its title", () => {
+        openModal({ periodNumber: 2 });
+
+        expect(screen.getByRole("dialog", { name: "Tambah Konten" })).toHaveTextContent("Periode 2");
+    });
+
     beforeEach(() => {
         mockedCreateContent.mockReset();
         defaultProps.onClose.mockReset();
@@ -66,6 +76,25 @@ describe("AddContentModal", () => {
       const deadline = screen.getByLabelText("Deadline");
       // 2026-12-07 minus the five-day buffer.
       expect(deadline).toHaveAttribute("max", "2026-12-02");
+    });
+
+    // PBI-23 AC: the buffer a Super Admin set, not a fixed five days, draws both lines.
+    it("holds the date picker to the configured buffer on both sides", () => {
+      render(
+        <DeadlineBufferProvider bufferDays={9}>
+          <AddContentModal {...defaultProps} />
+        </DeadlineBufferProvider>,
+      );
+
+      expect(vi.mocked(getBufferWindow)).toHaveBeenLastCalledWith(
+        expect.objectContaining({ bufferDays: 9 }),
+      );
+      // 2026-12-07 minus nine days.
+      expect(screen.getByLabelText("Deadline")).toHaveAttribute("max", "2026-11-28");
+      expect(screen.getByRole("button", { name: "Tentang batas H-9" })).toHaveAccessibleDescription(
+        "Deadline paling lambat 28 Nov 2026 (H-9 akhir kontrak)",
+      );
+      expect(screen.getByText(/minimal 9 hari setelah hari ini/)).toBeInTheDocument();
     });
 
     it("holds the date picker inside the period's own window for a Belum Dimulai period (AC 8.1.1)", async () => {

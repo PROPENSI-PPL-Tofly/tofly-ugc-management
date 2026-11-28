@@ -24,6 +24,9 @@
 # uploaded files kept on the local disk when STORAGE_BUCKET is unset
 /.local-storage/
 
+# rendered email templates from `npm run email:preview` (PBI-11, 11.4)
+/email-previews/
+
 # mutation testing (Stryker) output and sandbox
 /reports
 .stryker-tmp/

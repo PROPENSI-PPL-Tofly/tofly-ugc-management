@@ -10,7 +10,14 @@
 
 import type { CreatorInvoice, InvoiceComment, PaymentProof } from "./creator-invoice";
 import { INVOICE_STATUSES } from "./invoice";
-import { toInvoiceBreakdown, type RawInvoiceComponent, type RawInvoiceDetail } from "./invoice-api";
+import { readActorName } from "./admin-actor";
+import {
+  toAdjustmentLine,
+  toInvoiceBreakdown,
+  type RawInvoiceComponent,
+  type RawInvoiceDetail,
+} from "./invoice-api";
+import { readRateChanges } from "./rate-change";
 import { isSameSitePath } from "./safe-href";
 
 /** The proof the admin uploaded: a short-lived link to the file in Storage. */
@@ -18,6 +25,8 @@ export interface RawPaymentProof {
   url: string;
   fileName: string;
   uploadedAt: string;
+  /** The Admin who sent it (PBI-23, 23.10). */
+  uploadedBy?: string | null;
 }
 
 export interface RawInvoiceComment {
@@ -94,7 +103,13 @@ function safeLink(url: string): string | null {
 
 function toProof(raw: RawPaymentProof | null | undefined): PaymentProof | null {
   if (!raw) return null;
-  return { url: safeLink(raw.url), fileName: raw.fileName, uploadedAt: raw.uploadedAt };
+  const uploadedBy = readActorName(raw.uploadedBy);
+  return {
+    url: safeLink(raw.url),
+    fileName: raw.fileName,
+    uploadedAt: raw.uploadedAt,
+    ...(uploadedBy && { uploadedBy }),
+  };
 }
 
 /**
@@ -139,13 +154,8 @@ function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
     // The bonus alone stays null while it waits: "Menunggu data", never a zero.
     bonusAmount: performanceBonus.amount,
     penaltyAmount: penalty.amount ?? 0,
-    // Who recorded an adjustment is the admin's business; the creator reads what and why.
-    adjustments: (raw.adjustments ?? []).map(({ id, amount, reason, createdAt }) => ({
-      id,
-      amount,
-      reason,
-      createdAt,
-    })),
+    // The creator reads what, why and which Admin by name (PBI-23 AC 25), never the Admin's id.
+    adjustments: (raw.adjustments ?? []).map(toAdjustmentLine),
     totalAmount: raw.total,
     floored: raw.floored,
     breakdown: toInvoiceBreakdown(raw),
@@ -158,6 +168,7 @@ function toCreatorInvoice(raw: RawCreatorInvoice): CreatorInvoice {
     },
     proof: toProof(raw.paymentProof),
     comments: (raw.comments ?? []).map(toComment),
+    rateChanges: readRateChanges(raw.rateChanges),
   };
 }
 

@@ -26,7 +26,7 @@ const COMMENT_SELECT = {
   author_role: true,
   text: true,
   created_at: true,
-  users: { select: { email: true } },
+  users: { select: { name: true, email: true } },
 };
 // Who wrote a comment, as the author's user row answers it.
 const ADMIN_EMAIL = 'sinta.admin@tofly.id';
@@ -82,6 +82,29 @@ describe('InvoiceCommentsService', () => {
   });
 
   describe('list', () => {
+    // PBI-23, 23.10: the same thread names an admin who has a name by that name.
+    it("names an admin's comment by the account name when it has one", async () => {
+      prisma.contracts.findFirst.mockResolvedValue({
+        id: CONTRACT,
+        creators: { first_name: 'Rangga', middle_name: null, last_name: null },
+        invoice: {
+          comments: [
+            {
+              id: 'c1',
+              author_role: 'admin',
+              text: 'Sudah dicek',
+              created_at: AT,
+              users: { name: 'Sinta Dewi', email: ADMIN_EMAIL },
+            },
+          ],
+        },
+      });
+
+      const [comment] = await service.list(CONTRACT, {});
+
+      expect(comment.authorName).toBe('Sinta Dewi');
+    });
+
     it("reads the thread oldest first in one query, the admin by email and the creator by name", async () => {
       prisma.contracts.findFirst.mockResolvedValue({
         id: CONTRACT,

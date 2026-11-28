@@ -5,7 +5,9 @@
 
 import type { ContentStatus } from '../../contents/content-lifecycle.js';
 import type { ContentTag } from '../../contents/content-tags.js';
+import type { InvoiceLifecycleStatus } from '../../invoices/invoice-lifecycle.js';
 import type { SocialConnection } from '../../social/social-connection.js';
+import type { UsernameLocks } from '../creator-edit-policy.js';
 import type {
   ContentOutcome,
   Productivity,
@@ -34,6 +36,8 @@ export interface ContractSummary {
   /** The current contract's type; null without a contract. */
   type: ContractType | null;
 
+  /** A renewal still to start after the current period (PBI-30 AC 10); null when none waits. */
+  next: { periodNumber: number; startDate: string } | null;
   /**
    * PBI-37: set when the current contract was ended early, for "Berakhir Lebih Awal" with its
    * reason type; endDate is then the last day. The note stays on Creator Detail.
@@ -93,8 +97,8 @@ export interface ContractHistoryEntry {
   completed: number;
 
   /**
-   * Committed contents in the period: pending proposals left out. Not a page size or a list
-   * length; GET /contents?contract=<id> reports how many rows the table pages through.
+   * What the period owes: its Evergreen quota and every Specific content, pending proposals left
+   * out (PBI-16). Not a page size or a list length; GET /contents?contract=<id> reports how many rows the table pages through.
    */
   total: number;
 
@@ -139,6 +143,12 @@ export interface ContractPeriod extends ContractHistoryEntry {
   /** contracts.fixed_rate, in rupiah. */
   fixedRate: number;
 
+  /** Evergreen contents the period has; Ubah Data never sets a quota below it (PBI-16). */
+  evergreenCount: number;
+
+  /** Where the invoice stands; the fixed rate changes only while it is running (PBI-16). */
+  invoiceStatus: InvoiceLifecycleStatus;
+
   /** Evergreen contents the period can still take before its quota is full; never below 0. */
   remainingEvergreenQuota: number;
 
@@ -162,6 +172,9 @@ export interface ContractPeriod extends ContractHistoryEntry {
 
 export interface CreatorDetail extends CreatorSummary {
   phoneNumber: string | null;
+
+  /** Why each username is read-only in Ubah Data, or null while it is not (PBI-16 AC 7). */
+  usernameLocks: UsernameLocks;
 
   /** Every contract period, oldest first. */
   contractHistory: ContractPeriod[];

@@ -58,8 +58,9 @@ export function validateContractExtension(
   input: ContractTermsInput,
   previousEnd: string,
   today: Date = new Date(),
+  bufferDays?: number,
 ): CreatorFormErrors {
-  const errors = validateContractTerms(input, today);
+  const errors = validateContractTerms(input, today, bufferDays);
 
   if (!errors.contractStart && input.contractStart !== "" && input.contractStart <= previousEnd) {
     errors.contractStart = `Tanggal mulai harus setelah akhir kontrak sebelumnya (${formatDate(previousEnd)})`;

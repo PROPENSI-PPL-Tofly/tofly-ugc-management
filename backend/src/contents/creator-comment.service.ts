@@ -1,7 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { content_status } from '@prisma/client';
+import { StartedPeriodSpecification } from '../creators/started-period.specification.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { COMMITTED_STATUSES } from './content-lifecycle.js';
+import { periodNotStarted } from './period-not-started.js';
 import type { CreatorComment } from './creator-comment.js';
 
 export interface CreatorCommentTransaction {
@@ -12,8 +14,8 @@ export interface CreatorCommentTransaction {
         status: { in: content_status[] };
         contracts: { creator_id: string };
       };
-      select: { id: true };
-    }): Promise<{ id: string } | null>;
+      select: { id: true; contracts: { select: { start_date: true } } };
+    }): Promise<{ id: string; contracts: { start_date: Date } } | null>;
   };
   creators: {
     findUnique(args: {
@@ -72,7 +74,7 @@ export class CreatorCommentService implements CreatorCommentWriter {
           status: { in: [...COMMITTED_STATUSES] },
           contracts: { creator_id: creatorId },
         },
-        select: { id: true },
+        select: { id: true, contracts: { select: { start_date: true } } },
       });
 
       if (!content) {
@@ -80,6 +82,15 @@ export class CreatorCommentService implements CreatorCommentWriter {
           code: 'CONTENT_NOT_FOUND',
           message: 'Konten tidak ditemukan',
         });
+      }
+      // PBI-30 (AC 8.2): the creator's own content, but its period has not started, so it takes
+      // no comment yet, as it takes no draft or link (OWASP A01).
+      if (
+        !new StartedPeriodSpecification(new Date()).isSatisfiedBy(
+          content.contracts,
+        )
+      ) {
+        throw periodNotStarted();
       }
 
       const creator = await transaction.creators.findUnique({
