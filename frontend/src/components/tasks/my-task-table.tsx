@@ -38,6 +38,7 @@ export function MyTaskTable({
   sort = "asc",
   onSortToggle,
   onCancelProposal,
+  isWithdrawing,
 }: Readonly<{
   tasks: MyTask[];
   /** Opens the row's content detail panel; every row can show its journey and hand in from it. */
@@ -57,6 +58,8 @@ export function MyTaskTable({
    * "Batalkan Pengajuan", as the prototype draws it; hand-ins stay in Detail Konten.
    */
   onCancelProposal?: (task: MyTask) => void;
+  /** Whether a row's withdrawal is already on its way; its button then waits for the answer. */
+  isWithdrawing?: (id: string) => boolean;
 }>) {
   if (tasks.length === 0) {
     return (
@@ -153,6 +156,7 @@ export function MyTaskTable({
                   {cancellable(task) ? (
                     <Button
                       variant="danger-outline"
+                      disabled={isWithdrawing?.(task.id) ?? false}
                       onClick={(event) => {
                         // The row opens Detail Konten; this button asks to withdraw instead.
                         event.stopPropagation();

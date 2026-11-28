@@ -550,9 +550,8 @@ describe("MyTaskBoard, withdrawing a pending proposal", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
 
     const button = screen.getByRole("button", { name: "Batalkan Pengajuan" });
+    // A browser sends no click from a disabled button; the hook's own guard is in its test.
     await waitFor(() => expect(button).toBeDisabled());
-    fireEvent.click(button);
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 
     answer({ ok: true });
     expect(await screen.findByText("Pengajuan dibatalkan.")).toBeInTheDocument();

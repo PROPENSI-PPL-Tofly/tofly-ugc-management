@@ -163,6 +163,7 @@ export function MyTaskBoard({
             onSortToggle={toggleSort}
             onDetail={(task) => setDetailContentId(task.id)}
             onCancelProposal={withdrawal.ask}
+            isWithdrawing={withdrawal.isWithdrawing}
           />
         )}
       </section>
