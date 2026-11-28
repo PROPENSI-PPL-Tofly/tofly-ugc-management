@@ -536,6 +536,29 @@ describe("MyTaskBoard, withdrawing a pending proposal", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  // Review on #270 (Rani): one DELETE per proposal, however often the row is pressed meanwhile.
+  it("sends one withdrawal while the first is on its way, the row's button waiting for it", async () => {
+    let answer: (value: { ok: true }) => void = () => undefined;
+    cancelProposal.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    const dialog = await confirmFromRow();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
+
+    const button = screen.getByRole("button", { name: "Batalkan Pengajuan" });
+    await waitFor(() => expect(button).toBeDisabled());
+    fireEvent.click(button);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+
+    answer({ ok: true });
+    expect(await screen.findByText("Pengajuan dibatalkan.")).toBeInTheDocument();
+    expect(cancelProposal).toHaveBeenCalledOnce();
+  });
+
   it("reads the list again when the admin decided first", async () => {
     cancelProposal.mockResolvedValue({
       ok: false,

@@ -338,6 +338,19 @@ describe("MyTaskTable, a pending proposal", () => {
     expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
   });
 
+  // Review on #270 (Rani): no second press while the first withdrawal is on its way.
+  it("disables the button of a proposal already being withdrawn, and only that one", () => {
+    const other = task({ ...proposal, id: "proposal-2", name: "Unboxing Serum" });
+    renderTable([proposal, other], {
+      onCancelProposal: vi.fn(),
+      isWithdrawing: (id) => id === "proposal-1",
+    });
+
+    const [first, second] = screen.getAllByRole("button", { name: "Batalkan Pengajuan" });
+    expect(first).toBeDisabled();
+    expect(second).toBeEnabled();
+  });
+
   it("offers nothing where the host cannot withdraw it", () => {
     renderTable([proposal]);
 
