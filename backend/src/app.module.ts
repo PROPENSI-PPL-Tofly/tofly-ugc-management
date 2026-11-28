@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AdminUsersModule } from './admin-users/admin-users.module.js';
@@ -51,6 +52,7 @@ export function validate(
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       validate,
@@ -80,6 +82,8 @@ export function validate(
   ],
   controllers: [AppController, HealthController],
   providers: [
+    // Captures unhandled exceptions (HttpExceptions stay control flow) with request context.
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
     AppService,
     // Every request body, every route: a NUL character is a 400, never a 500 from PostgreSQL
     // (security assessment, OWASP A10:2025).

@@ -1,3 +1,6 @@
+// Initialize Sentry before any other module is loaded (instrument.ts calls Sentry.init).
+import './instrument.js';
+
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';

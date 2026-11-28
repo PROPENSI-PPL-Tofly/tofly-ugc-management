@@ -12,6 +12,7 @@
     "bench": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bench/format.bench.ts"
   },
   "dependencies": {
+    "@sentry/nextjs": "^11.16.0",
     "@tiptap/extensions": "3.32.0",
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",

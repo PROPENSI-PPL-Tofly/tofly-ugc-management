@@ -18,7 +18,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.d.ts', 'src/**/layout.tsx', '**/*.config.{ts,mts,js}'],
+      // Sentry's runtime configs live in src/ and are measured like any other module;
+      // only build config files (root/*.config.*) stay out, and they are outside include anyway.
+      exclude: ['src/**/*.d.ts', 'src/**/layout.tsx'],
       thresholds: {
         lines: 80,
         // 31.5: an export that ticks the wrong rows or hides a skip is a finance bug, so every
