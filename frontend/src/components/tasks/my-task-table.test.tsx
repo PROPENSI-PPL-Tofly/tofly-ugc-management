@@ -338,6 +338,17 @@ describe("MyTaskTable, a pending proposal", () => {
     expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
   });
 
+  // Review on #270 (Rani): every row's button has the same name, so a screen reader also reads
+  // which proposal it withdraws; the name stays as the prototype words it.
+  it("describes each row's button with its own content's name", () => {
+    const other = task({ ...proposal, id: "proposal-2", name: "Unboxing Serum" });
+    renderTable([proposal, other], { onCancelProposal: vi.fn() });
+
+    const [first, second] = screen.getAllByRole("button", { name: "Batalkan Pengajuan" });
+    expect(first).toHaveAccessibleDescription("Review Paket Kilat");
+    expect(second).toHaveAccessibleDescription("Unboxing Serum");
+  });
+
   // Review on #270 (Rani): no second press while the first withdrawal is on its way.
   it("disables the button of a proposal already being withdrawn, and only that one", () => {
     const other = task({ ...proposal, id: "proposal-2", name: "Unboxing Serum" });
