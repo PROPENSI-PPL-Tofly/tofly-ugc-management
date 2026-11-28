@@ -1,10 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { DeadlineSortTh } from "@/components/content-plan/deadline-sort";
 import { ContentNameButton } from "@/components/contents/content-row-buttons";
 import { ContentTags } from "@/components/contents/content-tags";
 import { DueDate, badgeTags } from "@/components/contents/due-date";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlatformIcons } from "@/components/ui/platform-icon";
 import { Pill, StatusDot } from "@/components/ui/pill";
@@ -36,6 +37,8 @@ export function MyTaskTable({
   emptyHint = "Tugas baru muncul di sini begitu admin menjadwalkannya.",
   sort = "asc",
   onSortToggle,
+  onCancelProposal,
+  isWithdrawing,
 }: Readonly<{
   tasks: MyTask[];
   /** Opens the row's content detail panel; every row can show its journey and hand in from it. */
@@ -50,7 +53,18 @@ export function MyTaskTable({
   sort?: DeadlineSort;
   /** Turns the deadline order over; given, the Deadline header becomes its button. */
   onSortToggle?: () => void;
+  /**
+   * Asks to withdraw a pending proposal (PBI-14, 14.3). Given, a row the API allows it on carries
+   * "Batalkan Pengajuan", as the prototype draws it; hand-ins stay in Detail Konten.
+   */
+  onCancelProposal?: (task: MyTask) => void;
+  /** Whether a row's withdrawal is already on its way; its button then waits for the answer. */
+  isWithdrawing?: (id: string) => boolean;
 }>) {
+  // Prefixes each row's name id, so two tables on one page never share one.
+  const idPrefix = useId();
+  const nameId = (task: MyTask) => `${idPrefix}-name-${task.id}`;
+
   if (tasks.length === 0) {
     return (
       <EmptyState
@@ -60,6 +74,10 @@ export function MyTaskTable({
       />
     );
   }
+
+  const cancellable = (task: MyTask) => onCancelProposal !== undefined && task.actions.includes("cancel_proposal");
+  // Only a row with a move of its own needs the column; otherwise the table stays as it was.
+  const withActions = tasks.some(cancellable);
 
   return (
     <ScrollFrame>
@@ -88,6 +106,11 @@ export function MyTaskTable({
             <th role="columnheader" scope="col" className={HEAD}>
               Platform
             </th>
+            {withActions ? (
+              <th role="columnheader" scope="col" className={HEAD}>
+                <span className="sr-only">Aksi</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         {/* Below lg the cards sit apart on the page colour, 12 px between them, so one task never
@@ -107,7 +130,9 @@ export function MyTaskTable({
               className="cursor-pointer border-b border-rule transition-colors hover:bg-surface-2 max-lg:block max-lg:rounded-(--radius-panel) max-lg:border max-lg:bg-surface max-lg:px-4 max-lg:py-3"
             >
               <td role="cell" className={`${CELL} wrap-anywhere max-lg:pb-2 max-lg:text-sm max-lg:font-semibold`}>
-                <ContentNameButton onOpen={() => onDetail(task)}>{task.name}</ContentNameButton>
+                <ContentNameButton onOpen={() => onDetail(task)}>
+                  <span id={nameId(task)}>{task.name}</span>
+                </ContentNameButton>
                 {/* PBI-33 AC 5: words, not a colour, say the admin added to the revision note. */}
                 {task.revisionNotesUpdatedAt ? (
                   <span className="block text-xs font-normal text-muted">
@@ -132,6 +157,25 @@ export function MyTaskTable({
               <td role="cell" data-label="Platform" className={`${CELL} ${LABELLED} max-lg:empty:hidden`}>
                 <PlatformIcons platforms={task.platforms} />
               </td>
+              {withActions ? (
+                <td role="cell" className={`${CELL} text-right max-lg:empty:hidden max-lg:pt-2`}>
+                  {cancellable(task) ? (
+                    <Button
+                      variant="danger-outline"
+                      // Every row's button reads the same; its content's name says which one.
+                      aria-describedby={nameId(task)}
+                      disabled={isWithdrawing?.(task.id) ?? false}
+                      onClick={(event) => {
+                        // The row opens Detail Konten; this button asks to withdraw instead.
+                        event.stopPropagation();
+                        onCancelProposal?.(task);
+                      }}
+                    >
+                      Batalkan Pengajuan
+                    </Button>
+                  ) : null}
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

@@ -42,13 +42,15 @@ describe("MyTaskFilters", () => {
     expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
   });
 
-  it("offers every status a creator can see on Semua, never a pending proposal", () => {
+  // PBI-14 (14.3): a pending proposal is listed too, in the creator's words for it.
+  it("offers every status a creator can see on Semua, a pending proposal as Menunggu Persetujuan", () => {
     renderOn();
 
     fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
 
     for (const name of [
       "Semua",
+      "Menunggu Persetujuan",
       "Scheduled",
       "Draft Menunggu Review",
       "Draft Perlu Revisi",
@@ -57,7 +59,7 @@ describe("MyTaskFilters", () => {
     ]) {
       expect(screen.getByRole("checkbox", { name })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("checkbox")).toHaveLength(6);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(7);
     expect(screen.queryByRole("checkbox", { name: "Pending" })).not.toBeInTheDocument();
   });
 
@@ -74,9 +76,20 @@ describe("MyTaskFilters", () => {
   });
 
   // One status is no choice: Menunggu Admin holds only drafts in review, Selesai only links.
-  it.each(["waiting", "done"] as const)("hides the status filter on %s, where there is nothing to pick", (tab) => {
-    renderOn({ tab }, { tab });
+  it("hides the status filter on Selesai, where there is nothing to pick", () => {
+    renderOn({ tab: "done" }, { tab: "done" });
     expect(screen.queryByRole("button", { name: /^Status:/ })).not.toBeInTheDocument();
+  });
+
+  // PBI-14 (14.3): Menunggu Admin now holds two statuses, so it can be narrowed to either.
+  it("offers a proposal and a draft in review on Menunggu Admin", () => {
+    renderOn({ tab: "waiting" }, { tab: "waiting" });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
+
+    expect(screen.getByRole("checkbox", { name: "Menunggu Persetujuan" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Draft Menunggu Review" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Scheduled" })).not.toBeInTheDocument();
   });
 
   it("hides Overdue on Selesai, where nothing is waiting any more", () => {
@@ -187,7 +200,7 @@ describe("MyTaskFilters", () => {
   // the bar must not draw it as a pick either.
   it("shows no chip for a type or a status the address names but the filter does not offer", () => {
     renderOn(
-      { type: "evergreen,foo", status: "pending, scheduled ,bogus" },
+      { type: "evergreen,foo", status: "proposed, scheduled ,bogus" },
       { type: ["evergreen"], status: ["scheduled"] },
     );
 
@@ -233,7 +246,7 @@ describe("MyTaskFilters", () => {
   });
 
   it("leaves what it does not offer behind on the next pick", () => {
-    renderOn({ status: "pending,scheduled,bogus" }, { status: ["scheduled"] });
+    renderOn({ status: "proposed,scheduled,bogus" }, { status: ["scheduled"] });
 
     fireEvent.click(screen.getByRole("button", { name: /^Status:/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Draft Approved" }));

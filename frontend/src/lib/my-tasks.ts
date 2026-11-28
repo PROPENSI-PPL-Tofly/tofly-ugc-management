@@ -31,10 +31,11 @@ export const MY_TASKS_BASE = "/creator/tasks";
 export const MY_TASKS_PAGE_SIZE = 10;
 
 /**
- * The statuses a creator can see, matching GET /me/contents?status. Pending is not one of them:
- * a proposal is not assigned work until an admin accepts it.
+ * The statuses a creator can see, matching GET /me/contents?status. A pending proposal is one of
+ * them since PBI-14 (14.3): it waits on the admin's decision, under Menunggu Admin.
  */
 export const TASK_STATUS_FILTERS = [
+  "pending",
   "scheduled",
   "draft_review",
   "draft_revision",
@@ -44,9 +45,14 @@ export const TASK_STATUS_FILTERS = [
 
 export type TaskStatusFilter = (typeof TASK_STATUS_FILTERS)[number];
 
-/** How a status reads on Task Saya: the same label the admin sees. */
+/** Where Task Saya words a status for the creator, unlike the admin's label (PBI-14, 14.3). */
+const CREATOR_STATUS_LABELS: Partial<Record<ContentStatus, string>> = {
+  pending: "Menunggu Persetujuan",
+};
+
+/** How a status reads on Task Saya: the admin's label, unless the creator's own words differ. */
 export function taskStatusLabel(status: ContentStatus): string {
-  return CONTENT_STATUS_LABELS[status];
+  return CREATOR_STATUS_LABELS[status] ?? CONTENT_STATUS_LABELS[status];
 }
 
 export type MyTaskTab = "all" | "action" | "waiting" | "done";
@@ -72,7 +78,8 @@ export const MY_TASK_TABS: readonly MyTaskTabDef[] = [
     urgent: true,
     counter: true,
   },
-  { key: "waiting", label: "Menunggu Admin", statuses: ["draft_review"], urgent: false, counter: true },
+  // A proposal waits on the admin's decision as a draft in review does (PBI-14, 14.3).
+  { key: "waiting", label: "Menunggu Admin", statuses: ["pending", "draft_review"], urgent: false, counter: true },
   { key: "done", label: "Selesai", statuses: ["link_submitted"], urgent: false, counter: false },
 ];
 
@@ -224,7 +231,14 @@ export function myTasksAfterTabChange(state: MyTasksParams, tab: MyTaskTab): MyT
   return { ...state, tab, status: [], sort: DEFAULT_MY_TASKS_SORT, page: 1 };
 }
 
+/** A hand-in: what the creator sends from a form (a draft or the video links). */
 export type MyTaskAction = "submit_draft" | "resubmit_draft" | "submit_video";
+
+/**
+ * Every move the API can offer a creator: a hand-in, or withdrawing a pending proposal (PBI-14,
+ * 14.3), which is a confirmation and never opens a hand-in form.
+ */
+export type CreatorAction = MyTaskAction | "cancel_proposal";
 
 export interface MyTask {
   /** The id the draft and video endpoints take. */
@@ -238,7 +252,7 @@ export interface MyTask {
   /** Late, overdue or approval bypassed, as the admin sees them; empty when nothing is flagged. */
   tags: ContentTag[];
   /** The buttons this row shows today, in display order; empty means none. */
-  actions: MyTaskAction[];
+  actions: CreatorAction[];
   /** What the admin asked to change; set only while the row awaits a resubmit. */
   revisionNotes: string | null;
   /** When the admin last added a follow-up note to the open round (ISO instant), else null (PBI-33). */

@@ -21,7 +21,8 @@ export type PanelActionKind =
   | "reject_proposal"
   | "submit_draft"
   | "resubmit_draft"
-  | "submit_video";
+  | "submit_video"
+  | "cancel_proposal";
 
 /**
  * One button of the current step. `canRun` is the enablement predicate (Command's
@@ -68,6 +69,11 @@ export interface PanelActionPorts {
    * hold (a link to it, on another tab or page).
    */
   onCreatorAction?: (action: MyTaskAction, detail: PanelActionFacts) => void;
+  /**
+   * Asks the creator to confirm withdrawing their pending proposal (PBI-14, 14.3). The host owns
+   * the confirmation, the request and the list it refreshes; without it, nothing is offered.
+   */
+  onCancelProposal?: (detail: PanelActionFacts) => void;
 }
 
 /** The step's facts the command list is chosen from. */
@@ -193,7 +199,20 @@ export function actionsFor(input: {
     ];
   }
 
-  return detail.creatorActions.map((action) => ({
+  return detail.creatorActions.flatMap((action) =>
+    action === "cancel_proposal" ? withdrawal(detail, state, ports) : [handIn(action, detail, state, ports, now)],
+  );
+}
+
+/** A hand-in the backend allowed: it opens its form through the host's hand-in handler. */
+function handIn(
+  action: MyTaskAction,
+  detail: PanelActionFacts,
+  state: () => PanelActionState,
+  ports: PanelActionPorts,
+  now: Date,
+): PanelCommand {
+  return {
     kind: action,
     label: creatorActionLabel(action, detail, now),
     variant: CREATOR_VARIANTS[action],
@@ -201,7 +220,26 @@ export function actionsFor(input: {
     run: () => {
       ports.onCreatorAction?.(action, detail);
     },
-  }));
+  };
+}
+
+/** "Batalkan Pengajuan" (PBI-14, 14.3), offered only where the host can confirm and send it. */
+function withdrawal(
+  detail: PanelActionFacts,
+  state: () => PanelActionState,
+  ports: PanelActionPorts,
+): PanelCommand[] {
+  const { onCancelProposal } = ports;
+  if (!onCancelProposal) return [];
+  return [
+    {
+      kind: "cancel_proposal",
+      label: "Batalkan Pengajuan",
+      variant: "danger-outline",
+      canRun: () => !state().busy,
+      run: () => onCancelProposal(detail),
+    },
+  ];
 }
 
 /**

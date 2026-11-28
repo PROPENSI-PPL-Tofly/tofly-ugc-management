@@ -1948,3 +1948,26 @@ describe("ContentDetailPanel follow-up notes", () => {
     expect(screen.queryByText("Catatan susulan ditambahkan")).toBeNull();
   });
 });
+
+// PBI-14 (14.3): the creator withdraws a pending proposal from the panel; the host confirms it.
+describe("ContentDetailPanel, a creator's pending proposal", () => {
+  it("offers Batalkan Pengajuan and hands the content to the host", async () => {
+    const onCancelProposal = vi.fn();
+    open(
+      detail({
+        status: "pending",
+        waitingOn: "admin",
+        latestSubmissionId: null,
+        creatorActions: ["cancel_proposal"],
+      }),
+      { role: "creator", ports: { onCancelProposal } },
+    );
+
+    expect(await screen.findByTestId("step-text")).toHaveTextContent("Pengajuan sedang ditinjau Admin.");
+    fireEvent.click(screen.getByRole("button", { name: "Batalkan Pengajuan" }));
+
+    expect(onCancelProposal).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: CONTENT, name: "Promo Lebaran", status: "pending" }),
+    );
+  });
+});

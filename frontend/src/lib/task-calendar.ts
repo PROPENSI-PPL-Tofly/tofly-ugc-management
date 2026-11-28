@@ -4,7 +4,7 @@
 import type { Tone } from "@/components/ui/pill";
 import type { ContentType } from "./contents";
 import type { ContentStatus, ContentTag } from "./creators";
-import type { MyTaskAction } from "./my-tasks";
+import type { CreatorAction } from "./my-tasks";
 
 export type CalendarGroup = "todo" | "wait" | "done" | "overdue";
 
@@ -43,7 +43,7 @@ const STATUS_GROUP: Record<ContentStatus, Exclude<CalendarGroup, "overdue">> = {
 export function calendarGroup(task: {
   status: ContentStatus;
   tags: readonly ContentTag[];
-  actions?: readonly MyTaskAction[];
+  actions?: readonly CreatorAction[];
 }): CalendarGroup {
   // A finished content that came in late is still finished: its overdue tag is history.
   if (task.status === "link_submitted") return "done";

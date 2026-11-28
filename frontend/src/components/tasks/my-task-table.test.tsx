@@ -300,3 +300,71 @@ describe("MyTaskTable", () => {
     expect(screen.getByRole("table").closest("[data-scroll-frame]")).not.toBeNull();
   });
 });
+
+// PBI-14 (14.3): a pending proposal reads as Menunggu Persetujuan, and its row carries the one
+// move the creator has on it, as the prototype draws it.
+describe("MyTaskTable, a pending proposal", () => {
+  const proposal = task({
+    id: "proposal-1",
+    name: "Review Paket Kilat",
+    type: "specific",
+    status: "pending",
+    actions: ["cancel_proposal"],
+  });
+
+  it("reads Menunggu Persetujuan and offers Batalkan Pengajuan without opening the row", () => {
+    const onCancelProposal = vi.fn();
+    const { onDetail } = renderTable([proposal, task()], { onCancelProposal });
+
+    expect(screen.getByText("Menunggu Persetujuan")).toBeInTheDocument();
+    const buttons = screen.getAllByRole("button", { name: "Batalkan Pengajuan" });
+    expect(buttons).toHaveLength(1);
+
+    fireEvent.click(buttons[0]);
+
+    expect(onCancelProposal).toHaveBeenCalledExactlyOnceWith(proposal);
+    expect(onDetail).not.toHaveBeenCalled();
+  });
+
+  it("names the action column for screen readers once a row has an action", () => {
+    renderTable([proposal], { onCancelProposal: vi.fn() });
+
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toBeInTheDocument();
+  });
+
+  it("adds no action column while no row has one", () => {
+    renderTable([task()], { onCancelProposal: vi.fn() });
+
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
+  });
+
+  // Review on #270 (Rani): every row's button has the same name, so a screen reader also reads
+  // which proposal it withdraws; the name stays as the prototype words it.
+  it("describes each row's button with its own content's name", () => {
+    const other = task({ ...proposal, id: "proposal-2", name: "Unboxing Serum" });
+    renderTable([proposal, other], { onCancelProposal: vi.fn() });
+
+    const [first, second] = screen.getAllByRole("button", { name: "Batalkan Pengajuan" });
+    expect(first).toHaveAccessibleDescription("Review Paket Kilat");
+    expect(second).toHaveAccessibleDescription("Unboxing Serum");
+  });
+
+  // Review on #270 (Rani): no second press while the first withdrawal is on its way.
+  it("disables the button of a proposal already being withdrawn, and only that one", () => {
+    const other = task({ ...proposal, id: "proposal-2", name: "Unboxing Serum" });
+    renderTable([proposal, other], {
+      onCancelProposal: vi.fn(),
+      isWithdrawing: (id) => id === "proposal-1",
+    });
+
+    const [first, second] = screen.getAllByRole("button", { name: "Batalkan Pengajuan" });
+    expect(first).toBeDisabled();
+    expect(second).toBeEnabled();
+  });
+
+  it("offers nothing where the host cannot withdraw it", () => {
+    renderTable([proposal]);
+
+    expect(screen.queryByRole("button", { name: "Batalkan Pengajuan" })).not.toBeInTheDocument();
+  });
+});
