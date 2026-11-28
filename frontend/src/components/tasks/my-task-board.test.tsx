@@ -490,6 +490,21 @@ describe("MyTaskBoard, withdrawing a pending proposal", () => {
     actions: ["cancel_proposal"],
   });
 
+  const pendingDetail = {
+    id: "proposal-1",
+    name: "Review Paket Kilat",
+    type: "specific",
+    brief: "",
+    deadline: "2099-12-31",
+    status: "pending",
+    creatorName: "Rangga Pratama",
+    tags: [],
+    waitingOn: "admin",
+    latestSubmissionId: null,
+    creatorActions: ["cancel_proposal"],
+    events: [],
+  };
+
   beforeEach(() => {
     refresh.mockClear();
     replace.mockClear();
@@ -584,6 +599,41 @@ describe("MyTaskBoard, withdrawing a pending proposal", () => {
 
     expect(await screen.findByText("Pengajuan gagal dibatalkan. Coba lagi.")).toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  async function confirmFromPanel() {
+    fetchContentDetail.mockResolvedValue(pendingDetail);
+    render(<MyTaskBoard tasks={[proposal]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review Paket Kilat" }));
+    const panel = await screen.findByRole("dialog");
+    fireEvent.click(await within(panel).findByRole("button", { name: "Batalkan Pengajuan" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Batalkan Pengajuan?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan Pengajuan" }));
+  }
+
+  // Review on #270 (Kania): the panel reads its detail itself, so a refresh leaves it as it was;
+  // one the admin decided or that is gone closes, as a withdrawal that worked does.
+  it.each([
+    ["the admin decided first", "Pengajuan sudah diputuskan Admin. Muat ulang untuk melihat status terbaru."],
+    ["it is gone", "Pengajuan tidak ditemukan. Muat ulang untuk melihat status terbaru."],
+  ])("closes the panel when %s", async (_case, message) => {
+    cancelProposal.mockResolvedValue({ ok: false, stale: true, message });
+
+    await confirmFromPanel();
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(new URLSearchParams(window.location.search).get("content")).toBeNull();
+  });
+
+  it("keeps the panel open to try again when the request only failed", async () => {
+    cancelProposal.mockResolvedValue({ ok: false, stale: false, message: "Pengajuan gagal dibatalkan. Coba lagi." });
+
+    await confirmFromPanel();
+
+    expect(await screen.findByText("Pengajuan gagal dibatalkan. Coba lagi.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("withdraws it from the panel too, closing the panel it was open in", async () => {
