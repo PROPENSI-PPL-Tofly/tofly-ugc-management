@@ -56,18 +56,25 @@ export function MyTaskBoard({
   const router = useRouter();
   const { show: notify, toast } = useToast();
   // PBI-14 (14.3): withdrawing a proposal, from a row or from its panel. The board outlives both,
-  // so it keeps the toast and reads the list again.
+  // so it keeps the toast and reads the list again. The panel reads its detail itself, so a
+  // refresh never updates it: one whose proposal is gone or decided closes instead.
   const withdrawal = useCancelProposal({
     onCancelled: (proposal) => {
-      if (proposal.id === detailContentId) closeDetail();
+      closeIfShowing(proposal.id);
       notify("Pengajuan dibatalkan.");
       router.refresh();
     },
-    onFailed: (message, stale) => {
+    onFailed: (message, stale, proposal) => {
       notify(message);
-      if (stale) router.refresh();
+      if (!stale) return;
+      closeIfShowing(proposal.id);
+      router.refresh();
     },
   });
+
+  function closeIfShowing(contentId: string) {
+    if (contentId === detailContentId) closeDetail();
+  }
 
   // A notification (or a bookmarked link) opens the panel straight from the URL; read on
   // the client because the search string only carries the real address after hydration.

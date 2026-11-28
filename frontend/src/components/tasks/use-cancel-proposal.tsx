@@ -21,7 +21,7 @@ export function useCancelProposal({
 }: {
   onCancelled: (proposal: ProposalToCancel) => void;
   /** `stale`: the admin decided or it is gone, so the list on screen is out of date. */
-  onFailed: (message: string, stale: boolean) => void;
+  onFailed: (message: string, stale: boolean, proposal: ProposalToCancel) => void;
 }): {
   ask: (proposal: ProposalToCancel) => void;
   /** Whether this proposal's withdrawal is on its way, so its button waits for the answer. */
@@ -51,7 +51,7 @@ export function useCancelProposal({
     const result = await cancelProposal(proposal.id);
     settle(proposal.id);
     if (result.ok) onCancelled(proposal);
-    else onFailed(result.message, result.stale);
+    else onFailed(result.message, result.stale, proposal);
   }
 
   const dialog = asking ? (
